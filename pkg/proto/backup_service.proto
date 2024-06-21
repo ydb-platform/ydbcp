@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package ydbcp;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+
+// A set of methods for managing backups;.
+service BackupService {
+  // Returns the specified backup.
+  rpc Get (GetBackupRequest) returns (Backup);
+}
+
+message GetBackupRequest {
+  string backup_id = 1;
+}
+
+message Backup {
+  string backup_id = 1;
+}
