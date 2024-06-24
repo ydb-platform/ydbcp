@@ -8,6 +8,7 @@ import (
 	"log"
 	"net"
 	configInit "ydbcp/internal/config"
+	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/ydbcp-db-connector"
 
@@ -30,7 +31,10 @@ type server struct {
 // Get implements BackupService
 func (s *server) Get(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
 	log.Printf("Received: %v", in.GetBackupId())
-	//s.driver.SelectRunningBackups()
+	backups := s.driver.SelectBackups(ctx, types.STATUS_PENDING)
+	for _, backup := range backups {
+		fmt.Println("backup:", backup.Backup_id.String(), *backup.Operation_id)
+	}
 	return &pb.Backup{BackupId: in.GetBackupId()}, nil
 }
 
@@ -68,8 +72,11 @@ func main() {
 	}
 	s := grpc.NewServer()
 	reflection.Register(s)
-	//pb.RegisterBackupServiceServer(s, &server{driver: ydbcp_db_connector.MakeYdbDriver(config)})
-	pb.RegisterBackupServiceServer(s, &server{})
+
+	ydbServer := server{driver: ydbcp_db_connector.NewYdbDriver(config)}
+	defer ydbServer.driver.Close()
+
+	pb.RegisterBackupServiceServer(s, &ydbServer)
 
 	log.Printf("server listening at %v", lis.Addr())
 

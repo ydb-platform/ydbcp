@@ -1,0 +1,8 @@
+UPSERT INTO `OperationTypes` (code, description, is_cancellable) VALUES
+    ('TB', 'Take backup', True),
+    ('RB', 'Restore backup', True),
+    ('RM', 'Remove backup', False);
+
+--for testing purposes
+UPSERT INTO `Backups` (id, container_id, database, operation_id, status) VALUES
+    (Uuid('12345678-1234-5678-1234-567812345678'), '', '', '12345', 'PENDING');

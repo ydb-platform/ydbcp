@@ -3,7 +3,6 @@ package ydbcp_db_connector
 import (
 	"context"
 	"errors"
-	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
@@ -11,6 +10,7 @@ import (
 	"go.uber.org/zap"
 	"ydbcp/internal/config"
 	"ydbcp/internal/types"
+	"ydbcp/internal/yql/queries"
 
 	"ydbcp/internal/util/xlog"
 )
@@ -25,20 +25,21 @@ var (
 )
 
 type YdbDriver interface {
-	SelectRunningBackups() chan types.Backup
+	SelectBackups(ctx context.Context, backupStatus string) []types.Backup
+	Close()
 }
 
 type YdbDriverImpl struct {
-	tableClient table.Client
+	ydbDriver *ydb.Driver
 }
 
-func MakeYdbDriver(config config.Config) *YdbDriverImpl {
+func NewYdbDriver(config config.Config) *YdbDriverImpl {
 	p := new(YdbDriverImpl)
-	p.tableClient = InitTableClient(config.YdbcpDbConnectionString)
+	p.ydbDriver = InitDriver(config.YdbcpDbConnectionString)
 	return p
 }
 
-func InitTableClient(dsn string) table.Client {
+func InitDriver(dsn string) *ydb.Driver {
 	ctx := context.Background()
 
 	opts := []ydb.Option{
@@ -52,37 +53,30 @@ func InitTableClient(dsn string) table.Client {
 		xlog.Error(ctx, "Error connecting to YDB", zap.String("message", err.Error()))
 		return nil
 	}
-	// driver must be closed when done
-	defer func(db *ydb.Driver, ctx context.Context) {
-		err := db.Close(ctx)
-		if err != nil {
-			xlog.Error(ctx, "Error closing YDB driver")
-		}
-	}(db, ctx)
-	return db.Table()
+
+	return db
 }
 
-func (d YdbDriverImpl) SelectRunningBackups() chan types.Backup {
+func (d YdbDriverImpl) Close() {
 	ctx := context.Background()
-	backups := make(chan types.Backup)
-	err := d.tableClient.Do(ctx, func(ctx context.Context, s table.Session) (err error) {
+	err := d.ydbDriver.Close(ctx)
+	if err != nil {
+		xlog.Error(ctx, "Error closing YDB driver")
+	}
+}
+
+func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) []types.Backup {
+	var backups []types.Backup
+	err := d.ydbDriver.Table().Do(ctx, func(ctx context.Context, s table.Session) (err error) {
 		var (
 			res          result.Result
-			backup_id    uuid.UUID
-			operation_id uint64
+			backup_id    types.ObjectID
+			operation_id *string
 		)
 		_, res, err = s.Execute(
 			ctx,
 			readTx,
-			`
-			SELECT
-				backup_id,
-		 		operation_id,
-			FROM
-				Backups
-			WHERE
-				status = "PENDING";
-      		`, table.NewQueryParameters())
+			queries.SelectBackupsQuery(backupStatus), table.NewQueryParameters())
 		if err != nil {
 			return err
 		}
@@ -93,21 +87,18 @@ func (d YdbDriverImpl) SelectRunningBackups() chan types.Backup {
 			}
 		}(res) // result must be closed
 		if res.ResultSetCount() != 1 {
-			return errors.New("Expected 1 result set")
+			return errors.New("expected 1 result set")
 		}
-
 		for res.NextResultSet(ctx) {
 			for res.NextRow() {
-				// use ScanNamed to pass column names from the scan string,
-				// addresses (and data types) to be assigned the query results
 				err = res.ScanNamed(
-					named.Optional("backup_id", &backup_id),
+					named.Required("id", &backup_id),
 					named.Optional("operation_id", &operation_id),
 				)
 				if err != nil {
 					return err
 				}
-				backups <- types.Backup{Backup_id: backup_id, Operation_id: operation_id}
+				backups = append(backups, types.Backup{Backup_id: backup_id, Operation_id: operation_id})
 			}
 		}
 		return res.Err()
