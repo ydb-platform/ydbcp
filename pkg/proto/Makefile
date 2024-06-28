@@ -22,4 +22,4 @@ $(PROTOC_GEN_GO):
 	go get -u google.golang.org/protobuf/protoc-gen-go
 
 %.pb.go: %.proto | $(PROTOC_GEN_GO) $(PROTOC)
-	protoc --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative $<
+	protoc -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative $<
