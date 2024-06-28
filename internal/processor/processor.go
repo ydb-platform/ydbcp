@@ -102,11 +102,11 @@ func (o *OperationProcessorImpl) processOperations() {
 		return
 	}
 	for _, op := range operations {
-		o.launchOperation(ctx, op)
+		o.processOperation(ctx, op)
 	}
 }
 
-func (o *OperationProcessorImpl) launchOperation(ctx context.Context, op types.Operation) {
+func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.Operation) {
 	if _, exist := o.runningOperations[op.Id]; exist {
 		xlog.Debug(ctx, "operation already running", zap.String("operation", op.String()))
 		return
