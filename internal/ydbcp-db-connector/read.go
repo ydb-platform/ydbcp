@@ -3,14 +3,15 @@ package ydbcp_db_connector
 import (
 	"context"
 	"errors"
+	"ydbcp/internal/config"
+	"ydbcp/internal/types"
+	"ydbcp/internal/yql/queries"
+
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 	"go.uber.org/zap"
-	"ydbcp/internal/config"
-	"ydbcp/internal/types"
-	"ydbcp/internal/yql/queries"
 
 	"ydbcp/internal/util/xlog"
 )
@@ -24,8 +25,13 @@ var (
 	)
 )
 
+var ErrUnimplemented = errors.New("unimplemented")
+
 type YdbDriver interface {
-	SelectBackups(ctx context.Context, backupStatus string) []types.Backup
+	SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error)
+	ActiveOperations(context.Context) ([]types.Operation, error)
+	UpdateOperation(context.Context, types.Operation) error
+	CreateOperation(context.Context, types.Operation) (types.ObjectID, error)
 	Close()
 }
 
@@ -65,7 +71,7 @@ func (d YdbDriverImpl) Close() {
 	}
 }
 
-func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) []types.Backup {
+func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error) {
 	var backups []types.Backup
 	err := d.ydbDriver.Table().Do(ctx, func(ctx context.Context, s table.Session) (err error) {
 		var (
@@ -105,6 +111,19 @@ func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) [
 	})
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.String("message", err.Error()))
+		return nil, err
 	}
-	return backups
+	return backups, nil
+}
+
+func (d YdbDriverImpl) ActiveOperations(context.Context) ([]types.Operation, error) {
+	return []types.Operation{}, ErrUnimplemented
+}
+
+func (d YdbDriverImpl) UpdateOperation(context.Context, types.Operation) error {
+	return ErrUnimplemented
+}
+
+func (d YdbDriverImpl) CreateOperation(context.Context, types.Operation) (types.ObjectID, error) {
+	return types.GenerateObjectID(), ErrUnimplemented
 }

@@ -1,6 +1,10 @@
 package types
 
-import "github.com/google/uuid"
+import (
+	"fmt"
+
+	"github.com/google/uuid"
+)
 
 type ObjectID uuid.UUID
 
@@ -32,4 +36,35 @@ const (
 type Backup struct {
 	Backup_id    ObjectID
 	Operation_id *string
+}
+
+type OperationType string
+type OperationState string
+type Operation struct {
+	Id      ObjectID
+	Type    OperationType
+	State   string
+	Message string
+}
+
+const (
+	OperationStateUnknown    = "Unknown"
+	OperationStatePending    = "Pending"
+	OperationStateDone       = "Done"
+	OperationStateError      = "Error"
+	OperationStateCancelling = "Cancelling"
+	OperationStateCancelled  = "Cancelled"
+)
+
+func (o Operation) String() string {
+	return fmt.Sprintf(
+		"Operation, id %s, type %s, state %s",
+		o.Id.String(),
+		o.Type,
+		o.State,
+	)
+}
+
+func (o Operation) IsActive() bool {
+	return o.State == OperationStatePending || o.State == OperationStateCancelling
 }

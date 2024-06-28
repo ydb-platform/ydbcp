@@ -1,0 +1,9 @@
+TOPTARGETS := all
+
+SUBDIRS := pkg/proto
+
+$(TOPTARGETS): $(SUBDIRS)
+$(SUBDIRS):
+	$(MAKE) -C $@ $(MAKECMDGOALS)
+
+.PHONY: $(TOPTARGETS) $(SUBDIRS)
