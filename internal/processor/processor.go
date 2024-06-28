@@ -14,9 +14,10 @@ import (
 )
 
 type OperationProcessorImpl struct {
-	ctx    context.Context
-	wg     *sync.WaitGroup
-	period time.Duration
+	ctx                          context.Context
+	wg                           *sync.WaitGroup
+	period                       time.Duration
+	handleOperationResultTimeout time.Duration
 
 	tickerProvider ticker.TickerProvider
 	handlers       OperationHandlerRegistry
@@ -43,6 +44,11 @@ func WithTickerProvider(ticketProvider ticker.TickerProvider) Option {
 		o.tickerProvider = ticketProvider
 	}
 }
+func WithHandleOperationResultTimeout(timeout time.Duration) Option {
+	return func(o *OperationProcessorImpl) {
+		o.handleOperationResultTimeout = timeout
+	}
+}
 
 func NewOperationProcessor(
 	ctx context.Context,
@@ -52,14 +58,15 @@ func NewOperationProcessor(
 	options ...Option,
 ) *OperationProcessorImpl {
 	op := &OperationProcessorImpl{
-		ctx:               ctx,
-		period:            time.Duration(time.Second * 10),
-		wg:                wg,
-		handlers:          handlers,
-		db:                db,
-		tickerProvider:    ticker.NewRealTicker,
-		runningOperations: make(map[types.ObjectID]bool),
-		results:           make(chan OperationHandlerResult),
+		ctx:                          ctx,
+		period:                       time.Second * 10,
+		handleOperationResultTimeout: time.Second * 10,
+		wg:                           wg,
+		handlers:                     handlers,
+		db:                           db,
+		tickerProvider:               ticker.NewRealTicker,
+		runningOperations:            make(map[types.ObjectID]bool),
+		results:                      make(chan OperationHandlerResult),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -118,7 +125,7 @@ func (o *OperationProcessorImpl) launchOperation(ctx context.Context, op types.O
 }
 
 func (o *OperationProcessorImpl) handleOperationResult(result OperationHandlerResult) {
-	ctx, cancel := context.WithTimeout(o.ctx, time.Duration(time.Second*10))
+	ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationResultTimeout)
 	defer cancel()
 
 	xlog.Debug(
