@@ -37,13 +37,13 @@ type server struct {
 // Get implements BackupService
 func (s *server) Get(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
 	log.Printf("Received: %v", in.GetBackupId())
-	backups, err := s.driver.SelectBackups(ctx, types.STATUS_PENDING)
+	backups, err := s.driver.SelectBackups(ctx, types.StatePending)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		return nil, err
 	}
 	for _, backup := range backups {
-		fmt.Println("backup:", backup.Backup_id.String(), *backup.Operation_id)
+		fmt.Println("backup:", backup.Id.String(), backup.OperationId.String())
 	}
 	return &pb.Backup{BackupId: in.GetBackupId()}, nil
 }

@@ -5,4 +5,4 @@ UPSERT INTO `OperationTypes` (code, description, is_cancellable) VALUES
 
 --for testing purposes
 UPSERT INTO `Backups` (id, container_id, database, operation_id, status) VALUES
-    (Uuid('12345678-1234-5678-1234-567812345678'), '', '', '12345', 'PENDING');
+    (Uuid('12345678-1234-5678-1234-567812345678'), '', '', Uuid('12345678-1234-5678-1234-567812345678'), 'Pending');
