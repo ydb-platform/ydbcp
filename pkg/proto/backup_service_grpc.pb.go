@@ -19,15 +19,29 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BackupService_Get_FullMethodName = "/ydbcp.BackupService/Get"
+	BackupService_ListBackups_FullMethodName     = "/ydbcp.BackupService/ListBackups"
+	BackupService_GetBackup_FullMethodName       = "/ydbcp.BackupService/GetBackup"
+	BackupService_MakeBackup_FullMethodName      = "/ydbcp.BackupService/MakeBackup"
+	BackupService_DeleteBackup_FullMethodName    = "/ydbcp.BackupService/DeleteBackup"
+	BackupService_MakeRestore_FullMethodName     = "/ydbcp.BackupService/MakeRestore"
+	BackupService_ListOperations_FullMethodName  = "/ydbcp.BackupService/ListOperations"
+	BackupService_CancelOperation_FullMethodName = "/ydbcp.BackupService/CancelOperation"
+	BackupService_GetOperation_FullMethodName    = "/ydbcp.BackupService/GetOperation"
 )
 
 // BackupServiceClient is the client API for BackupService service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BackupServiceClient interface {
+	ListBackups(ctx context.Context, in *ListBackupsRequest, opts ...grpc.CallOption) (*ListBackupsResponse, error)
 	// Returns the specified backup.
-	Get(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (*Backup, error)
+	GetBackup(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (*Backup, error)
+	MakeBackup(ctx context.Context, in *MakeBackupRequest, opts ...grpc.CallOption) (*Operation, error)
+	DeleteBackup(ctx context.Context, in *DeleteBackupRequest, opts ...grpc.CallOption) (*Operation, error)
+	MakeRestore(ctx context.Context, in *MakeRestoreRequest, opts ...grpc.CallOption) (*Operation, error)
+	ListOperations(ctx context.Context, in *ListOperationsRequest, opts ...grpc.CallOption) (*ListOperationsResponse, error)
+	CancelOperation(ctx context.Context, in *CancelOperationRequest, opts ...grpc.CallOption) (*Operation, error)
+	GetOperation(ctx context.Context, in *GetOperationRequest, opts ...grpc.CallOption) (*Operation, error)
 }
 
 type backupServiceClient struct {
@@ -38,9 +52,72 @@ func NewBackupServiceClient(cc grpc.ClientConnInterface) BackupServiceClient {
 	return &backupServiceClient{cc}
 }
 
-func (c *backupServiceClient) Get(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (*Backup, error) {
+func (c *backupServiceClient) ListBackups(ctx context.Context, in *ListBackupsRequest, opts ...grpc.CallOption) (*ListBackupsResponse, error) {
+	out := new(ListBackupsResponse)
+	err := c.cc.Invoke(ctx, BackupService_ListBackups_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) GetBackup(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (*Backup, error) {
 	out := new(Backup)
-	err := c.cc.Invoke(ctx, BackupService_Get_FullMethodName, in, out, opts...)
+	err := c.cc.Invoke(ctx, BackupService_GetBackup_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) MakeBackup(ctx context.Context, in *MakeBackupRequest, opts ...grpc.CallOption) (*Operation, error) {
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, BackupService_MakeBackup_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) DeleteBackup(ctx context.Context, in *DeleteBackupRequest, opts ...grpc.CallOption) (*Operation, error) {
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, BackupService_DeleteBackup_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) MakeRestore(ctx context.Context, in *MakeRestoreRequest, opts ...grpc.CallOption) (*Operation, error) {
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, BackupService_MakeRestore_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) ListOperations(ctx context.Context, in *ListOperationsRequest, opts ...grpc.CallOption) (*ListOperationsResponse, error) {
+	out := new(ListOperationsResponse)
+	err := c.cc.Invoke(ctx, BackupService_ListOperations_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) CancelOperation(ctx context.Context, in *CancelOperationRequest, opts ...grpc.CallOption) (*Operation, error) {
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, BackupService_CancelOperation_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *backupServiceClient) GetOperation(ctx context.Context, in *GetOperationRequest, opts ...grpc.CallOption) (*Operation, error) {
+	out := new(Operation)
+	err := c.cc.Invoke(ctx, BackupService_GetOperation_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -51,8 +128,15 @@ func (c *backupServiceClient) Get(ctx context.Context, in *GetBackupRequest, opt
 // All implementations must embed UnimplementedBackupServiceServer
 // for forward compatibility
 type BackupServiceServer interface {
+	ListBackups(context.Context, *ListBackupsRequest) (*ListBackupsResponse, error)
 	// Returns the specified backup.
-	Get(context.Context, *GetBackupRequest) (*Backup, error)
+	GetBackup(context.Context, *GetBackupRequest) (*Backup, error)
+	MakeBackup(context.Context, *MakeBackupRequest) (*Operation, error)
+	DeleteBackup(context.Context, *DeleteBackupRequest) (*Operation, error)
+	MakeRestore(context.Context, *MakeRestoreRequest) (*Operation, error)
+	ListOperations(context.Context, *ListOperationsRequest) (*ListOperationsResponse, error)
+	CancelOperation(context.Context, *CancelOperationRequest) (*Operation, error)
+	GetOperation(context.Context, *GetOperationRequest) (*Operation, error)
 	mustEmbedUnimplementedBackupServiceServer()
 }
 
@@ -60,8 +144,29 @@ type BackupServiceServer interface {
 type UnimplementedBackupServiceServer struct {
 }
 
-func (UnimplementedBackupServiceServer) Get(context.Context, *GetBackupRequest) (*Backup, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Get not implemented")
+func (UnimplementedBackupServiceServer) ListBackups(context.Context, *ListBackupsRequest) (*ListBackupsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBackups not implemented")
+}
+func (UnimplementedBackupServiceServer) GetBackup(context.Context, *GetBackupRequest) (*Backup, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetBackup not implemented")
+}
+func (UnimplementedBackupServiceServer) MakeBackup(context.Context, *MakeBackupRequest) (*Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeBackup not implemented")
+}
+func (UnimplementedBackupServiceServer) DeleteBackup(context.Context, *DeleteBackupRequest) (*Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBackup not implemented")
+}
+func (UnimplementedBackupServiceServer) MakeRestore(context.Context, *MakeRestoreRequest) (*Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method MakeRestore not implemented")
+}
+func (UnimplementedBackupServiceServer) ListOperations(context.Context, *ListOperationsRequest) (*ListOperationsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListOperations not implemented")
+}
+func (UnimplementedBackupServiceServer) CancelOperation(context.Context, *CancelOperationRequest) (*Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CancelOperation not implemented")
+}
+func (UnimplementedBackupServiceServer) GetOperation(context.Context, *GetOperationRequest) (*Operation, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetOperation not implemented")
 }
 func (UnimplementedBackupServiceServer) mustEmbedUnimplementedBackupServiceServer() {}
 
@@ -76,20 +181,146 @@ func RegisterBackupServiceServer(s grpc.ServiceRegistrar, srv BackupServiceServe
 	s.RegisterService(&BackupService_ServiceDesc, srv)
 }
 
-func _BackupService_Get_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _BackupService_ListBackups_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBackupsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).ListBackups(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_ListBackups_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).ListBackups(ctx, req.(*ListBackupsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_GetBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(GetBackupRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BackupServiceServer).Get(ctx, in)
+		return srv.(BackupServiceServer).GetBackup(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: BackupService_Get_FullMethodName,
+		FullMethod: BackupService_GetBackup_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BackupServiceServer).Get(ctx, req.(*GetBackupRequest))
+		return srv.(BackupServiceServer).GetBackup(ctx, req.(*GetBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_MakeBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MakeBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).MakeBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_MakeBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).MakeBackup(ctx, req.(*MakeBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_DeleteBackup_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBackupRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).DeleteBackup(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_DeleteBackup_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).DeleteBackup(ctx, req.(*DeleteBackupRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_MakeRestore_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(MakeRestoreRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).MakeRestore(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_MakeRestore_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).MakeRestore(ctx, req.(*MakeRestoreRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_ListOperations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListOperationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).ListOperations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_ListOperations_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).ListOperations(ctx, req.(*ListOperationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_CancelOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CancelOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).CancelOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_CancelOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).CancelOperation(ctx, req.(*CancelOperationRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _BackupService_GetOperation_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOperationRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).GetOperation(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_GetOperation_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).GetOperation(ctx, req.(*GetOperationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -102,8 +333,36 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*BackupServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Get",
-			Handler:    _BackupService_Get_Handler,
+			MethodName: "ListBackups",
+			Handler:    _BackupService_ListBackups_Handler,
+		},
+		{
+			MethodName: "GetBackup",
+			Handler:    _BackupService_GetBackup_Handler,
+		},
+		{
+			MethodName: "MakeBackup",
+			Handler:    _BackupService_MakeBackup_Handler,
+		},
+		{
+			MethodName: "DeleteBackup",
+			Handler:    _BackupService_DeleteBackup_Handler,
+		},
+		{
+			MethodName: "MakeRestore",
+			Handler:    _BackupService_MakeRestore_Handler,
+		},
+		{
+			MethodName: "ListOperations",
+			Handler:    _BackupService_ListOperations_Handler,
+		},
+		{
+			MethodName: "CancelOperation",
+			Handler:    _BackupService_CancelOperation_Handler,
+		},
+		{
+			MethodName: "GetOperation",
+			Handler:    _BackupService_GetOperation_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

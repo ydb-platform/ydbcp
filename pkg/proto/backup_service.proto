@@ -3,16 +3,94 @@ syntax = "proto3";
 package ydbcp;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
 
+import "backup.proto";
+
 // A set of methods for managing backups;.
 service BackupService {
-  // Returns the specified backup.
-  rpc Get (GetBackupRequest) returns (Backup);
+    rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
+
+    // Returns the specified backup.
+    rpc GetBackup (GetBackupRequest) returns (Backup);
+
+    rpc MakeBackup(MakeBackupRequest) returns (Operation);
+
+    rpc DeleteBackup(DeleteBackupRequest) returns (Operation);
+
+    rpc MakeRestore(MakeRestoreRequest) returns (Operation);
+
+    rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
+
+    rpc CancelOperation(CancelOperationRequest) returns (Operation);
+
+    rpc GetOperation(GetOperationRequest) returns (Operation);
+}
+
+message ListBackupsRequest {
+    string container_id = 1;
+    string database_name_mask = 2;
+
+    // The maximum number of results per page that should be returned. If the number of available
+    // results is larger than `page_size`, the service returns a `next_page_token` that can be used
+    // to get the next page of results in subsequent ListBackups requests.
+    // Acceptable values are 0 to 1000, inclusive. Default value: 100.
+    uint32 page_size = 3; // [(value) = "0-1000"];
+
+    // Page token. Set `page_token` to the `next_page_token` returned by a previous ListBackups
+    // request to get the next page of results.
+    string page_token = 4; // [(length) = "<=100"];
+}
+
+message ListBackupsResponse {
+    repeated Backup backups = 1;
+    string next_page_token = 2;
 }
 
 message GetBackupRequest {
-  string backup_id = 1;
+    string id = 1;
 }
 
-message Backup {
-  string backup_id = 1;
+message MakeBackupRequest {
+    string container_id = 1;
+    string database = 2;
+    S3Settings s3 = 3;
+    repeated string paths = 4;
+}
+
+message DeleteBackupRequest {
+    string backup_id = 1;
+}
+
+message MakeRestoreRequest {
+    string container_id = 1;
+    string backup_id = 2;
+    string database = 3;
+    string path = 4;
+}
+
+message ListOperationsRequest {
+    string container_id = 1;
+    string database_name_mask = 2;
+
+    // The maximum number of results per page that should be returned. If the number of available
+    // results is larger than `page_size`, the service returns a `next_page_token` that can be used
+    // to get the next page of results in subsequent ListOperations requests.
+    // Acceptable values are 0 to 1000, inclusive. Default value: 100.
+    uint32 page_size = 3; // [(value) = "0-1000"];
+
+    // Page token. Set `page_token` to the `next_page_token` returned by a previous ListOperations
+    // request to get the next page of results.
+    string page_token = 4; // [(length) = "<=100"];
+}
+
+message ListOperationsResponse {
+    repeated Operation operations = 1;
+    string next_page_token = 2;
+}
+
+message CancelOperationRequest {
+    string operation_id = 1;
+}
+
+message GetOperationRequest {
+    string operation_id = 1;
 }
