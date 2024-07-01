@@ -13,7 +13,7 @@ CREATE TABLE Backups (
     status String,
 
     paths String,
-    operation_id String,
+    operation_id UUID,
 
     INDEX idx_container_id GLOBAL ON (container_id),
     INDEX idx_created_at GLOBAL ON (created_at),

@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"sync"
 	"testing"
 	"time"
@@ -31,7 +32,9 @@ func (c *FakeYdbConnector) SelectBackups(ctx context.Context, backupStatus strin
 	return []types.Backup{}, ydbcp_db_connector.ErrUnimplemented
 }
 
-func (c *FakeYdbConnector) Close() {
+func (c *FakeYdbConnector) Close() {}
+func (c *FakeYdbConnector) GetTableClient() table.Client {
+	return nil
 }
 
 func (c *FakeYdbConnector) ActiveOperations(_ context.Context) ([]types.Operation, error) {
@@ -94,7 +97,7 @@ func TestProcessor(t *testing.T) {
 	handlerCalled := make(chan struct{})
 	handlers.Add(operationTypeTB, func(ctx context.Context, op types.Operation) (types.Operation, error) {
 		xlog.Debug(ctx, "TB handler called for operation", zap.String("operation", op.String()))
-		op.State = types.OperationStateDone
+		op.State = types.StateDone
 		op.Message = "Success"
 		handlerCalled <- struct{}{}
 		return op, nil
@@ -123,7 +126,7 @@ func TestProcessor(t *testing.T) {
 		ctx,
 		types.Operation{
 			Type:  operationTypeTB,
-			State: types.OperationStatePending,
+			State: types.StatePending,
 		},
 	)
 
@@ -146,5 +149,5 @@ func TestProcessor(t *testing.T) {
 
 	op, err := db.GetOperation(ctx, opId)
 	assert.Empty(t, err)
-	assert.Equal(t, op.State, types.OperationStateDone, "operation state should be Done")
+	assert.Equal(t, op.State, types.StateDone, "operation state should be Done")
 }
