@@ -119,7 +119,7 @@ func TestProcessor(t *testing.T) {
 	t0 := clock.Now()
 	fakeTicker.Send(t0)
 
-	opId, _ := db.CreateOperation(
+	opID, _ := db.CreateOperation(
 		ctx,
 		types.Operation{
 			Type:  operationTypeTB,
@@ -144,7 +144,7 @@ func TestProcessor(t *testing.T) {
 	cancel()
 	wg.Wait()
 
-	op, err := db.GetOperation(ctx, opId)
+	op, err := db.GetOperation(ctx, opID)
 	assert.Empty(t, err)
 	assert.Equal(t, op.State, types.OperationStateDone, "operation state should be Done")
 }

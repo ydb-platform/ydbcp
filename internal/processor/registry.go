@@ -37,7 +37,6 @@ func (r OperationHandlerRegistryImpl) Add(
 func (r OperationHandlerRegistryImpl) Call(
 	ctx context.Context,
 	op types.Operation,
-
 ) (types.Operation, error) {
 	operationType := op.Type
 	handler, ok := r.handlers[operationType]
