@@ -14,32 +14,54 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"time"
-	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 )
 
 type ClientDbConnector interface {
-	ExportToS3(ctx context.Context, clientDb types.YdbConnectionParams, s3Settings *Ydb_Export.ExportToS3Settings) (string, error)
-	ImportFromS3(ctx context.Context, clientDb types.YdbConnectionParams, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error)
-	GetOperationStatus(ctx context.Context, clientDb types.YdbConnectionParams, operationId string) (types.YdbOperationInfo, error)
+	Open(ctx context.Context, dsn string) (*ydb.Driver, error)
+	Close(ctx context.Context, clientDb *ydb.Driver) error
+
+	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error)
+	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error)
+	GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error)
+	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
 }
 
 type ClientDbConnectorImpl struct {
 }
 
-func (d *ClientDbConnectorImpl) ExportToS3(ctx context.Context, clientDb types.YdbConnectionParams, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
-	clientDbConnectionString := clientDb.Endpoint + clientDb.DatabaseName
-
-	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", clientDbConnectionString))
-	db, connErr := ydb.Open(ctx, clientDbConnectionString, ydb.WithAnonymousCredentials())
+func (d *ClientDbConnectorImpl) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
+	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
+	db, connErr := ydb.Open(ctx, dsn, ydb.WithAnonymousCredentials())
 
 	if connErr != nil {
-		return "", fmt.Errorf("error connecting to client db: %s", connErr.Error())
+		return nil, fmt.Errorf("error connecting to client db: %s", connErr.Error())
 	}
 
-	defer func() { _ = db.Close(ctx) }()
+	return db, nil
+}
 
-	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(db))
+func (d *ClientDbConnectorImpl) Close(ctx context.Context, clientDb *ydb.Driver) error {
+	if clientDb == nil {
+		return fmt.Errorf("unititialized client db driver")
+	}
+
+	xlog.Info(ctx, "Closing client db driver")
+	err := clientDb.Close(ctx)
+
+	if err != nil {
+		return fmt.Errorf("error closing client db driver: %s", err.Error())
+	}
+
+	return nil
+}
+
+func (d *ClientDbConnectorImpl) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+	if clientDb == nil {
+		return "", fmt.Errorf("unititialized client db driver")
+	}
+
+	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(ctx, "Exporting data to s3",
 		zap.String("endpoint", s3Settings.Endpoint),
 		zap.String("bucket", s3Settings.Bucket),
@@ -69,19 +91,12 @@ func (d *ClientDbConnectorImpl) ExportToS3(ctx context.Context, clientDb types.Y
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientDbConnectorImpl) ImportFromS3(ctx context.Context, clientDb types.YdbConnectionParams, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
-	clientDbConnectionString := clientDb.Endpoint + clientDb.DatabaseName
-
-	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", clientDbConnectionString))
-	db, connErr := ydb.Open(ctx, clientDbConnectionString, ydb.WithAnonymousCredentials())
-
-	if connErr != nil {
-		return "", fmt.Errorf("error connecting to client db: %s", connErr.Error())
+func (d *ClientDbConnectorImpl) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
+	if clientDb == nil {
+		return "", fmt.Errorf("unititialized client db driver")
 	}
 
-	defer func() { _ = db.Close(ctx) }()
-
-	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(db))
+	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(ctx, "Importing data from s3",
 		zap.String("endpoint", s3Settings.Endpoint),
 		zap.String("bucket", s3Settings.Bucket),
@@ -112,19 +127,12 @@ func (d *ClientDbConnectorImpl) ImportFromS3(ctx context.Context, clientDb types
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientDbConnectorImpl) GetOperationStatus(ctx context.Context, clientDb types.YdbConnectionParams, operationId string) (types.YdbOperationInfo, error) {
-	clientDbConnectionString := clientDb.Endpoint + clientDb.DatabaseName
-
-	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", clientDbConnectionString))
-	db, connErr := ydb.Open(ctx, clientDbConnectionString, ydb.WithAnonymousCredentials())
-
-	if connErr != nil {
-		return types.YdbOperationInfo{}, fmt.Errorf("error connecting to client db: %s", connErr.Error())
+func (d *ClientDbConnectorImpl) GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
 	}
 
-	defer func() { _ = db.Close(ctx) }()
-
-	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(db))
+	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(ctx, "Requesting operation status",
 		zap.String("id", operationId),
 	)
@@ -137,13 +145,32 @@ func (d *ClientDbConnectorImpl) GetOperationStatus(ctx context.Context, clientDb
 	)
 
 	if err != nil {
-		return types.YdbOperationInfo{}, fmt.Errorf("error requesting operation status: %s", err.Error())
+		return nil, fmt.Errorf("error requesting operation status: %s", err.Error())
 	}
 
-	return types.YdbOperationInfo{
-		Id:     response.GetOperation().GetId(),
-		Ready:  response.GetOperation().GetReady(),
-		Status: response.GetOperation().GetStatus(),
-		Issues: response.GetOperation().GetIssues(),
-	}, nil
+	return response, nil
+}
+
+func (d *ClientDbConnectorImpl) ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
+	}
+
+	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
+	xlog.Info(ctx, "Forgetting operation",
+		zap.String("id", operationId),
+	)
+
+	response, err := client.ForgetOperation(
+		ctx,
+		&Ydb_Operations.ForgetOperationRequest{
+			Id: operationId,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("error forgetting operation: %s", err.Error())
+	}
+
+	return response, nil
 }

@@ -5,6 +5,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"sync"
 	"testing"
 	"time"
@@ -47,7 +48,7 @@ func TestTBOperationHandler(t *testing.T) {
 		Status:      types.BackupStatePending,
 	}
 
-	ydbOp := types.YdbOperationInfo{
+	ydbOp := &Ydb_Operations.Operation{
 		Id:     "1",
 		Ready:  true,
 		Status: Ydb.StatusIds_SUCCESS,
@@ -56,7 +57,7 @@ func TestTBOperationHandler(t *testing.T) {
 
 	opMap := make(map[types.ObjectID]types.Operation)
 	backupMap := make(map[types.ObjectID]types.Backup)
-	ydbOpMap := make(map[string]types.YdbOperationInfo)
+	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupId] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
