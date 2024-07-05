@@ -2,8 +2,9 @@ package types
 
 import (
 	"fmt"
-
 	"github.com/google/uuid"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 )
 
 type ObjectID uuid.UUID
@@ -29,13 +30,9 @@ func GenerateObjectID() ObjectID {
 	return ObjectID(uuid.New())
 }
 
-const (
-	STATUS_PENDING = "PENDING"
-)
-
 type Backup struct {
-	Backup_id    ObjectID
-	Operation_id *string
+	Id          ObjectID
+	OperationId ObjectID
 }
 
 type OperationType string
@@ -48,12 +45,12 @@ type Operation struct {
 }
 
 const (
-	OperationStateUnknown    = "Unknown"
-	OperationStatePending    = "Pending"
-	OperationStateDone       = "Done"
-	OperationStateError      = "Error"
-	OperationStateCancelling = "Cancelling"
-	OperationStateCancelled  = "Cancelled"
+	StateUnknown    = "Unknown"
+	StatePending    = "Pending"
+	StateDone       = "Done"
+	StateError      = "Error"
+	StateCancelling = "Cancelling"
+	StateCancelled  = "Cancelled"
 )
 
 func (o Operation) String() string {
@@ -66,5 +63,18 @@ func (o Operation) String() string {
 }
 
 func (o Operation) IsActive() bool {
-	return o.State == OperationStatePending || o.State == OperationStateCancelling
+	return o.State == StatePending || o.State == StateCancelling
+}
+
+type YdbConnectionParams struct {
+	Endpoint     string
+	DatabaseName string
+	// TODO: add auth params
+}
+
+type YdbOperationInfo struct {
+	Id     string
+	Ready  bool
+	Status Ydb.StatusIds_StatusCode
+	Issues []*Ydb_Issue.IssueMessage
 }

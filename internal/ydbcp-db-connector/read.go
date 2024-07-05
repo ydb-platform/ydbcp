@@ -10,7 +10,6 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 	"go.uber.org/zap"
 
 	"ydbcp/internal/util/xlog"
@@ -28,6 +27,7 @@ var (
 var ErrUnimplemented = errors.New("unimplemented")
 
 type YdbDriver interface {
+	GetTableClient() table.Client
 	SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
 	UpdateOperation(context.Context, types.Operation) error
@@ -63,6 +63,10 @@ func InitDriver(dsn string) *ydb.Driver {
 	return db
 }
 
+func (d YdbDriverImpl) GetTableClient() table.Client {
+	return d.ydbDriver.Table()
+}
+
 func (d YdbDriverImpl) Close() {
 	ctx := context.Background()
 	err := d.ydbDriver.Close(ctx)
@@ -71,23 +75,23 @@ func (d YdbDriverImpl) Close() {
 	}
 }
 
-func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error) {
-	var backups []types.Backup
-	err := d.ydbDriver.Table().Do(ctx, func(ctx context.Context, s table.Session) (err error) {
+func DoEntitySelect[T any](ctx context.Context, d YdbDriver, query string, readLambda ReadResultSet[T]) ([]T, error) {
+	var (
+		entities []T
+	)
+	err := d.GetTableClient().Do(ctx, func(ctx context.Context, s table.Session) (err error) {
 		var (
-			res          result.Result
-			backup_id    types.ObjectID
-			operation_id *string
+			res result.Result
 		)
 		_, res, err = s.Execute(
 			ctx,
 			readTx,
-			queries.SelectBackupsQuery(backupStatus), table.NewQueryParameters())
+			query, table.NewQueryParameters())
 		if err != nil {
 			return err
 		}
 		defer func(res result.Result) {
-			err := res.Close()
+			err = res.Close()
 			if err != nil {
 				xlog.Error(ctx, "Error closing transaction result")
 			}
@@ -97,14 +101,11 @@ func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) (
 		}
 		for res.NextResultSet(ctx) {
 			for res.NextRow() {
-				err = res.ScanNamed(
-					named.Required("id", &backup_id),
-					named.Optional("operation_id", &operation_id),
-				)
-				if err != nil {
-					return err
+				entity, readErr := readLambda(res)
+				if readErr != nil {
+					return readErr
 				}
-				backups = append(backups, types.Backup{Backup_id: backup_id, Operation_id: operation_id})
+				entities = append(entities, *entity)
 			}
 		}
 		return res.Err()
@@ -113,11 +114,25 @@ func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) (
 		xlog.Error(ctx, "Error executing query", zap.String("message", err.Error()))
 		return nil, err
 	}
-	return backups, nil
+	return entities, nil
 }
 
-func (d YdbDriverImpl) ActiveOperations(context.Context) ([]types.Operation, error) {
-	return []types.Operation{}, ErrUnimplemented
+func (d YdbDriverImpl) SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error) {
+	return DoEntitySelect[types.Backup](
+		ctx,
+		d,
+		queries.SelectEntitiesQuery("Backups", backupStatus),
+		ReadBackupFromResultSet,
+	)
+}
+
+func (d YdbDriverImpl) ActiveOperations(ctx context.Context) ([]types.Operation, error) {
+	return DoEntitySelect[types.Operation](
+		ctx,
+		d,
+		queries.SelectEntitiesQuery("Operations", types.StatePending, types.StateCancelling),
+		ReadOperationFromResultSet,
+	)
 }
 
 func (d YdbDriverImpl) UpdateOperation(context.Context, types.Operation) error {
