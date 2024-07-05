@@ -2,78 +2,17 @@ package processor
 
 import (
 	"context"
-	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 	"sync"
 	"testing"
 	"time"
-
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
 	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
-
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
-
-type FakeYdbConnector struct {
-	operations map[types.ObjectID]types.Operation
-}
-
-func NewFakeYdbConnector() *FakeYdbConnector {
-	return &FakeYdbConnector{
-		operations: make(map[types.ObjectID]types.Operation),
-	}
-}
-
-func (c *FakeYdbConnector) SelectBackups(ctx context.Context, backupStatus string) ([]types.Backup, error) {
-	return []types.Backup{}, ydbcp_db_connector.ErrUnimplemented
-}
-
-func (c *FakeYdbConnector) Close() {}
-func (c *FakeYdbConnector) GetTableClient() table.Client {
-	return nil
-}
-
-func (c *FakeYdbConnector) ActiveOperations(_ context.Context) ([]types.Operation, error) {
-	operations := make([]types.Operation, 0, len(c.operations))
-	for _, op := range c.operations {
-		if op.IsActive() {
-			operations = append(operations, op)
-		}
-	}
-	return operations, nil
-}
-
-func (c *FakeYdbConnector) UpdateOperation(_ context.Context, op types.Operation) error {
-	if _, exist := c.operations[op.Id]; !exist {
-		return fmt.Errorf("update nonexistent operation %s", op.String())
-	}
-	c.operations[op.Id] = op
-	return nil
-}
-
-func (c *FakeYdbConnector) CreateOperation(_ context.Context, op types.Operation) (types.ObjectID, error) {
-	var id types.ObjectID
-	for {
-		id = types.GenerateObjectID()
-		if _, exist := c.operations[id]; !exist {
-			break
-		}
-	}
-	op.Id = id
-	c.operations[id] = op
-	return id, nil
-}
-
-func (c *FakeYdbConnector) GetOperation(_ context.Context, operationID types.ObjectID) (types.Operation, error) {
-	if op, exist := c.operations[operationID]; exist {
-		return op, nil
-	}
-	return types.Operation{}, fmt.Errorf("operation not found, id %s", operationID.String())
-}
 
 func TestProcessor(t *testing.T) {
 	var wg sync.WaitGroup
@@ -91,17 +30,23 @@ func TestProcessor(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	db := NewFakeYdbConnector()
-	handlers := NewOperationHandlerRegistry()
+	db := ydbcp_db_connector.NewFakeYdbConnector()
+	handlers := NewOperationHandlerRegistry(db)
 	operationTypeTB := types.OperationType("TB")
 	handlerCalled := make(chan struct{})
-	handlers.Add(operationTypeTB, func(ctx context.Context, op types.Operation) (types.Operation, error) {
-		xlog.Debug(ctx, "TB handler called for operation", zap.String("operation", op.String()))
-		op.State = types.StateDone
-		op.Message = "Success"
-		handlerCalled <- struct{}{}
-		return op, nil
-	})
+	handlers.Add(
+		operationTypeTB,
+		func(ctx context.Context, op types.Operation) (types.Operation, error) {
+			xlog.Debug(
+				ctx, "TB handler called for operation",
+				zap.String("operation", types.OperationToString(op)),
+			)
+			op.SetState(types.OperationStateDone)
+			op.SetMessage("Success")
+			handlerCalled <- struct{}{}
+			return op, nil
+		},
+	)
 
 	_ = NewOperationProcessor(
 		ctx,
@@ -124,9 +69,9 @@ func TestProcessor(t *testing.T) {
 
 	opID, _ := db.CreateOperation(
 		ctx,
-		types.Operation{
+		&types.TakeBackupOperation{
 			Type:  operationTypeTB,
-			State: types.StatePending,
+			State: types.OperationStatePending,
 		},
 	)
 
@@ -149,5 +94,8 @@ func TestProcessor(t *testing.T) {
 
 	op, err := db.GetOperation(ctx, opID)
 	assert.Empty(t, err)
-	assert.Equal(t, op.State, types.StateDone, "operation state should be Done")
+	assert.Equal(
+		t, op.GetState(), types.OperationStateDone,
+		"operation state should be Done",
+	)
 }

@@ -34,10 +34,10 @@ type server struct {
 	driver ydbcp_db_connector.YdbDriver
 }
 
-// Get implements BackupService
-func (s *server) Get(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
+// GetBackup implements BackupService
+func (s *server) GetBackup(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
 	log.Printf("Received: %v", in.GetId())
-	backups, err := s.driver.SelectBackups(ctx, types.StatePending)
+	backups, err := s.driver.SelectBackups(ctx, types.BackupStatePending)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		return nil, err
@@ -51,7 +51,9 @@ func (s *server) Get(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, 
 func main() {
 	var confPath string
 
-	flag.StringVar(&confPath, "config", "cmd/ydbcp/config.yaml", "configuration file")
+	flag.StringVar(
+		&confPath, "config", "cmd/ydbcp/config.yaml", "configuration file",
+	)
 	flag.Parse()
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -75,9 +77,11 @@ func main() {
 	}
 	confStr, err := config.ToString()
 	if err == nil {
-		xlog.Debug(ctx, "Use configuration file",
+		xlog.Debug(
+			ctx, "Use configuration file",
 			zap.String("config_path", confPath),
-			zap.String("config", confStr))
+			zap.String("config", confStr),
+		)
 	}
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
@@ -96,7 +100,9 @@ func main() {
 	go func() {
 		defer wg.Done()
 
-		xlog.Info(ctx, "server listening", zap.String("address", lis.Addr().String()))
+		xlog.Info(
+			ctx, "server listening", zap.String("address", lis.Addr().String()),
+		)
 		if err := s.Serve(lis); err != nil {
 			xlog.Error(ctx, "failed to serve", zap.Error(err))
 		}

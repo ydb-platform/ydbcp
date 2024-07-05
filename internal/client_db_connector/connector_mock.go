@@ -20,10 +20,23 @@ type MockClientDbConnector struct {
 	operations map[string]types.YdbOperationInfo
 }
 
-func NewMockClientDbConnector() *MockClientDbConnector {
-	return &MockClientDbConnector{
+type Option func(*MockClientDbConnector)
+
+func NewMockClientDbConnector(options ...Option) *MockClientDbConnector {
+	connector := &MockClientDbConnector{
 		storage:    make(map[ObjectPath]bool),
 		operations: make(map[string]types.YdbOperationInfo),
+	}
+	for _, opt := range options {
+		opt(connector)
+	}
+	return connector
+
+}
+
+func WithOperations(operations map[string]types.YdbOperationInfo) Option {
+	return func(c *MockClientDbConnector) {
+		c.operations = operations
 	}
 }
 
