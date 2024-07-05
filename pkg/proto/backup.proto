@@ -1,0 +1,39 @@
+syntax = "proto3";
+
+package ydbcp;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+
+import "google/protobuf/timestamp.proto";
+
+message Backup {
+    enum Status {
+        STATUS_UNSPECIFIED = 0;
+        PENDING = 1;
+        AVAILABLE = 2;
+        ERROR = 3;
+        CANCELED = 4;
+        DELETED = 5;
+    }
+    string id = 1;
+    string container_id = 2;
+    string database_name = 3;
+    S3Location location = 4;
+    AuditInfo audit = 5;
+    int64 size = 6;
+    Status status = 7;
+    string message = 8;
+    google.protobuf.Timestamp expire_at = 9;
+}
+
+message S3Location {
+    string endpoint = 1;
+    string bucket = 2;
+    string region = 3;
+    string path_prefix = 4;
+}
+
+message AuditInfo {
+    string creator = 1;
+    google.protobuf.Timestamp created_at = 2;
+    google.protobuf.Timestamp completed_at = 3;
+}
