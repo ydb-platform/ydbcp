@@ -3,6 +3,8 @@ package types
 import (
 	"fmt"
 	"github.com/google/uuid"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 )
 
 type ObjectID uuid.UUID
@@ -62,4 +64,17 @@ func (o Operation) String() string {
 
 func (o Operation) IsActive() bool {
 	return o.State == StatePending || o.State == StateCancelling
+}
+
+type YdbConnectionParams struct {
+	Endpoint     string
+	DatabaseName string
+	// TODO: add auth params
+}
+
+type YdbOperationInfo struct {
+	Id     string
+	Ready  bool
+	Status Ydb.StatusIds_StatusCode
+	Issues []*Ydb_Issue.IssueMessage
 }
