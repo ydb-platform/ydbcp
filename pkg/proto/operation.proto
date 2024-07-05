@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package ydbcp;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+
+import "backup.proto";
+
+message Operation {
+    enum Status {
+        STATUS_UNSPECIFIED = 0;
+        PENDING = 1;
+        DONE = 2;
+        ERROR = 3;
+        CANCELLING = 4;
+        CANCELED = 5;
+    }
+    string id = 1;
+    string container_id = 2;
+    string type = 3;
+    string database_name = 4;
+    string ydb_server_operation_id = 5;
+    string backup_id = 6;
+    repeated string source_paths = 7;  // [(size) = "<=256"];
+    repeated string source_paths_to_exclude = 8;  // [(size) = "<=256"];
+    repeated string restore_paths = 9;  // [(size) = "<=256"];
+    AuditInfo audit = 10;
+    Status status = 11;
+    string message = 12;
+}

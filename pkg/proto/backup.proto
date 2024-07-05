@@ -15,51 +15,25 @@ message Backup {
         DELETED = 5;
     }
     string id = 1;
-    string source_database = 2;
-    string container_id = 3;
-    S3Settings s3 = 4;
+    string container_id = 2;
+    string database_name = 3;
+    S3Location location = 4;
     AuditInfo audit = 5;
-    Status status = 6;
-    string message = 7;
-    repeated string paths = 8;
-    string operation_id = 9;
+    int64 size = 6;
+    Status status = 7;
+    string message = 8;
+    google.protobuf.Timestamp expire_at = 9;
 }
 
-message S3Settings {
+message S3Location {
     string endpoint = 1;
     string bucket = 2;
-    string access_key = 3;
-    string secret_key = 4;
-    string region = 5;
-    string path_prefix = 6;
-    // uint32 number_of_retries = 7;
-    // string compression = 8;
+    string region = 3;
+    string path_prefix = 4;
 }
 
 message AuditInfo {
     string creator = 1;
     google.protobuf.Timestamp created_at = 2;
     google.protobuf.Timestamp completed_at = 3;
-    google.protobuf.Timestamp expired_at = 10;
-}
-
-message Operation {
-    enum Status {
-        STATUS_UNSPECIFIED = 0;
-        PENDING = 1;
-        DONE = 2;
-        ERROR = 3;
-        CANCELLING = 4;
-        CANCELED = 5;
-    }
-    string id = 1;
-    string type = 2;
-    string container_id = 3;
-    string database = 4;
-    string ydb_operation_id = 5;
-    string backup_id = 6;
-    repeated string paths = 7;
-    AuditInfo audit = 8;
-    Status status = 9;
-    string message = 10;
 }
