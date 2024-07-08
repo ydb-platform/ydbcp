@@ -4,9 +4,8 @@ import (
 	"context"
 	"fmt"
 	"ydbcp/internal/types"
+	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
 )
-
-type OperationHandler func(context.Context, types.Operation) (types.Operation, error)
 
 type OperationHandlerRegistry interface {
 	Add(types.OperationType, OperationHandler) error
@@ -15,11 +14,13 @@ type OperationHandlerRegistry interface {
 
 type OperationHandlerRegistryImpl struct {
 	handlers map[types.OperationType]OperationHandler
+	db       ydbcp_db_connector.YdbDriver
 }
 
-func NewOperationHandlerRegistry() *OperationHandlerRegistryImpl {
+func NewOperationHandlerRegistry(driver ydbcp_db_connector.YdbDriver) *OperationHandlerRegistryImpl {
 	return &OperationHandlerRegistryImpl{
 		handlers: make(map[types.OperationType]OperationHandler),
+		db:       driver,
 	}
 }
 
@@ -38,7 +39,7 @@ func (r OperationHandlerRegistryImpl) Call(
 	ctx context.Context,
 	op types.Operation,
 ) (types.Operation, error) {
-	operationType := op.Type
+	operationType := op.GetType()
 	handler, ok := r.handlers[operationType]
 	if !ok {
 		return op, fmt.Errorf("unknown OperationType %s", operationType)

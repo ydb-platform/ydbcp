@@ -25,6 +25,8 @@ type OperationProcessorImpl struct {
 
 	runningOperations map[types.ObjectID]bool
 	results           chan OperationHandlerResult
+	exportResults     bool
+	ResultCounter     chan bool
 }
 
 type OperationHandlerResult struct {
@@ -49,6 +51,11 @@ func WithHandleOperationResultTimeout(timeout time.Duration) Option {
 		o.handleOperationResultTimeout = timeout
 	}
 }
+func WithExportResults(exportResults bool) Option {
+	return func(o *OperationProcessorImpl) {
+		o.exportResults = exportResults
+	}
+}
 
 func NewOperationProcessor(
 	ctx context.Context,
@@ -67,6 +74,8 @@ func NewOperationProcessor(
 		tickerProvider:               ticker.NewRealTicker,
 		runningOperations:            make(map[types.ObjectID]bool),
 		results:                      make(chan OperationHandlerResult),
+		exportResults:                false,
+		ResultCounter:                make(chan bool),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -78,7 +87,9 @@ func NewOperationProcessor(
 
 func (o *OperationProcessorImpl) run() {
 	defer o.wg.Done()
-	xlog.Debug(o.ctx, "Operation Processor started", zap.Duration("period", o.period))
+	xlog.Debug(
+		o.ctx, "Operation Processor started", zap.Duration("period", o.period),
+	)
 	ticker := o.tickerProvider(o.period)
 	for {
 		select {
@@ -106,21 +117,38 @@ func (o *OperationProcessorImpl) processOperations() {
 	}
 }
 
-func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.Operation) {
-	if _, exist := o.runningOperations[op.Id]; exist {
-		xlog.Debug(ctx, "operation already running", zap.String("operation", op.String()))
+func (o *OperationProcessorImpl) processOperation(
+	ctx context.Context, op types.Operation,
+) {
+	if _, exist := o.runningOperations[op.GetId()]; exist {
+		xlog.Debug(
+			ctx, "operation already running",
+			zap.String("operation", types.OperationToString(op)),
+		)
 		return
 	}
-	o.runningOperations[op.Id] = true
+	o.runningOperations[op.GetId()] = true
 	o.wg.Add(1)
 	go func() {
 		defer o.wg.Done()
-		xlog.Debug(ctx, "start operation handler", zap.String("operation", op.String()))
+		xlog.Debug(
+			ctx, "start operation handler",
+			zap.String("operation", types.OperationToString(op)),
+		)
+		genericOp := types.GenericOperation{
+			Id:      op.GetId(),
+			Type:    op.GetType(),
+			State:   op.GetState(),
+			Message: op.GetMessage(),
+		}
 		result, err := o.handlers.Call(ctx, op)
 		if err != nil {
-			xlog.Error(ctx, "operation handler failed", zap.String("operation", op.String()))
+			xlog.Error(
+				ctx, "operation handler failed",
+				zap.String("operation", types.OperationToString(op)),
+			)
 		}
-		o.results <- OperationHandlerResult{old: op, new: result}
+		o.results <- OperationHandlerResult{old: &genericOp, new: result}
 	}()
 }
 
@@ -131,15 +159,21 @@ func (o *OperationProcessorImpl) handleOperationResult(result OperationHandlerRe
 	xlog.Debug(
 		ctx,
 		"operation handler result",
-		zap.String("oldOperation", result.old.String()),
-		zap.String("newOperation", result.new.String()),
+		zap.String("oldOperation", types.OperationToString(result.old)),
+		zap.String("newOperation", types.OperationToString(result.new)),
 	)
-	if _, exist := o.runningOperations[result.old.Id]; !exist {
-		xlog.Error(ctx, "got result from not running operation", zap.String("operation", result.old.String()))
+	if _, exist := o.runningOperations[result.old.GetId()]; !exist {
+		xlog.Error(
+			ctx, "got result from not running operation",
+			zap.String("operation", types.OperationToString(result.old)),
+		)
 		return
 	}
 	o.updateOperationState(ctx, result.old, result.new)
-	delete(o.runningOperations, result.old.Id)
+	if o.exportResults {
+		o.ResultCounter <- true
+	}
+	delete(o.runningOperations, result.old.GetId())
 }
 
 func (o *OperationProcessorImpl) updateOperationState(
@@ -148,22 +182,22 @@ func (o *OperationProcessorImpl) updateOperationState(
 	new types.Operation,
 ) error {
 	changed := false
-	if old.State != new.State {
+	if old.GetState() != new.GetState() {
 		xlog.Debug(
 			ctx,
 			"operation state changed",
-			zap.String("OperationId", old.Id.String()),
-			zap.String("oldState", old.State),
-			zap.String("newState", new.State),
+			zap.String("OperationId", old.GetId().String()),
+			zap.String("oldState", old.GetState()),
+			zap.String("newState", new.GetState()),
 		)
 		changed = true
 	}
-	if old.Message != new.Message {
+	if old.GetMessage() != new.GetMessage() {
 		xlog.Debug(
 			ctx,
 			"operation message changed",
-			zap.String("OperationId", old.Id.String()),
-			zap.String("Message", new.Message),
+			zap.String("OperationId", old.GetId().String()),
+			zap.String("Message", new.GetMessage()),
 		)
 		changed = true
 	}
