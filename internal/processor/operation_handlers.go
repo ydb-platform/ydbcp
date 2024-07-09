@@ -31,8 +31,17 @@ func TBOperationHandler(
 		return operation, errors.New("Passed wrong op type to TBOperationHandler")
 	}
 	tb := operation.(*types.TakeBackupOperation)
+
+	clientDbDriver, err := clientDb.Open(ctx, types.MakeYdbConnectionString(tb.YdbConnectionParams))
+	if err != nil {
+		xlog.Error(ctx, "error initializing client db driver", zap.Error(err))
+		return operation, nil
+	}
+
+	defer func() { _ = clientDb.Close(ctx, clientDbDriver) }()
+
 	//lookup YdbServerOperationStatus
-	opInfo, err := clientDb.GetOperationStatus(ctx, tb.YdbConnectionParams, tb.YdbOperationId)
+	opInfo, err := clientDb.GetOperationStatus(ctx, clientDbDriver, tb.YdbOperationId)
 	if err != nil {
 		//skip, write log
 		//upsert message into operation?
@@ -47,12 +56,12 @@ func TBOperationHandler(
 	switch tb.State {
 	case types.OperationStatePending:
 		{
-			if !opInfo.Ready {
+			if !opInfo.GetOperation().Ready {
 				//if pending: return op, nil
 				//if backup deadline failed: cancel operation. (skip for now)
 				return operation, nil
 			} else {
-				if opInfo.Status == Ydb.StatusIds_SUCCESS {
+				if opInfo.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 					//upsert into operations (id, status) values (id, done)?
 					//db.StartUpdate()
 					//.WithUpdateBackup()
@@ -73,23 +82,32 @@ func TBOperationHandler(
 						xlog.Error(ctx, "error updating backup table", zap.Error(err))
 						return operation, nil
 					} else {
-						if opInfo.Status == Ydb.StatusIds_CANCELLED {
+						if opInfo.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 							operation.SetMessage("got CANCELLED status for PENDING operation")
 						} else {
-							operation.SetMessage(types.IssuesToString(opInfo.Issues))
+							operation.SetMessage(types.IssuesToString(opInfo.GetOperation().Issues))
 						}
 						operation.SetState(types.OperationStateError)
 					}
+				}
+
+				response, err := clientDb.ForgetOperation(ctx, clientDbDriver, tb.YdbOperationId)
+				if err != nil {
+					xlog.Error(ctx, err.Error())
+				}
+
+				if response != nil && response.GetStatus() != Ydb.StatusIds_SUCCESS {
+					xlog.Error(ctx, "error forgetting operation", zap.Any("issues", response.GetIssues()))
 				}
 			}
 		}
 	case types.OperationStateCancelling:
 		{
-			if !opInfo.Ready {
+			if !opInfo.GetOperation().Ready {
 				//can this hang in cancelling state?
 				return operation, nil
 			} else {
-				if opInfo.Status == Ydb.StatusIds_CANCELLED {
+				if opInfo.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 					//upsert into operations (id, status, message) values (id, cancelled)?
 					err = db.UpdateBackup(ctx, tb.BackupId, types.BackupStateCancelled)
 					if err != nil {
@@ -107,9 +125,18 @@ func TBOperationHandler(
 						return operation, nil
 					} else {
 						operation.SetState(types.OperationStateError)
-						operation.SetMessage(types.IssuesToString(opInfo.Issues))
+						operation.SetMessage(types.IssuesToString(opInfo.GetOperation().Issues))
 					}
 				}
+			}
+
+			response, err := clientDb.ForgetOperation(ctx, clientDbDriver, tb.YdbOperationId)
+			if err != nil {
+				xlog.Error(ctx, err.Error())
+			}
+
+			if response != nil && response.GetStatus() != Ydb.StatusIds_SUCCESS {
+				xlog.Error(ctx, "error forgetting operation", zap.Any("issues", response.GetIssues()))
 			}
 		}
 	}

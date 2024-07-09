@@ -3,7 +3,6 @@ package types
 import (
 	"fmt"
 	"github.com/google/uuid"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"strings"
 )
@@ -166,9 +165,6 @@ type YdbConnectionParams struct {
 	// TODO: add auth params
 }
 
-type YdbOperationInfo struct {
-	Id     string
-	Ready  bool
-	Status Ydb.StatusIds_StatusCode
-	Issues []*Ydb_Issue.IssueMessage
+func MakeYdbConnectionString(params YdbConnectionParams) string {
+	return params.Endpoint + params.DatabaseName
 }

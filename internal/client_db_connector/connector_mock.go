@@ -7,7 +7,8 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Export"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Import"
-	"ydbcp/internal/types"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 )
 
 type ObjectPath struct {
@@ -17,7 +18,7 @@ type ObjectPath struct {
 
 type MockClientDbConnector struct {
 	storage    map[ObjectPath]bool
-	operations map[string]types.YdbOperationInfo
+	operations map[string]*Ydb_Operations.Operation
 }
 
 type Option func(*MockClientDbConnector)
@@ -25,7 +26,7 @@ type Option func(*MockClientDbConnector)
 func NewMockClientDbConnector(options ...Option) *MockClientDbConnector {
 	connector := &MockClientDbConnector{
 		storage:    make(map[ObjectPath]bool),
-		operations: make(map[string]types.YdbOperationInfo),
+		operations: make(map[string]*Ydb_Operations.Operation),
 	}
 	for _, opt := range options {
 		opt(connector)
@@ -34,13 +35,21 @@ func NewMockClientDbConnector(options ...Option) *MockClientDbConnector {
 
 }
 
-func WithOperations(operations map[string]types.YdbOperationInfo) Option {
+func WithOperations(operations map[string]*Ydb_Operations.Operation) Option {
 	return func(c *MockClientDbConnector) {
 		c.operations = operations
 	}
 }
 
-func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ types.YdbConnectionParams, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+func (m *MockClientDbConnector) Open(_ context.Context, _ string) (*ydb.Driver, error) {
+	return nil, nil
+}
+
+func (m *MockClientDbConnector) Close(_ context.Context, _ *ydb.Driver) error {
+	return nil
+}
+
+func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
 	objects := make([]ObjectPath, 0)
 	for _, item := range s3Settings.Items {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: item.DestinationPrefix}
@@ -55,7 +64,7 @@ func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ types.YdbConnect
 		m.storage[object] = true
 	}
 
-	newOp := types.YdbOperationInfo{
+	newOp := &Ydb_Operations.Operation{
 		Id:     uuid.NewString(),
 		Ready:  true,
 		Status: Ydb.StatusIds_SUCCESS,
@@ -65,7 +74,7 @@ func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ types.YdbConnect
 	return newOp.Id, nil
 }
 
-func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ types.YdbConnectionParams, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
+func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
 	for _, item := range s3Settings.Items {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: item.SourcePrefix}
 		if !m.storage[objectPath] {
@@ -73,7 +82,7 @@ func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ types.YdbConne
 		}
 	}
 
-	newOp := types.YdbOperationInfo{
+	newOp := &Ydb_Operations.Operation{
 		Id:     uuid.NewString(),
 		Ready:  true,
 		Status: Ydb.StatusIds_SUCCESS,
@@ -82,11 +91,25 @@ func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ types.YdbConne
 	return newOp.Id, nil
 }
 
-func (m *MockClientDbConnector) GetOperationStatus(_ context.Context, _ types.YdbConnectionParams, operationId string) (types.YdbOperationInfo, error) {
+func (m *MockClientDbConnector) GetOperationStatus(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
 	op, exist := m.operations[operationId]
 	if !exist {
-		return types.YdbOperationInfo{}, fmt.Errorf("operation %s doesn't exist", operationId)
+		return nil, fmt.Errorf("operation %s doesn't exist", operationId)
 	}
 
-	return op, nil
+	return &Ydb_Operations.GetOperationResponse{
+		Operation: op,
+	}, nil
+}
+
+func (m *MockClientDbConnector) ForgetOperation(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
+	_, exist := m.operations[operationId]
+	if !exist {
+		return nil, fmt.Errorf("operation %s doesn't exist", operationId)
+	}
+
+	delete(m.operations, operationId)
+	return &Ydb_Operations.ForgetOperationResponse{
+		Status: Ydb.StatusIds_SUCCESS,
+	}, nil
 }
