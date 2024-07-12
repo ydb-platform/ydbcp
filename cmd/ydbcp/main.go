@@ -8,12 +8,14 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	"ydbcp/internal/config"
 	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/processor"
 	"ydbcp/internal/types"
@@ -42,7 +44,7 @@ type server struct {
 // GetBackup implements BackupService
 func (s *server) GetBackup(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
 	log.Printf("Received: %v", in.GetId())
-	backups, err := s.driver.SelectBackups(ctx, types.BackupStatePending)
+	backups, err := s.driver.SelectBackupsByStatus(ctx, types.BackupStatePending)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		return nil, err
@@ -105,6 +107,38 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 	}, nil
 }
 
+func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
+	log.Printf("ListBackups: %s", request.String())
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.MakeReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithSelectFields(queries.AllBackupFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter[string]{
+					Field:  "container_id",
+					Values: []string{request.ContainerId},
+				},
+				queries.QueryFilter[string]{
+					Field:  "database",
+					Values: []string{request.DatabaseNameMask},
+					IsLike: true,
+				},
+			),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error getting backups: %w", err)
+	}
+	pbBackups := make([]*pb.Backup, 0, len(backups))
+	for _, backup := range backups {
+		pbBackups = append(pbBackups, backup.Proto())
+	}
+	return &pb.ListBackupsResponse{
+		Backups:       pbBackups,
+		NextPageToken: strconv.Itoa(len(backups)),
+	}, nil
+}
+
 func main() {
 	var confPath string
 
@@ -126,13 +160,13 @@ func main() {
 		}
 	}(logger)
 
-	config, err := configInit.InitConfig(ctx, confPath)
+	configInstance, err := configInit.InitConfig(ctx, confPath)
 
 	if err != nil {
 		xlog.Error(ctx, "Unable to initialize config", zap.Error(err))
 		os.Exit(1)
 	}
-	confStr, err := config.ToString()
+	confStr, err := configInstance.ToString()
 	if err == nil {
 		xlog.Debug(
 			ctx, "Use configuration file",
@@ -144,13 +178,14 @@ func main() {
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
+		return
 	}
 	s := grpc.NewServer()
 	reflection.Register(s)
 
-	db := db.NewYdbConnector(config)
+	dbConnector := db.NewYdbConnector(configInstance)
 
-	server := server{driver: db}
+	server := server{driver: dbConnector}
 	defer server.driver.Close()
 
 	pb.RegisterBackupServiceServer(s, &server)
@@ -168,9 +203,15 @@ func main() {
 	}()
 
 	handlersRegistry := processor.NewOperationHandlerRegistry()
-	handlersRegistry.Add(types.OperationType("TB"), handlers.MakeTBOperationHandler(db, client.NewClientYdbConnector()))
+	err = handlersRegistry.Add(
+		types.OperationType("TB"), handlers.MakeTBOperationHandler(dbConnector, client.NewClientYdbConnector()),
+	)
+	if err != nil {
+		log.Fatalf("failed to register handler: %v", err)
+		return
+	}
 
-	processor.NewOperationProcessor(ctx, &wg, db, handlersRegistry)
+	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
 
 	wg.Add(1)
 	go func() {

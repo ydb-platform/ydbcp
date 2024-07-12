@@ -47,27 +47,27 @@ func TestTBOperationHandler(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	db := db.NewMockDBConnector(
+	dbConnector := db.NewMockDBConnector(
 		db.WithBackups(backupMap),
 		db.WithOperations(opMap),
 	)
-	client := client.NewMockClientConnector(
+	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
 	)
 
-	handler := MakeTBOperationHandler(db, client)
+	handler := MakeTBOperationHandler(dbConnector, clientConnector)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
 
-	result, err := db.GetOperation(ctx, opId)
+	result, err := dbConnector.GetOperation(ctx, opId)
 	assert.Empty(t, err)
 	assert.Equal(
 		t, result.GetState(), types.OperationStateDone,
 		"operation state should be Done",
 	)
 
-	backups, err2 := db.SelectBackups(ctx, types.BackupStateAvailable)
+	backups, err2 := dbConnector.SelectBackupsByStatus(ctx, types.BackupStateAvailable)
 	assert.Empty(t, err2)
 	assert.Equal(t, 1, len(backups))
 	assert.Equal(t, types.BackupStateAvailable, backups[0].Status)

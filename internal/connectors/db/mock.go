@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -40,7 +41,17 @@ func WithBackups(backups map[types.ObjectID]types.Backup) Option {
 }
 
 func (c *MockDBConnector) SelectBackups(
-	ctx context.Context, backupStatus string,
+	_ context.Context, _ queries.ReadTableQuery,
+) ([]*types.Backup, error) {
+	backups := make([]*types.Backup, 0, len(c.backups))
+	for _, backup := range c.backups {
+		backups = append(backups, &backup)
+	}
+	return backups, nil
+}
+
+func (c *MockDBConnector) SelectBackupsByStatus(
+	_ context.Context, _ string,
 ) ([]*types.Backup, error) {
 	backups := make([]*types.Backup, 0, len(c.backups))
 	for _, backup := range c.backups {
@@ -50,7 +61,7 @@ func (c *MockDBConnector) SelectBackups(
 }
 
 func (c *MockDBConnector) UpdateBackup(
-	ctx context.Context, id types.ObjectID, backupStatus string,
+	_ context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	if _, ok := c.backups[id]; !ok {
 		return errors.New(fmt.Sprintf("no backup found for id %v", id))
@@ -66,7 +77,7 @@ func (c *MockDBConnector) GetTableClient() table.Client {
 	return nil
 }
 
-func (c *MockDBConnector) CreateBackup(ctx context.Context, backup types.Backup) (types.ObjectID, error) {
+func (c *MockDBConnector) CreateBackup(_ context.Context, backup types.Backup) (types.ObjectID, error) {
 	var id types.ObjectID
 	for {
 		id = types.GenerateObjectID()
