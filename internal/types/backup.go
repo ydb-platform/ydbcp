@@ -212,3 +212,5 @@ type YdbConnectionParams struct {
 func MakeYdbConnectionString(params YdbConnectionParams) string {
 	return params.Endpoint + params.DatabaseName
 }
+
+type OperationHandler func(context.Context, Operation) error
