@@ -12,7 +12,6 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-
 	"ydbcp/internal/util/xlog"
 )
 
@@ -35,7 +34,10 @@ var ErrUnimplemented = errors.New("unimplemented")
 
 type DBConnector interface {
 	GetTableClient() table.Client
-	SelectBackups(ctx context.Context, backupStatus string) (
+	SelectBackups(ctx context.Context, queryBuilder queries.ReadTableQuery) (
+		[]*types.Backup, error,
+	)
+	SelectBackupsByStatus(ctx context.Context, backupStatus string) (
 		[]*types.Backup, error,
 	)
 	ActiveOperations(context.Context) ([]types.Operation, error)
@@ -92,13 +94,17 @@ func (d *YdbConnector) Close() {
 func DoStructSelect[T any](
 	ctx context.Context,
 	d *YdbConnector,
-	query string,
+	queryBuilder queries.ReadTableQuery,
 	readLambda StructFromResultSet[T],
 ) ([]*T, error) {
 	var (
 		entities []*T
 	)
-	err := d.GetTableClient().Do(
+	queryFormat, err := queryBuilder.FormatQuery()
+	if err != nil {
+		return nil, err
+	}
+	err = d.GetTableClient().Do(
 		ctx, func(ctx context.Context, s table.Session) (err error) {
 			var (
 				res result.Result
@@ -106,7 +112,7 @@ func DoStructSelect[T any](
 			_, res, err = s.Execute(
 				ctx,
 				readTx,
-				query, table.NewQueryParameters(),
+				queryFormat.QueryText, queryFormat.QueryParams,
 			)
 			if err != nil {
 				return err
@@ -144,13 +150,17 @@ func DoStructSelect[T any](
 func DoInterfaceSelect[T any](
 	ctx context.Context,
 	d *YdbConnector,
-	query string,
+	queryBuilder queries.ReadTableQuery,
 	readLambda InterfaceFromResultSet[T],
 ) ([]T, error) {
 	var (
 		entities []T
 	)
-	err := d.GetTableClient().Do(
+	queryFormat, err := queryBuilder.FormatQuery()
+	if err != nil {
+		return nil, err
+	}
+	err = d.GetTableClient().Do(
 		ctx, func(ctx context.Context, s table.Session) (err error) {
 			var (
 				res result.Result
@@ -158,7 +168,7 @@ func DoInterfaceSelect[T any](
 			_, res, err = s.Execute(
 				ctx,
 				readTx,
-				query, table.NewQueryParameters(),
+				queryFormat.QueryText, queryFormat.QueryParams,
 			)
 			if err != nil {
 				return err
@@ -217,13 +227,33 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, query string, paramete
 	return nil
 }
 
-func (d *YdbConnector) SelectBackups(
+func (d *YdbConnector) SelectBackupsByStatus(
 	ctx context.Context, backupStatus string,
 ) ([]*types.Backup, error) {
 	return DoStructSelect[types.Backup](
 		ctx,
 		d,
-		queries.SelectEntitiesQuery("Backups", backupStatus),
+		queries.MakeReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithSelectFields("id", "operation_id"),
+			queries.WithQueryFilters[string](
+				queries.QueryFilter[string]{
+					Field:  "Status",
+					Values: []string{backupStatus},
+				},
+			),
+		),
+		ReadBackupFromResultSet,
+	)
+}
+
+func (d *YdbConnector) SelectBackups(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]*types.Backup, error) {
+	return DoStructSelect[types.Backup](
+		ctx,
+		d,
+		queryBuilder,
 		ReadBackupFromResultSet,
 	)
 }
@@ -234,9 +264,14 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 	return DoInterfaceSelect[types.Operation](
 		ctx,
 		d,
-		queries.SelectEntitiesQuery(
-			"Operations", types.OperationStatePending,
-			types.OperationStateCancelling,
+		queries.MakeReadTableQuery(
+			queries.WithTableName("Operations"),
+			queries.WithQueryFilters(
+				queries.QueryFilter[types.OperationType]{
+					Field:  "Status",
+					Values: []types.OperationType{types.OperationStatePending, types.OperationStateCancelling},
+				},
+			),
 		),
 		ReadOperationFromResultSet,
 	)

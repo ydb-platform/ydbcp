@@ -66,7 +66,7 @@ func TestTBOperationHandler(t *testing.T) {
 		"operation state should be Done",
 	)
 
-	backups, err2 := db.SelectBackups(ctx, types.BackupStateAvailable)
+	backups, err2 := db.SelectBackupsByStatus(ctx, types.BackupStateAvailable)
 	assert.Empty(t, err2)
 	assert.Equal(t, 1, len(backups))
 	assert.Equal(t, types.BackupStateAvailable, backups[0].Status)

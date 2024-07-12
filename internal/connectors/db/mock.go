@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -40,6 +41,16 @@ func WithBackups(backups map[types.ObjectID]types.Backup) Option {
 }
 
 func (c *MockDBConnector) SelectBackups(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]*types.Backup, error) {
+	backups := make([]*types.Backup, 0, len(c.backups))
+	for _, backup := range c.backups {
+		backups = append(backups, &backup)
+	}
+	return backups, nil
+}
+
+func (c *MockDBConnector) SelectBackupsByStatus(
 	ctx context.Context, backupStatus string,
 ) ([]*types.Backup, error) {
 	backups := make([]*types.Backup, 0, len(c.backups))

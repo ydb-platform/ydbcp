@@ -8,10 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strconv"
 	"sync"
 	"syscall"
 	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -37,7 +39,7 @@ type server struct {
 // GetBackup implements BackupService
 func (s *server) GetBackup(ctx context.Context, in *pb.GetBackupRequest) (*pb.Backup, error) {
 	log.Printf("Received: %v", in.GetId())
-	backups, err := s.driver.SelectBackups(ctx, types.BackupStatePending)
+	backups, err := s.driver.SelectBackupsByStatus(ctx, types.BackupStatePending)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		return nil, err
@@ -46,6 +48,38 @@ func (s *server) GetBackup(ctx context.Context, in *pb.GetBackupRequest) (*pb.Ba
 		fmt.Println("backup:", backup.Id.String(), backup.OperationId.String())
 	}
 	return &pb.Backup{Id: in.GetId()}, nil
+}
+
+func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
+	log.Printf("ListBackups: %s", request.String())
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.MakeReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithSelectFields(queries.AllBackupFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter[string]{
+					Field:  "container_id",
+					Values: []string{request.ContainerId},
+				},
+				queries.QueryFilter[string]{
+					Field:  "database",
+					Values: []string{request.DatabaseNameMask},
+					IsLike: true,
+				},
+			),
+		),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("error getting backups: %w", err)
+	}
+	pbBackups := make([]*pb.Backup, 0, len(backups))
+	for _, backup := range backups {
+		pbBackups = append(pbBackups, backup.Proto())
+	}
+	return &pb.ListBackupsResponse{
+		Backups:       pbBackups,
+		NextPageToken: strconv.Itoa(len(backups)),
+	}, nil
 }
 
 func main() {

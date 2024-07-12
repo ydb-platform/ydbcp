@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"strings"
+	pb "ydbcp/pkg/proto"
 )
 
 type ObjectID uuid.UUID
@@ -34,6 +35,20 @@ type Backup struct {
 	Id          ObjectID
 	OperationId ObjectID
 	Status      string
+}
+
+func (backup *Backup) Proto() *pb.Backup {
+	return &pb.Backup{
+		Id:           backup.Id.String(),
+		ContainerId:  "",
+		DatabaseName: "",
+		Location:     nil,
+		Audit:        nil,
+		Size:         0,
+		Status:       0,
+		Message:      "",
+		ExpireAt:     nil,
+	}
 }
 
 type OperationType string
