@@ -175,8 +175,8 @@ func (o *OperationProcessorImpl) updateOperationState(
 			ctx,
 			"operation state changed",
 			zap.String("OperationId", old.GetId().String()),
-			zap.String("oldState", old.GetState()),
-			zap.String("newState", new.GetState()),
+			zap.String("oldState", old.GetState().String()),
+			zap.String("newState", new.GetState().String()),
 		)
 		changed = true
 	}

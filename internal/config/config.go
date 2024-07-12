@@ -3,14 +3,25 @@ package config
 import (
 	"context"
 	"errors"
-	"go.uber.org/zap"
-	"gopkg.in/yaml.v3"
 	"os"
 	"ydbcp/internal/util/xlog"
+
+	"go.uber.org/zap"
+	"gopkg.in/yaml.v3"
 )
 
+type S3Config struct {
+	Endpoint            string `yaml:"endpoint"`
+	Region              string `yaml:"region"`
+	Bucket              string `yaml:"bucket"`
+	PathPrefix          string `yaml:"path_prefix"`
+	AccessKeyIDPath     string `yaml:"access_key_id_path"`
+	SecretAccessKeyPath string `yaml:"secret_access_key_path"`
+}
+
 type Config struct {
-	YdbcpDbConnectionString string `yaml:"ydbcp_db_connection_string"`
+	YdbcpDbConnectionString string   `yaml:"ydbcp_db_connection_string"`
+	S3                      S3Config `yaml:"s3"`
 }
 
 func (config Config) ToString() (string, error) {

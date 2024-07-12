@@ -1,10 +1,16 @@
 package types
 
 import (
+	"context"
 	"fmt"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
-	"strings"
+	"go.uber.org/zap"
+
+	"ydbcp/internal/util/xlog"
+	pb "ydbcp/pkg/proto"
 )
 
 type ObjectID uuid.UUID
@@ -31,9 +37,24 @@ func GenerateObjectID() ObjectID {
 }
 
 type Backup struct {
-	Id          ObjectID
-	OperationId ObjectID
-	Status      string
+	ID           ObjectID
+	ContainerID  string
+	DatabaseName string
+	S3Endpoint   string
+	S3Region     string
+	S3Bucket     string
+	S3PathPrefix string
+	Status       string
+}
+
+func (o *Backup) String() string {
+	return fmt.Sprintf(
+		"ID: %s, ContainerID: %s, DatabaseName: %s, Status %s",
+		o.ID,
+		o.ContainerID,
+		o.DatabaseName,
+		o.Status,
+	)
 }
 
 type OperationType string
@@ -42,9 +63,11 @@ type OperationState string
 type Operation interface {
 	GetId() ObjectID
 	SetId(id ObjectID)
+	GetContainerID() string
+	SetContainerID(string)
 	GetType() OperationType
 	SetType(t OperationType)
-	GetState() string
+	GetState() OperationState
 	SetState(s OperationState)
 	GetMessage() string
 	SetMessage(m string)
@@ -52,12 +75,15 @@ type Operation interface {
 
 type TakeBackupOperation struct {
 	Id                  ObjectID
+	ContainerID         string
 	BackupId            ObjectID
 	Type                OperationType
-	State               string
+	State               OperationState
 	Message             string
 	YdbConnectionParams YdbConnectionParams
 	YdbOperationId      string
+	SourcePaths         []string
+	SourcePathToExclude []string
 }
 
 func (o *TakeBackupOperation) GetId() ObjectID {
@@ -66,17 +92,23 @@ func (o *TakeBackupOperation) GetId() ObjectID {
 func (o *TakeBackupOperation) SetId(id ObjectID) {
 	o.Id = id
 }
+func (o *TakeBackupOperation) GetContainerID() string {
+	return o.ContainerID
+}
+func (o *TakeBackupOperation) SetContainerID(id string) {
+	o.ContainerID = id
+}
 func (o *TakeBackupOperation) GetType() OperationType {
 	return o.Type
 }
 func (o *TakeBackupOperation) SetType(t OperationType) {
 	o.Type = t
 }
-func (o *TakeBackupOperation) GetState() string {
+func (o *TakeBackupOperation) GetState() OperationState {
 	return o.State
 }
 func (o *TakeBackupOperation) SetState(s OperationState) {
-	o.State = string(s)
+	o.State = s
 }
 func (o *TakeBackupOperation) GetMessage() string {
 	return o.Message
@@ -85,11 +117,19 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
 
+func NewTakeBackupOperation() *TakeBackupOperation {
+	return &TakeBackupOperation{
+		Type:  OperationTypeTB,
+		State: OperationStatePending,
+	}
+}
+
 type GenericOperation struct {
-	Id      ObjectID
-	Type    OperationType
-	State   string
-	Message string
+	Id          ObjectID
+	ContainerID string
+	Type        OperationType
+	State       OperationState
+	Message     string
 }
 
 func (o *GenericOperation) GetId() ObjectID {
@@ -98,17 +138,24 @@ func (o *GenericOperation) GetId() ObjectID {
 func (o *GenericOperation) SetId(id ObjectID) {
 	o.Id = id
 }
+func (o *GenericOperation) GetContainerID() string {
+	return o.ContainerID
+}
+func (o *GenericOperation) SetContainerID(id string) {
+	o.ContainerID = id
+}
+
 func (o *GenericOperation) GetType() OperationType {
 	return o.Type
 }
 func (o *GenericOperation) SetType(t OperationType) {
 	o.Type = t
 }
-func (o *GenericOperation) GetState() string {
+func (o *GenericOperation) GetState() OperationState {
 	return o.State
 }
 func (o *GenericOperation) SetState(s OperationState) {
-	o.State = string(s)
+	o.State = s
 }
 func (o *GenericOperation) GetMessage() string {
 	return o.Message
@@ -117,13 +164,17 @@ func (o *GenericOperation) SetMessage(m string) {
 	o.Message = m
 }
 
+var (
+	OperationStateUnknown    = OperationState(pb.Operation_STATUS_UNSPECIFIED.String())
+	OperationStatePending    = OperationState(pb.Operation_PENDING.String())
+	OperationStateDone       = OperationState(pb.Operation_DONE.String())
+	OperationStateError      = OperationState(pb.Operation_ERROR.String())
+	OperationStateCancelling = OperationState(pb.Operation_CANCELLING.String())
+	OperationStateCancelled  = OperationState(pb.Operation_CANCELED.String())
+)
+
 const (
-	OperationStateUnknown    = "Unknown"
-	OperationStatePending    = "Pending"
-	OperationStateDone       = "Done"
-	OperationStateError      = "Error"
-	OperationStateCancelling = "Cancelling"
-	OperationStateCancelled  = "Cancelled"
+	OperationTypeTB = OperationType("TB")
 
 	BackupStatePending   = "Pending"
 	BackupStateAvailable = "Available"
@@ -140,6 +191,23 @@ func OperationToString(o Operation) string {
 	)
 }
 
+func (o OperationState) Enum() pb.Operation_Status {
+	val, ok := pb.Operation_Status_value[string(o)]
+	if !ok {
+		xlog.Error(
+			context.Background(), //TODO
+			"Can't convert OperationState",
+			zap.String("OperationState", string(o)),
+		)
+		panic("can't convert OperationState")
+	}
+	return pb.Operation_Status(val)
+}
+
+func (o OperationState) String() string {
+	return string(o)
+}
+
 func IsActive(o Operation) bool {
 	return o.GetState() == OperationStatePending || o.GetState() == OperationStateCancelling
 }
@@ -154,7 +222,7 @@ func IssuesToString(issues []*Ydb_Issue.IssueMessage) string {
 
 func GetYdbConnectionParams(dbname string) YdbConnectionParams {
 	return YdbConnectionParams{
-		Endpoint:     "grpc://localhost:2136",
+		Endpoint:     "grpc://localhost:2136", // TODO
 		DatabaseName: dbname,
 	}
 }

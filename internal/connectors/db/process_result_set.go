@@ -1,7 +1,6 @@
 package db
 
 import (
-	"errors"
 	"fmt"
 	"ydbcp/internal/types"
 
@@ -26,7 +25,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &types.Backup{Id: backupId, OperationId: operationId}, nil
+	return &types.Backup{ID: backupId}, nil
 }
 
 func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
@@ -51,13 +50,13 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	}
 	if operationType == types.OperationType("TB") {
 		if backupId == nil || database == nil || ydbOperationId == nil {
-			return nil, errors.New(fmt.Sprintf("failed to read required fields of operation %s", operationId.String()))
+			return nil, fmt.Errorf("failed to read required fields of operation %s", operationId.String())
 		}
 		return &types.TakeBackupOperation{
 			Id:                  operationId,
 			BackupId:            *backupId,
 			Type:                operationType,
-			State:               operationState,
+			State:               types.OperationState(operationState),
 			Message:             "",
 			YdbConnectionParams: types.GetYdbConnectionParams(*database),
 			YdbOperationId:      *ydbOperationId,

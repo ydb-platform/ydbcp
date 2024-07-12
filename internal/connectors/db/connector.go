@@ -35,15 +35,12 @@ var ErrUnimplemented = errors.New("unimplemented")
 
 type DBConnector interface {
 	GetTableClient() table.Client
-	SelectBackups(ctx context.Context, backupStatus string) (
-		[]*types.Backup, error,
-	)
+	SelectBackups(ctx context.Context, backupStatus string) ([]*types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
 	UpdateOperation(context.Context, types.Operation) error
 	CreateOperation(context.Context, types.Operation) (types.ObjectID, error)
-	UpdateBackup(
-		context context.Context, id types.ObjectID, backupState string,
-	) error
+	CreateBackup(context.Context, types.Backup) (types.ObjectID, error)
+	UpdateBackup(context context.Context, id types.ObjectID, backupState string) error
 	Close()
 }
 
@@ -235,8 +232,8 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 		ctx,
 		d,
 		queries.SelectEntitiesQuery(
-			"Operations", types.OperationStatePending,
-			types.OperationStateCancelling,
+			"Operations", types.OperationStatePending.String(),
+			types.OperationStateCancelling.String(),
 		),
 		ReadOperationFromResultSet,
 	)
@@ -264,7 +261,7 @@ func BuildCreateOperationParams(operation types.Operation) *table.QueryParameter
 			"$created_at", table_types.UUIDValue(operation.GetId()),
 		),
 		table.ValueParam(
-			"$status", table_types.StringValueFromString(operation.GetState()),
+			"$status", table_types.StringValueFromString(operation.GetState().String()),
 		),
 		table.ValueParam(
 			"$operation_id",
@@ -277,7 +274,7 @@ func BuildUpdateOperationParams(operation types.Operation) *table.QueryParameter
 	return table.NewQueryParameters(
 		table.ValueParam("$id", table_types.UUIDValue(operation.GetId())),
 		table.ValueParam(
-			"$status", table_types.StringValueFromString(operation.GetState()),
+			"$status", table_types.StringValueFromString(operation.GetState().String()),
 		),
 		table.ValueParam(
 			"$message",
@@ -311,8 +308,34 @@ func (d *YdbConnector) CreateOperation(
 	return operation.GetId(), nil
 }
 
+func (d *YdbConnector) CreateBackup(
+	ctx context.Context, backup types.Backup,
+) (types.ObjectID, error) {
+	id := types.GenerateObjectID()
+	backup.ID = id
+	err := d.ExecuteUpsert(ctx, queries.CreateBackupQuery(), BuildCreateBackupParams(backup))
+	if err != nil {
+		return types.ObjectID{}, err
+	}
+	return id, nil
+}
+
 func (d *YdbConnector) UpdateBackup(
 	context context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	return d.ExecuteUpsert(context, queries.UpdateBackupQuery(), BuildUpdateBackupParams(id, backupStatus))
+}
+
+func BuildCreateBackupParams(b types.Backup) *table.QueryParameters {
+	return table.NewQueryParameters(
+		table.ValueParam("$id", table_types.UUIDValue(b.ID)),
+		table.ValueParam("$container_id", table_types.StringValueFromString(b.ContainerID)),
+		table.ValueParam("$database", table_types.StringValueFromString(b.DatabaseName)),
+		table.ValueParam("$initiated", table_types.StringValueFromString("")), // TODO
+		table.ValueParam("$s3_endpoint", table_types.StringValueFromString(b.S3Endpoint)),
+		table.ValueParam("$s3_region", table_types.StringValueFromString(b.S3Region)),
+		table.ValueParam("$s3_bucket", table_types.StringValueFromString(b.S3Bucket)),
+		table.ValueParam("$s3_path_prefix", table_types.StringValueFromString(b.S3PathPrefix)),
+		table.ValueParam("$status", table_types.StringValueFromString(b.Status)),
+	)
 }
