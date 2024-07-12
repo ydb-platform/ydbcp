@@ -2,16 +2,17 @@ package processor
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 	"sync"
 	"testing"
 	"time"
+	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
-	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestProcessor(t *testing.T) {
@@ -30,8 +31,8 @@ func TestProcessor(t *testing.T) {
 
 	clock := clockwork.NewFakeClock()
 
-	db := ydbcp_db_connector.NewFakeYdbConnector()
-	handlers := NewOperationHandlerRegistry(db)
+	db := db.NewMockDBConnector()
+	handlers := NewOperationHandlerRegistry()
 	operationTypeTB := types.OperationType("TB")
 	handlerCalled := make(chan struct{})
 	handlers.Add(

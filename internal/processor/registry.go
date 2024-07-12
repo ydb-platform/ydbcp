@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"ydbcp/internal/types"
-	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
 )
 
 type OperationHandlerRegistry interface {
@@ -14,13 +13,11 @@ type OperationHandlerRegistry interface {
 
 type OperationHandlerRegistryImpl struct {
 	handlers map[types.OperationType]OperationHandler
-	db       ydbcp_db_connector.YdbDriver
 }
 
-func NewOperationHandlerRegistry(driver ydbcp_db_connector.YdbDriver) *OperationHandlerRegistryImpl {
+func NewOperationHandlerRegistry() *OperationHandlerRegistryImpl {
 	return &OperationHandlerRegistryImpl{
 		handlers: make(map[types.OperationType]OperationHandler),
-		db:       driver,
 	}
 }
 

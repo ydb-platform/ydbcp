@@ -1,8 +1,11 @@
-package client_db_connector
+package client
 
 import (
 	"context"
 	"fmt"
+	"time"
+	"ydbcp/internal/util/xlog"
+
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Export_V1"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Import_V1"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Operation_V1"
@@ -13,11 +16,9 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"time"
-	"ydbcp/internal/util/xlog"
 )
 
-type ClientDbConnector interface {
+type ClientConnector interface {
 	Open(ctx context.Context, dsn string) (*ydb.Driver, error)
 	Close(ctx context.Context, clientDb *ydb.Driver) error
 
@@ -27,10 +28,10 @@ type ClientDbConnector interface {
 	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
 }
 
-type ClientDbConnectorImpl struct {
+type ClientYdbConnector struct {
 }
 
-func (d *ClientDbConnectorImpl) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
+func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
 	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
 	db, connErr := ydb.Open(ctx, dsn, ydb.WithAnonymousCredentials())
 
@@ -41,7 +42,7 @@ func (d *ClientDbConnectorImpl) Open(ctx context.Context, dsn string) (*ydb.Driv
 	return db, nil
 }
 
-func (d *ClientDbConnectorImpl) Close(ctx context.Context, clientDb *ydb.Driver) error {
+func (d *ClientYdbConnector) Close(ctx context.Context, clientDb *ydb.Driver) error {
 	if clientDb == nil {
 		return fmt.Errorf("unititialized client db driver")
 	}
@@ -56,7 +57,7 @@ func (d *ClientDbConnectorImpl) Close(ctx context.Context, clientDb *ydb.Driver)
 	return nil
 }
 
-func (d *ClientDbConnectorImpl) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
 	}
@@ -91,7 +92,7 @@ func (d *ClientDbConnectorImpl) ExportToS3(ctx context.Context, clientDb *ydb.Dr
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientDbConnectorImpl) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
+func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
 	}
@@ -127,7 +128,7 @@ func (d *ClientDbConnectorImpl) ImportFromS3(ctx context.Context, clientDb *ydb.
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientDbConnectorImpl) GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
+func (d *ClientYdbConnector) GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}
@@ -151,7 +152,7 @@ func (d *ClientDbConnectorImpl) GetOperationStatus(ctx context.Context, clientDb
 	return response, nil
 }
 
-func (d *ClientDbConnectorImpl) ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
+func (d *ClientYdbConnector) ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}

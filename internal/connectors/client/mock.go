@@ -1,8 +1,9 @@
-package client_db_connector
+package client
 
 import (
 	"context"
 	"fmt"
+
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Export"
@@ -16,15 +17,15 @@ type ObjectPath struct {
 	KeyPrefix string
 }
 
-type MockClientDbConnector struct {
+type MockClientConnector struct {
 	storage    map[ObjectPath]bool
 	operations map[string]*Ydb_Operations.Operation
 }
 
-type Option func(*MockClientDbConnector)
+type Option func(*MockClientConnector)
 
-func NewMockClientDbConnector(options ...Option) *MockClientDbConnector {
-	connector := &MockClientDbConnector{
+func NewMockClientConnector(options ...Option) *MockClientConnector {
+	connector := &MockClientConnector{
 		storage:    make(map[ObjectPath]bool),
 		operations: make(map[string]*Ydb_Operations.Operation),
 	}
@@ -36,20 +37,20 @@ func NewMockClientDbConnector(options ...Option) *MockClientDbConnector {
 }
 
 func WithOperations(operations map[string]*Ydb_Operations.Operation) Option {
-	return func(c *MockClientDbConnector) {
+	return func(c *MockClientConnector) {
 		c.operations = operations
 	}
 }
 
-func (m *MockClientDbConnector) Open(_ context.Context, _ string) (*ydb.Driver, error) {
+func (m *MockClientConnector) Open(_ context.Context, _ string) (*ydb.Driver, error) {
 	return nil, nil
 }
 
-func (m *MockClientDbConnector) Close(_ context.Context, _ *ydb.Driver) error {
+func (m *MockClientConnector) Close(_ context.Context, _ *ydb.Driver) error {
 	return nil
 }
 
-func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
 	objects := make([]ObjectPath, 0)
 	for _, item := range s3Settings.Items {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: item.DestinationPrefix}
@@ -74,7 +75,7 @@ func (m *MockClientDbConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3S
 	return newOp.Id, nil
 }
 
-func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
+func (m *MockClientConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
 	for _, item := range s3Settings.Items {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: item.SourcePrefix}
 		if !m.storage[objectPath] {
@@ -91,7 +92,7 @@ func (m *MockClientDbConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s
 	return newOp.Id, nil
 }
 
-func (m *MockClientDbConnector) GetOperationStatus(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
+func (m *MockClientConnector) GetOperationStatus(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
 	op, exist := m.operations[operationId]
 	if !exist {
 		return nil, fmt.Errorf("operation %s doesn't exist", operationId)
@@ -102,7 +103,7 @@ func (m *MockClientDbConnector) GetOperationStatus(_ context.Context, _ *ydb.Dri
 	}, nil
 }
 
-func (m *MockClientDbConnector) ForgetOperation(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
+func (m *MockClientConnector) ForgetOperation(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
 	_, exist := m.operations[operationId]
 	if !exist {
 		return nil, fmt.Errorf("operation %s doesn't exist", operationId)

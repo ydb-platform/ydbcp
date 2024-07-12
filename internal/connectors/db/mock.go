@@ -1,22 +1,23 @@
-package ydbcp_db_connector
+package db
 
 import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"ydbcp/internal/types"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 )
 
-type FakeYdbConnector struct {
+type MockDBConnector struct {
 	operations map[types.ObjectID]types.Operation
 	backups    map[types.ObjectID]types.Backup
 }
 
-type Option func(*FakeYdbConnector)
+type Option func(*MockDBConnector)
 
-func NewFakeYdbConnector(options ...Option) *FakeYdbConnector {
-	connector := &FakeYdbConnector{
+func NewMockDBConnector(options ...Option) *MockDBConnector {
+	connector := &MockDBConnector{
 		operations: make(map[types.ObjectID]types.Operation),
 		backups:    make(map[types.ObjectID]types.Backup),
 	}
@@ -27,18 +28,18 @@ func NewFakeYdbConnector(options ...Option) *FakeYdbConnector {
 }
 
 func WithOperations(operations map[types.ObjectID]types.Operation) Option {
-	return func(c *FakeYdbConnector) {
+	return func(c *MockDBConnector) {
 		c.operations = operations
 	}
 }
 
 func WithBackups(backups map[types.ObjectID]types.Backup) Option {
-	return func(c *FakeYdbConnector) {
+	return func(c *MockDBConnector) {
 		c.backups = backups
 	}
 }
 
-func (c *FakeYdbConnector) SelectBackups(
+func (c *MockDBConnector) SelectBackups(
 	ctx context.Context, backupStatus string,
 ) ([]*types.Backup, error) {
 	backups := make([]*types.Backup, 0, len(c.backups))
@@ -48,7 +49,7 @@ func (c *FakeYdbConnector) SelectBackups(
 	return backups, nil
 }
 
-func (c *FakeYdbConnector) UpdateBackup(
+func (c *MockDBConnector) UpdateBackup(
 	ctx context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	if _, ok := c.backups[id]; !ok {
@@ -60,12 +61,12 @@ func (c *FakeYdbConnector) UpdateBackup(
 	return nil
 }
 
-func (c *FakeYdbConnector) Close() {}
-func (c *FakeYdbConnector) GetTableClient() table.Client {
+func (c *MockDBConnector) Close() {}
+func (c *MockDBConnector) GetTableClient() table.Client {
 	return nil
 }
 
-func (c *FakeYdbConnector) ActiveOperations(_ context.Context) (
+func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 	[]types.Operation, error,
 ) {
 	operations := make([]types.Operation, 0, len(c.operations))
@@ -77,7 +78,7 @@ func (c *FakeYdbConnector) ActiveOperations(_ context.Context) (
 	return operations, nil
 }
 
-func (c *FakeYdbConnector) UpdateOperation(
+func (c *MockDBConnector) UpdateOperation(
 	_ context.Context, op types.Operation,
 ) error {
 	if _, exist := c.operations[op.GetId()]; !exist {
@@ -89,7 +90,7 @@ func (c *FakeYdbConnector) UpdateOperation(
 	return nil
 }
 
-func (c *FakeYdbConnector) CreateOperation(
+func (c *MockDBConnector) CreateOperation(
 	_ context.Context, op types.Operation,
 ) (types.ObjectID, error) {
 	var id types.ObjectID
@@ -104,7 +105,7 @@ func (c *FakeYdbConnector) CreateOperation(
 	return id, nil
 }
 
-func (c *FakeYdbConnector) GetOperation(
+func (c *MockDBConnector) GetOperation(
 	_ context.Context, operationID types.ObjectID,
 ) (types.Operation, error) {
 	if op, exist := c.operations[operationID]; exist {

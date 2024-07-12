@@ -5,10 +5,10 @@ import (
 	"sync"
 	"time"
 
+	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
-	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
 
 	"go.uber.org/zap"
 )
@@ -21,12 +21,10 @@ type OperationProcessorImpl struct {
 
 	tickerProvider ticker.TickerProvider
 	handlers       OperationHandlerRegistry
-	db             ydbcp_db_connector.YdbDriver
+	db             db.DBConnector
 
 	runningOperations map[types.ObjectID]bool
 	results           chan OperationHandlerResult
-	exportResults     bool
-	ResultCounter     chan bool
 }
 
 type OperationHandlerResult struct {
@@ -51,16 +49,11 @@ func WithHandleOperationResultTimeout(timeout time.Duration) Option {
 		o.handleOperationResultTimeout = timeout
 	}
 }
-func WithExportResults(exportResults bool) Option {
-	return func(o *OperationProcessorImpl) {
-		o.exportResults = exportResults
-	}
-}
 
 func NewOperationProcessor(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	db ydbcp_db_connector.YdbDriver,
+	db db.DBConnector,
 	handlers OperationHandlerRegistry,
 	options ...Option,
 ) *OperationProcessorImpl {
@@ -74,8 +67,6 @@ func NewOperationProcessor(
 		tickerProvider:               ticker.NewRealTicker,
 		runningOperations:            make(map[types.ObjectID]bool),
 		results:                      make(chan OperationHandlerResult),
-		exportResults:                false,
-		ResultCounter:                make(chan bool),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -170,9 +161,6 @@ func (o *OperationProcessorImpl) handleOperationResult(result OperationHandlerRe
 		return
 	}
 	o.updateOperationState(ctx, result.old, result.new)
-	if o.exportResults {
-		o.ResultCounter <- true
-	}
 	delete(o.runningOperations, result.old.GetId())
 }
 
