@@ -1,11 +1,11 @@
-package ydbcp_db_connector
+package db
 
 import (
 	"context"
 	"errors"
 	"ydbcp/internal/config"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
-	"ydbcp/internal/yql/queries"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -33,7 +33,7 @@ var (
 
 var ErrUnimplemented = errors.New("unimplemented")
 
-type YdbDriver interface {
+type DBConnector interface {
 	GetTableClient() table.Client
 	SelectBackups(ctx context.Context, backupStatus string) (
 		[]*types.Backup, error,
@@ -47,13 +47,13 @@ type YdbDriver interface {
 	Close()
 }
 
-type YdbDriverImpl struct {
-	ydbDriver *ydb.Driver
+type YdbConnector struct {
+	driver *ydb.Driver
 }
 
-func NewYdbDriver(config config.Config) *YdbDriverImpl {
-	p := new(YdbDriverImpl)
-	p.ydbDriver = InitDriver(config.YdbcpDbConnectionString)
+func NewYdbConnector(config config.Config) *YdbConnector {
+	p := new(YdbConnector)
+	p.driver = InitDriver(config.YdbcpDbConnectionString)
 	return p
 }
 
@@ -77,20 +77,22 @@ func InitDriver(dsn string) *ydb.Driver {
 	return db
 }
 
-func (d YdbDriverImpl) GetTableClient() table.Client {
-	return d.ydbDriver.Table()
+func (d *YdbConnector) GetTableClient() table.Client {
+	return d.driver.Table()
 }
 
-func (d YdbDriverImpl) Close() {
+func (d *YdbConnector) Close() {
 	ctx := context.Background()
-	err := d.ydbDriver.Close(ctx)
+	err := d.driver.Close(ctx)
 	if err != nil {
 		xlog.Error(ctx, "Error closing YDB driver")
 	}
 }
 
 func DoStructSelect[T any](
-	ctx context.Context, d YdbDriver, query string,
+	ctx context.Context,
+	d *YdbConnector,
+	query string,
 	readLambda StructFromResultSet[T],
 ) ([]*T, error) {
 	var (
@@ -140,7 +142,9 @@ func DoStructSelect[T any](
 }
 
 func DoInterfaceSelect[T any](
-	ctx context.Context, d YdbDriver, query string,
+	ctx context.Context,
+	d *YdbConnector,
+	query string,
 	readLambda InterfaceFromResultSet[T],
 ) ([]T, error) {
 	var (
@@ -189,7 +193,7 @@ func DoInterfaceSelect[T any](
 	return entities, nil
 }
 
-func (d YdbDriverImpl) ExecuteUpsert(ctx context.Context, query string, parameters *table.QueryParameters) error {
+func (d *YdbConnector) ExecuteUpsert(ctx context.Context, query string, parameters *table.QueryParameters) error {
 	err := d.GetTableClient().Do(
 		ctx, func(ctx context.Context, s table.Session) (err error) {
 			_, _, err = s.Execute(
@@ -213,7 +217,7 @@ func (d YdbDriverImpl) ExecuteUpsert(ctx context.Context, query string, paramete
 	return nil
 }
 
-func (d YdbDriverImpl) SelectBackups(
+func (d *YdbConnector) SelectBackups(
 	ctx context.Context, backupStatus string,
 ) ([]*types.Backup, error) {
 	return DoStructSelect[types.Backup](
@@ -224,7 +228,7 @@ func (d YdbDriverImpl) SelectBackups(
 	)
 }
 
-func (d YdbDriverImpl) ActiveOperations(ctx context.Context) (
+func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 	[]types.Operation, error,
 ) {
 	return DoInterfaceSelect[types.Operation](
@@ -289,14 +293,14 @@ func BuildUpdateBackupParams(id types.ObjectID, status string) *table.QueryParam
 	)
 }
 
-func (d YdbDriverImpl) UpdateOperation(
+func (d *YdbConnector) UpdateOperation(
 	ctx context.Context, operation types.Operation,
 ) error {
 	return d.ExecuteUpsert(ctx, queries.UpdateOperationQuery(), BuildUpdateOperationParams(operation))
 }
 
 // draft, not used. imo we can not use types.Operation here. it better be a more specific struct
-func (d YdbDriverImpl) CreateOperation(
+func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
 ) (types.ObjectID, error) {
 	operation.SetId(types.GenerateObjectID())
@@ -307,7 +311,7 @@ func (d YdbDriverImpl) CreateOperation(
 	return operation.GetId(), nil
 }
 
-func (d YdbDriverImpl) UpdateBackup(
+func (d *YdbConnector) UpdateBackup(
 	context context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	return d.ExecuteUpsert(context, queries.UpdateBackupQuery(), BuildUpdateBackupParams(id, backupStatus))

@@ -4,13 +4,12 @@ import (
 	"context"
 	"testing"
 	"ydbcp/internal/types"
-	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
 
 	"github.com/stretchr/testify/assert"
 )
 
 func TestOperationHandlerRegistry(t *testing.T) {
-	registry := NewOperationHandlerRegistry(ydbcp_db_connector.NewFakeYdbConnector())
+	registry := NewOperationHandlerRegistry()
 	ctx := context.Background()
 	op := &types.GenericOperation{
 		Type: types.OperationType("UNKNOWN"),

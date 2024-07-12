@@ -1,11 +1,12 @@
-package ydbcp_db_connector
+package db
 
 import (
 	"errors"
 	"fmt"
+	"ydbcp/internal/types"
+
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
-	"ydbcp/internal/types"
 )
 
 type StructFromResultSet[T any] func(result result.Result) (*T, error)

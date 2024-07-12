@@ -11,9 +11,9 @@ import (
 	"sync"
 	"syscall"
 	configInit "ydbcp/internal/config"
+	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
-	ydbcp_db_connector "ydbcp/internal/ydbcp-db-connector"
 
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -31,7 +31,7 @@ var (
 // server is used to implement BackupService.
 type server struct {
 	pb.UnimplementedBackupServiceServer
-	driver ydbcp_db_connector.YdbDriver
+	driver db.DBConnector
 }
 
 // GetBackup implements BackupService
@@ -91,7 +91,7 @@ func main() {
 	s := grpc.NewServer()
 	reflection.Register(s)
 
-	ydbServer := server{driver: ydbcp_db_connector.NewYdbDriver(config)}
+	ydbServer := server{driver: db.NewYdbConnector(config)}
 	defer ydbServer.driver.Close()
 
 	pb.RegisterBackupServiceServer(s, &ydbServer)
