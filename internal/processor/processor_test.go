@@ -71,7 +71,6 @@ func TestProcessor(t *testing.T) {
 	opID, _ := db.CreateOperation(
 		ctx,
 		&types.TakeBackupOperation{
-			Type:  operationTypeTB,
 			State: types.OperationStatePending,
 		},
 	)

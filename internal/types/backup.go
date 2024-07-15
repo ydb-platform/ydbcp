@@ -63,8 +63,6 @@ type OperationState string
 type Operation interface {
 	GetId() ObjectID
 	SetId(id ObjectID)
-	GetContainerID() string
-	SetContainerID(string)
 	GetType() OperationType
 	SetType(t OperationType)
 	GetState() OperationState
@@ -77,7 +75,6 @@ type TakeBackupOperation struct {
 	Id                  ObjectID
 	ContainerID         string
 	BackupId            ObjectID
-	Type                OperationType
 	State               OperationState
 	Message             string
 	YdbConnectionParams YdbConnectionParams
@@ -92,17 +89,10 @@ func (o *TakeBackupOperation) GetId() ObjectID {
 func (o *TakeBackupOperation) SetId(id ObjectID) {
 	o.Id = id
 }
-func (o *TakeBackupOperation) GetContainerID() string {
-	return o.ContainerID
-}
-func (o *TakeBackupOperation) SetContainerID(id string) {
-	o.ContainerID = id
-}
 func (o *TakeBackupOperation) GetType() OperationType {
-	return o.Type
+	return OperationTypeTB
 }
-func (o *TakeBackupOperation) SetType(t OperationType) {
-	o.Type = t
+func (o *TakeBackupOperation) SetType(_ OperationType) {
 }
 func (o *TakeBackupOperation) GetState() OperationState {
 	return o.State
@@ -115,13 +105,6 @@ func (o *TakeBackupOperation) GetMessage() string {
 }
 func (o *TakeBackupOperation) SetMessage(m string) {
 	o.Message = m
-}
-
-func NewTakeBackupOperation() *TakeBackupOperation {
-	return &TakeBackupOperation{
-		Type:  OperationTypeTB,
-		State: OperationStatePending,
-	}
 }
 
 type GenericOperation struct {
@@ -138,13 +121,6 @@ func (o *GenericOperation) GetId() ObjectID {
 func (o *GenericOperation) SetId(id ObjectID) {
 	o.Id = id
 }
-func (o *GenericOperation) GetContainerID() string {
-	return o.ContainerID
-}
-func (o *GenericOperation) SetContainerID(id string) {
-	o.ContainerID = id
-}
-
 func (o *GenericOperation) GetType() OperationType {
 	return o.Type
 }

@@ -48,14 +48,13 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	if err != nil {
 		return nil, err
 	}
-	if operationType == types.OperationType("TB") {
+	if operationType == types.OperationTypeTB {
 		if backupId == nil || database == nil || ydbOperationId == nil {
 			return nil, fmt.Errorf("failed to read required fields of operation %s", operationId.String())
 		}
 		return &types.TakeBackupOperation{
 			Id:                  operationId,
 			BackupId:            *backupId,
-			Type:                operationType,
 			State:               types.OperationState(operationState),
 			Message:             "",
 			YdbConnectionParams: types.GetYdbConnectionParams(*database),

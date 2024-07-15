@@ -72,14 +72,16 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 		return nil, err
 	}
 
-	op := types.NewTakeBackupOperation()
-	op.YdbConnectionParams = types.YdbConnectionParams{
-		Endpoint:     req.GetEndpoint(),
-		DatabaseName: req.GetDatabaseName(),
+	op := &types.TakeBackupOperation{
+		BackupId: backupID,
+		State:    types.OperationStatePending,
+		YdbConnectionParams: types.YdbConnectionParams{
+			Endpoint:     req.GetEndpoint(),
+			DatabaseName: req.GetDatabaseName(),
+		},
+		SourcePaths:         req.GetSourcePaths(),
+		SourcePathToExclude: req.GetSourcePathsToExclude(),
 	}
-	op.SourcePaths = req.GetSourcePaths()
-	op.SourcePathToExclude = req.GetSourcePathsToExclude()
-	op.BackupId = backupID
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
 	if err != nil {

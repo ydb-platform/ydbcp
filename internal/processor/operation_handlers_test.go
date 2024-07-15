@@ -24,7 +24,6 @@ func TestTBOperationHandler(t *testing.T) {
 	tbOp := types.TakeBackupOperation{
 		Id:                  opId,
 		BackupId:            backupID,
-		Type:                types.OperationType("TB"),
 		State:               types.OperationStatePending,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
