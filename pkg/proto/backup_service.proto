@@ -47,8 +47,9 @@ message GetBackupRequest {
 message MakeBackupRequest {
     string container_id = 1;
     string database_name = 2;
-    repeated string source_paths = 3;  // [(size) = "<=256"];
-    repeated string source_paths_to_exclude = 4;  // [(size) = "<=256"];
+    string endpoint = 3;
+    repeated string source_paths = 4;  // [(size) = "<=256"];
+    repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
 }
 
 message DeleteBackupRequest {

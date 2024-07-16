@@ -3,6 +3,7 @@ package processor
 import (
 	"context"
 	"errors"
+	"fmt"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
@@ -28,10 +29,13 @@ func TBOperationHandler(
 	db db.DBConnector,
 	client client.ClientConnector,
 ) (types.Operation, error) {
-	if operation.GetType() != "TB" {
-		return operation, errors.New("Passed wrong op type to TBOperationHandler")
+	if operation.GetType() != types.OperationTypeTB {
+		return operation, errors.New("Passed wrong operation type to TBOperationHandler")
 	}
-	tb := operation.(*types.TakeBackupOperation)
+	tb, ok := operation.(*types.TakeBackupOperation)
+	if !ok {
+		return operation, fmt.Errorf("can't cast Operation to TakeBackupOperation %s", types.OperationToString(operation))
+	}
 
 	conn, err := client.Open(ctx, types.MakeYdbConnectionString(tb.YdbConnectionParams))
 	if err != nil {

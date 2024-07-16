@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"ydbcp/internal/config"
 	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
@@ -32,6 +33,7 @@ var (
 type server struct {
 	pb.UnimplementedBackupServiceServer
 	driver db.DBConnector
+	s3     config.S3Config
 }
 
 // GetBackup implements BackupService
@@ -43,9 +45,61 @@ func (s *server) GetBackup(ctx context.Context, in *pb.GetBackupRequest) (*pb.Ba
 		return nil, err
 	}
 	for _, backup := range backups {
-		fmt.Println("backup:", backup.Id.String(), backup.OperationId.String())
+		fmt.Println("backup:", backup.ID.String())
 	}
 	return &pb.Backup{Id: in.GetId()}, nil
+}
+
+func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
+	xlog.Info(ctx, "MakeBackup called", zap.String("request", req.String()))
+
+	backup := types.Backup{
+		ContainerID:  req.GetContainerId(),
+		DatabaseName: req.GetDatabaseName(),
+		S3Endpoint:   s.s3.Endpoint,
+		S3Region:     s.s3.Region,
+		S3Bucket:     s.s3.Bucket,
+		S3PathPrefix: s.s3.PathPrefix,
+		Status:       types.BackupStatePending,
+	}
+	backupID, err := s.driver.CreateBackup(ctx, backup)
+	if err != nil {
+		xlog.Error(
+			ctx, "can't create backup",
+			zap.String("backup", backup.String()),
+			zap.Error(err),
+		)
+		return nil, err
+	}
+
+	op := &types.TakeBackupOperation{
+		BackupId: backupID,
+		State:    types.OperationStatePending,
+		YdbConnectionParams: types.YdbConnectionParams{
+			Endpoint:     req.GetEndpoint(),
+			DatabaseName: req.GetDatabaseName(),
+		},
+		SourcePaths:         req.GetSourcePaths(),
+		SourcePathToExclude: req.GetSourcePathsToExclude(),
+	}
+
+	operationID, err := s.driver.CreateOperation(ctx, op)
+	if err != nil {
+		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
+		return nil, err
+	}
+
+	// TODO: get pb.Operation from Operation in one place
+	return &pb.Operation{
+		Id:                   operationID.String(),
+		ContainerId:          req.ContainerId,
+		Type:                 string(op.GetType()),
+		DatabaseName:         op.YdbConnectionParams.DatabaseName,
+		BackupId:             backupID.String(),
+		SourcePaths:          op.SourcePaths,
+		SourcePathsToExclude: op.SourcePathToExclude,
+		Status:               types.OperationState(op.GetState()).Enum(),
+	}, nil
 }
 
 func main() {

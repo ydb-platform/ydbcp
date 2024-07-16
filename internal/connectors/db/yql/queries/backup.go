@@ -42,18 +42,18 @@ func CreateOperationQuery() string {
 	//skipped completed_at and paths
 	return `
 		UPSERT INTO Operations (
-			id, 
-			type, 
-			container_id, 
-			database, 
+			id,
+			type,
+			container_id,
+			database,
 			backup_id,
-			initiated, 
-			created_at, 
-			status, 
+			initiated,
+			created_at,
+			status,
 			operation_id
 		) VALUES (
-			$id, 
-			$type, 
+			$id,
+			$type,
 			$container_id,
 			$database,
 			$backup_id,
@@ -61,6 +61,35 @@ func CreateOperationQuery() string {
 			$created_at,
 			$status,
 			$operation_id
+		);
+	`
+}
+
+func CreateBackupQuery() string {
+	//skipped completed_at
+	return `
+		UPSERT INTO Backup (
+			id,
+			container_id,
+			database,
+			initiated,
+			s3_endpoint,
+			s3_region,
+			s3_bucket,
+			s3_path_prefix,
+			status,
+			paths
+		) VALUES (
+			$id,
+			$container_id,
+			$database,
+			$initiated,
+			$s3_endpoint,
+			$s3_region,
+			$s3_bucket,
+			$s3_path_prefix,
+			$status,
+			$paths
 		);
 	`
 }

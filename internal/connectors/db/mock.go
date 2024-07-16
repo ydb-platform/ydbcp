@@ -66,6 +66,19 @@ func (c *MockDBConnector) GetTableClient() table.Client {
 	return nil
 }
 
+func (c *MockDBConnector) CreateBackup(ctx context.Context, backup types.Backup) (types.ObjectID, error) {
+	var id types.ObjectID
+	for {
+		id = types.GenerateObjectID()
+		if _, exist := c.backups[id]; !exist {
+			break
+		}
+	}
+	backup.ID = id
+	c.backups[id] = backup
+	return id, nil
+}
+
 func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 	[]types.Operation, error,
 ) {

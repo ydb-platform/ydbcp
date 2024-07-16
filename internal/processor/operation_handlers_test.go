@@ -4,6 +4,7 @@ import (
 	"context"
 	"sync"
 	"testing"
+
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
@@ -19,20 +20,18 @@ func TestTBOperationHandler(t *testing.T) {
 	defer cancel()
 
 	opId := types.GenerateObjectID()
-	backupId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		Id:                  opId,
-		BackupId:            backupId,
-		Type:                types.OperationType("TB"),
+		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
 	}
 	backup := types.Backup{
-		Id:          backupId,
-		OperationId: opId,
-		Status:      types.BackupStatePending,
+		ID:     backupID,
+		Status: types.BackupStatePending,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -45,7 +44,7 @@ func TestTBOperationHandler(t *testing.T) {
 	opMap := make(map[types.ObjectID]types.Operation)
 	backupMap := make(map[types.ObjectID]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
-	backupMap[backupId] = backup
+	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
 	db := db.NewMockDBConnector(

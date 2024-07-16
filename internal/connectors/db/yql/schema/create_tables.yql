@@ -7,17 +7,17 @@ CREATE TABLE Backups (
     created_at Timestamp,
     completed_at Timestamp,
 
+    s3_endpoint String,
+    s3_region String,
     s3_bucket String,
-    s3_key_prefix String,
+    s3_path_prefix String,
 
     status String,
 
     paths String,
-    operation_id UUID,
 
     INDEX idx_container_id GLOBAL ON (container_id),
     INDEX idx_created_at GLOBAL ON (created_at),
-    INDEX ix_operation_id GLOBAL ON (operation_id),
     PRIMARY KEY (id)
 );
 
