@@ -22,6 +22,7 @@ type S3Config struct {
 type Config struct {
 	YdbcpDbConnectionString string   `yaml:"ydbcp_db_connection_string"`
 	S3                      S3Config `yaml:"s3"`
+	OperationTtlSeconds     int64    `yaml:"operation_ttl_seconds"`
 }
 
 func (config Config) ToString() (string, error) {

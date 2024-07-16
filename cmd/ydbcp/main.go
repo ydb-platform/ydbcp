@@ -177,7 +177,7 @@ func main() {
 
 	lis, err := net.Listen("tcp", fmt.Sprintf(":%d", *port))
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		xlog.Error(ctx, "failed to listen", zap.Error(err))
 		return
 	}
 	s := grpc.NewServer()
@@ -204,10 +204,19 @@ func main() {
 
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	err = handlersRegistry.Add(
-		types.OperationType("TB"), handlers.MakeTBOperationHandler(dbConnector, client.NewClientYdbConnector()),
+		types.OperationTypeTB, handlers.MakeTBOperationHandler(dbConnector, client.NewClientYdbConnector()),
 	)
 	if err != nil {
-		log.Fatalf("failed to register handler: %v", err)
+		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
+		return
+	}
+
+	err = handlersRegistry.Add(
+		types.OperationTypeRB, handlers.MakeRBOperationHandler(dbConnector, client.NewClientYdbConnector(), configInstance),
+	)
+
+	if err != nil {
+		xlog.Error(ctx, "failed to register RB handler", zap.Error(err))
 		return
 	}
 
