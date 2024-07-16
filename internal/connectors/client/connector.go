@@ -31,6 +31,10 @@ type ClientConnector interface {
 type ClientYdbConnector struct {
 }
 
+func NewClientYdbConnector() *ClientYdbConnector {
+	return &ClientYdbConnector{}
+}
+
 func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
 	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
 	db, connErr := ydb.Open(ctx, dsn, ydb.WithAnonymousCredentials())

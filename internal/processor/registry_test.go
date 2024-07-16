@@ -14,25 +14,27 @@ func TestOperationHandlerRegistry(t *testing.T) {
 	op := &types.GenericOperation{
 		Type: types.OperationType("UNKNOWN"),
 	}
-	_, err := registry.Call(ctx, op)
+	err := registry.Call(ctx, op)
 	assert.NotEmpty(t, err, "unknown operation type should raise error")
 
 	opType := types.OperationType("TEST")
 	expectedMessage := "Test message"
+	var result types.Operation
 	err = registry.Add(
 		opType,
-		func(ctx context.Context, op types.Operation) (types.Operation, error) {
+		func(ctx context.Context, op types.Operation) error {
 			op.SetState(types.OperationStateDone)
 			op.SetMessage(expectedMessage)
-			return op, nil
+			result = op
+			return nil
 		},
 	)
 	assert.Empty(t, err)
 
 	err = registry.Add(
 		opType,
-		func(_ context.Context, op types.Operation) (types.Operation, error) {
-			return op, nil
+		func(_ context.Context, op types.Operation) error {
+			return nil
 		},
 	)
 	assert.NotEmpty(t, err, "registry must prohibit re-register handlers")
@@ -42,7 +44,8 @@ func TestOperationHandlerRegistry(t *testing.T) {
 		Type:  opType,
 		State: types.OperationStatePending,
 	}
-	result, err := registry.Call(ctx, op)
+	err = registry.Call(ctx, op)
+	assert.Empty(t, err)
 	assert.Equal(t, result.GetState(), types.OperationStateDone)
 	assert.Equal(t, result.GetMessage(), expectedMessage)
 }

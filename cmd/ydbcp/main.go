@@ -12,7 +12,10 @@ import (
 	"syscall"
 	"ydbcp/internal/config"
 	configInit "ydbcp/internal/config"
+	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/handlers"
+	"ydbcp/internal/processor"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -145,10 +148,12 @@ func main() {
 	s := grpc.NewServer()
 	reflection.Register(s)
 
-	ydbServer := server{driver: db.NewYdbConnector(config)}
-	defer ydbServer.driver.Close()
+	db := db.NewYdbConnector(config)
 
-	pb.RegisterBackupServiceServer(s, &ydbServer)
+	server := server{driver: db}
+	defer server.driver.Close()
+
+	pb.RegisterBackupServiceServer(s, &server)
 
 	wg.Add(1)
 	go func() {
@@ -161,6 +166,11 @@ func main() {
 			xlog.Error(ctx, "failed to serve", zap.Error(err))
 		}
 	}()
+
+	handlersRegistry := processor.NewOperationHandlerRegistry()
+	handlersRegistry.Add(types.OperationType("TB"), handlers.MakeTBOperationHandler(db, client.NewClientYdbConnector()))
+
+	processor.NewOperationProcessor(ctx, &wg, db, handlersRegistry)
 
 	wg.Add(1)
 	go func() {

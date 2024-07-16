@@ -24,12 +24,7 @@ type OperationProcessorImpl struct {
 	db             db.DBConnector
 
 	runningOperations map[types.ObjectID]bool
-	results           chan OperationHandlerResult
-}
-
-type OperationHandlerResult struct {
-	old types.Operation
-	new types.Operation
+	results           chan types.ObjectID
 }
 
 type Option func(*OperationProcessorImpl)
@@ -66,7 +61,7 @@ func NewOperationProcessor(
 		db:                           db,
 		tickerProvider:               ticker.NewRealTicker,
 		runningOperations:            make(map[types.ObjectID]bool),
-		results:                      make(chan OperationHandlerResult),
+		results:                      make(chan types.ObjectID),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -89,8 +84,8 @@ func (o *OperationProcessorImpl) run() {
 			return
 		case <-ticker.Chan():
 			o.processOperations()
-		case result := <-o.results:
-			o.handleOperationResult(result)
+		case operationID := <-o.results:
+			o.handleOperationResult(operationID)
 		}
 	}
 }
@@ -108,9 +103,7 @@ func (o *OperationProcessorImpl) processOperations() {
 	}
 }
 
-func (o *OperationProcessorImpl) processOperation(
-	ctx context.Context, op types.Operation,
-) {
+func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.Operation) {
 	if _, exist := o.runningOperations[op.GetId()]; exist {
 		xlog.Debug(
 			ctx, "operation already running",
@@ -126,42 +119,30 @@ func (o *OperationProcessorImpl) processOperation(
 			ctx, "start operation handler",
 			zap.String("operation", types.OperationToString(op)),
 		)
-		genericOp := types.GenericOperation{
-			Id:      op.GetId(),
-			Type:    op.GetType(),
-			State:   op.GetState(),
-			Message: op.GetMessage(),
-		}
-		result, err := o.handlers.Call(ctx, op)
+		err := o.handlers.Call(ctx, op)
 		if err != nil {
 			xlog.Error(
 				ctx, "operation handler failed",
 				zap.String("operation", types.OperationToString(op)),
 			)
 		}
-		o.results <- OperationHandlerResult{old: &genericOp, new: result}
+		o.results <- op.GetId()
 	}()
 }
 
-func (o *OperationProcessorImpl) handleOperationResult(result OperationHandlerResult) {
+func (o *OperationProcessorImpl) handleOperationResult(operationID types.ObjectID) {
 	ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationResultTimeout)
 	defer cancel()
 
-	xlog.Debug(
-		ctx,
-		"operation handler result",
-		zap.String("oldOperation", types.OperationToString(result.old)),
-		zap.String("newOperation", types.OperationToString(result.new)),
-	)
-	if _, exist := o.runningOperations[result.old.GetId()]; !exist {
+	xlog.Debug(ctx, "operation handler is finished", zap.String("operationID", operationID.String()))
+	if _, exist := o.runningOperations[operationID]; !exist {
 		xlog.Error(
 			ctx, "got result from not running operation",
-			zap.String("operation", types.OperationToString(result.old)),
+			zap.String("operationID", operationID.String()),
 		)
 		return
 	}
-	o.updateOperationState(ctx, result.old, result.new)
-	delete(o.runningOperations, result.old.GetId())
+	delete(o.runningOperations, operationID)
 }
 
 func (o *OperationProcessorImpl) updateOperationState(

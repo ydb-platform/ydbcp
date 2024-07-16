@@ -1,4 +1,4 @@
-package processor
+package handlers
 
 import (
 	"context"
@@ -57,8 +57,10 @@ func TestTBOperationHandler(t *testing.T) {
 
 	handler := MakeTBOperationHandler(db, client)
 
-	result, err := handler(ctx, &tbOp)
+	err := handler(ctx, &tbOp)
+	assert.Empty(t, err)
 
+	result, err := db.GetOperation(ctx, opId)
 	assert.Empty(t, err)
 	assert.Equal(
 		t, result.GetState(), types.OperationStateDone,
