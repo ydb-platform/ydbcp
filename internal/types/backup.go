@@ -57,6 +57,20 @@ func (o *Backup) String() string {
 	)
 }
 
+func (o *Backup) Proto() *pb.Backup {
+	return &pb.Backup{
+		Id:           o.ID.String(),
+		ContainerId:  o.ContainerID,
+		DatabaseName: o.DatabaseName,
+		Location:     nil,
+		Audit:        nil,
+		Size:         0,
+		Status:       pb.Backup_Status(pb.Backup_Status_value[o.Status]),
+		Message:      "",
+		ExpireAt:     nil,
+	}
+}
+
 type OperationType string
 type OperationState string
 
