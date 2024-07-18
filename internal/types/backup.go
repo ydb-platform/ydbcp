@@ -3,10 +3,13 @@ package types
 import (
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"log"
+	"strings"
+
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
-	"strings"
 	"time"
 
 	"ydbcp/internal/util/xlog"
@@ -34,6 +37,17 @@ func (bid ObjectID) MarshalText() ([]byte, error) {
 
 func GenerateObjectID() ObjectID {
 	return ObjectID(uuid.New())
+}
+
+func ParseObjectId(objectId string) (ObjectID, error) {
+	parsed, err := uuid.Parse(objectId)
+	if err != nil {
+		return ObjectID{}, fmt.Errorf("Invalid uuid: %w", err)
+	}
+	if parsed.Variant() != uuid.RFC4122 && parsed.Version() != 4 {
+		return ObjectID{}, fmt.Errorf("ObjectId is not UUID4: %w", err)
+	}
+	return ObjectID(parsed), nil
 }
 
 type Backup struct {
@@ -83,6 +97,7 @@ type Operation interface {
 	SetState(s OperationState)
 	GetMessage() string
 	SetMessage(m string)
+	Proto() *pb.Operation
 }
 
 type TakeBackupOperation struct {
@@ -121,6 +136,23 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
 
+func (o *TakeBackupOperation) Proto() *pb.Operation {
+	return &pb.Operation{
+		Id:                   o.Id.String(),
+		ContainerId:          o.ContainerID,
+		Type:                 string(OperationTypeTB),
+		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		YdbServerOperationId: o.YdbOperationId,
+		BackupId:             o.BackupId.String(),
+		SourcePaths:          o.SourcePaths,
+		SourcePathsToExclude: o.SourcePathToExclude,
+		RestorePaths:         nil,
+		Audit:                nil,
+		Status:               o.State.Enum(),
+		Message:              o.Message,
+	}
+}
+
 type RestoreBackupOperation struct {
 	Id                  ObjectID
 	ContainerID         string
@@ -157,6 +189,27 @@ func (o *RestoreBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
 
+func (o *RestoreBackupOperation) Proto() *pb.Operation {
+	return &pb.Operation{
+		Id:                   o.Id.String(),
+		ContainerId:          o.ContainerID,
+		Type:                 string(OperationTypeTB),
+		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		YdbServerOperationId: o.YdbOperationId,
+		BackupId:             o.BackupId.String(),
+		SourcePaths:          nil,
+		SourcePathsToExclude: nil,
+		RestorePaths:         o.DestinationPaths,
+		Audit: &pb.AuditInfo{
+			Creator:     "",
+			CreatedAt:   timestamppb.New(o.CreatedAt),
+			CompletedAt: nil,
+		},
+		Status:  o.State.Enum(),
+		Message: o.Message,
+	}
+}
+
 type GenericOperation struct {
 	Id          ObjectID
 	ContainerID string
@@ -189,6 +242,10 @@ func (o *GenericOperation) GetMessage() string {
 func (o *GenericOperation) SetMessage(m string) {
 	o.Message = m
 }
+func (o *GenericOperation) Proto() *pb.Operation {
+	log.Fatalf("Converting GenericOperation to Proto: %s", o.Id)
+	return nil
+}
 
 var (
 	OperationStateUnknown    = OperationState(pb.Operation_STATUS_UNSPECIFIED.String())
@@ -203,6 +260,7 @@ const (
 	OperationTypeTB = OperationType("TB")
 	OperationTypeRB = OperationType("RB")
 
+	BackupStateUnknown   = "Unknown"
 	BackupStatePending   = "Pending"
 	BackupStateAvailable = "Available"
 	BackupStateError     = "Error"

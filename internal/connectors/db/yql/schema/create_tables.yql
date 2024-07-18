@@ -1,3 +1,7 @@
+DROP TABLE Backups;
+DROP TABLE OperationTypes;
+DROP TABLE Operations;
+
 CREATE TABLE Backups (
     id UUID NOT NULL,
     container_id String NOT NULL,
@@ -30,10 +34,10 @@ CREATE TABLE OperationTypes (
 
 CREATE TABLE Operations (
     id UUID NOT NULL,
-    type String,
+    type String NOT NULL,
     container_id String NOT NULL,
     database String NOT NULL,
-    backup_id String,
+    backup_id UUID,
 
     initiated String,
     created_at Timestamp,

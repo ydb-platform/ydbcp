@@ -139,3 +139,9 @@ func (c *MockDBConnector) GetOperation(
 		"operation not found, id %s", operationID.String(),
 	)
 }
+
+func (d *MockDBConnector) SelectOperations(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]types.Operation, error) {
+	return nil, errors.New("Do not call this method")
+}

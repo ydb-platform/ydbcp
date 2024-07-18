@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -10,7 +11,6 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 
 	"ydbcp/internal/util/xlog"
@@ -37,6 +37,9 @@ type DBConnector interface {
 	GetTableClient() table.Client
 	SelectBackups(ctx context.Context, queryBuilder queries.ReadTableQuery) (
 		[]*types.Backup, error,
+	)
+	SelectOperations(ctx context.Context, queryBuilder queries.ReadTableQuery) (
+		[]types.Operation, error,
 	)
 	SelectBackupsByStatus(ctx context.Context, backupStatus string) ([]*types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
@@ -98,12 +101,12 @@ func DoStructSelect[T any](
 	var (
 		entities []*T
 	)
-	queryFormat, err := queryBuilder.FormatQuery()
+	queryFormat, err := queryBuilder.FormatQuery(ctx)
 	if err != nil {
 		return nil, err
 	}
 	err = d.GetTableClient().Do(
-		ctx, func(ctx context.Context, s table.Session) (err error) {
+		ctx, func(ctx context.Context, s table.Session) error {
 			var (
 				res result.Result
 			)
@@ -154,12 +157,12 @@ func DoInterfaceSelect[T any](
 	var (
 		entities []T
 	)
-	queryFormat, err := queryBuilder.FormatQuery()
+	queryFormat, err := queryBuilder.FormatQuery(ctx)
 	if err != nil {
 		return nil, err
 	}
 	err = d.GetTableClient().Do(
-		ctx, func(ctx context.Context, s table.Session) (err error) {
+		ctx, func(ctx context.Context, s table.Session) error {
 			var (
 				res result.Result
 			)
@@ -201,14 +204,18 @@ func DoInterfaceSelect[T any](
 	return entities, nil
 }
 
-func (d *YdbConnector) ExecuteUpsert(ctx context.Context, query string, parameters *table.QueryParameters) error {
-	err := d.GetTableClient().Do(
+func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.WriteTableQuery) error {
+	queryFormat, err := queryBuilder.FormatQuery(ctx)
+	if err != nil {
+		return err
+	}
+	err = d.GetTableClient().Do(
 		ctx, func(ctx context.Context, s table.Session) (err error) {
 			_, _, err = s.Execute(
 				ctx,
 				writeTx,
-				query,
-				parameters,
+				queryFormat.QueryText,
+				queryFormat.QueryParams,
 			)
 			if err != nil {
 				return err
@@ -233,11 +240,11 @@ func (d *YdbConnector) SelectBackupsByStatus(
 		d,
 		queries.MakeReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields("id", "operation_id"),
-			queries.WithQueryFilters[string](
-				queries.QueryFilter[string]{
-					Field:  "Status",
-					Values: []string{backupStatus},
+			queries.WithSelectFields("id"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "status",
+					Values: []table_types.Value{table_types.StringValueFromString(backupStatus)},
 				},
 			),
 		),
@@ -256,6 +263,17 @@ func (d *YdbConnector) SelectBackups(
 	)
 }
 
+func (d *YdbConnector) SelectOperations(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]types.Operation, error) {
+	return DoInterfaceSelect[types.Operation](
+		ctx,
+		d,
+		queryBuilder,
+		ReadOperationFromResultSet,
+	)
+}
+
 func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 	[]types.Operation, error,
 ) {
@@ -264,10 +282,14 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 		d,
 		queries.MakeReadTableQuery(
 			queries.WithTableName("Operations"),
+			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
-				queries.QueryFilter[types.OperationState]{
-					Field:  "Status",
-					Values: []types.OperationState{types.OperationStatePending, types.OperationStateCancelling},
+				queries.QueryFilter{
+					Field: "status",
+					Values: []table_types.Value{
+						table_types.StringValueFromString(string(types.OperationStatePending)),
+						table_types.StringValueFromString(string(types.OperationStateCancelling)),
+					},
 				},
 			),
 		),
@@ -275,69 +297,17 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 	)
 }
 
-func BuildCreateOperationParams(operation types.Operation) *table.QueryParameters {
-	return table.NewQueryParameters(
-		table.ValueParam("$id", table_types.UUIDValue(operation.GetId())),
-		table.ValueParam(
-			"$type",
-			table_types.StringValueFromString(string(operation.GetType())),
-		),
-		table.ValueParam(
-			"$container_id", table_types.StringValueFromString(""),
-		),
-		table.ValueParam("$database", table_types.StringValueFromString("")),
-		table.ValueParam(
-			"$backup_id", table_types.UUIDValue(types.ObjectID{}),
-		), //TODO: change to actual backup id.
-		table.ValueParam(
-			"$initiated",
-			table_types.StringValueFromString(operation.GetMessage()),
-		),
-		table.ValueParam(
-			"$created_at", table_types.UUIDValue(operation.GetId()),
-		),
-		table.ValueParam(
-			"$status", table_types.StringValueFromString(operation.GetState().String()),
-		),
-		table.ValueParam(
-			"$operation_id",
-			table_types.StringValueFromString(operation.GetMessage()),
-		),
-	)
-}
-
-func BuildUpdateOperationParams(operation types.Operation) *table.QueryParameters {
-	return table.NewQueryParameters(
-		table.ValueParam("$id", table_types.UUIDValue(operation.GetId())),
-		table.ValueParam(
-			"$status", table_types.StringValueFromString(operation.GetState().String()),
-		),
-		table.ValueParam(
-			"$message",
-			table_types.StringValueFromString(operation.GetMessage()),
-		),
-	)
-}
-
-func BuildUpdateBackupParams(id types.ObjectID, status string) *table.QueryParameters {
-	return table.NewQueryParameters(
-		table.ValueParam("$id", table_types.UUIDValue(id)),
-		table.ValueParam("$status", table_types.StringValueFromString(status)),
-	)
-}
-
 func (d *YdbConnector) UpdateOperation(
 	ctx context.Context, operation types.Operation,
 ) error {
-	return d.ExecuteUpsert(ctx, queries.UpdateOperationQuery(), BuildUpdateOperationParams(operation))
+	return d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithUpdateOperation(operation)))
 }
 
-// draft, not used. imo we can not use types.Operation here. it better be a more specific struct
 func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
 ) (types.ObjectID, error) {
 	operation.SetId(types.GenerateObjectID())
-	err := d.ExecuteUpsert(ctx, queries.CreateOperationQuery(), BuildCreateOperationParams(operation))
+	err := d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithCreateOperation(operation)))
 	if err != nil {
 		return types.ObjectID{}, err
 	}
@@ -349,7 +319,7 @@ func (d *YdbConnector) CreateBackup(
 ) (types.ObjectID, error) {
 	id := types.GenerateObjectID()
 	backup.ID = id
-	err := d.ExecuteUpsert(ctx, queries.CreateBackupQuery(), BuildCreateBackupParams(backup))
+	err := d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithCreateBackup(backup)))
 	if err != nil {
 		return types.ObjectID{}, err
 	}
@@ -359,19 +329,9 @@ func (d *YdbConnector) CreateBackup(
 func (d *YdbConnector) UpdateBackup(
 	context context.Context, id types.ObjectID, backupStatus string,
 ) error {
-	return d.ExecuteUpsert(context, queries.UpdateBackupQuery(), BuildUpdateBackupParams(id, backupStatus))
-}
-
-func BuildCreateBackupParams(b types.Backup) *table.QueryParameters {
-	return table.NewQueryParameters(
-		table.ValueParam("$id", table_types.UUIDValue(b.ID)),
-		table.ValueParam("$container_id", table_types.StringValueFromString(b.ContainerID)),
-		table.ValueParam("$database", table_types.StringValueFromString(b.DatabaseName)),
-		table.ValueParam("$initiated", table_types.StringValueFromString("")), // TODO
-		table.ValueParam("$s3_endpoint", table_types.StringValueFromString(b.S3Endpoint)),
-		table.ValueParam("$s3_region", table_types.StringValueFromString(b.S3Region)),
-		table.ValueParam("$s3_bucket", table_types.StringValueFromString(b.S3Bucket)),
-		table.ValueParam("$s3_path_prefix", table_types.StringValueFromString(b.S3PathPrefix)),
-		table.ValueParam("$status", table_types.StringValueFromString(b.Status)),
-	)
+	backup := types.Backup{
+		ID:     id,
+		Status: backupStatus,
+	}
+	return d.ExecuteUpsert(context, queries.MakeWriteTableQuery(queries.WithCreateBackup(backup)))
 }
