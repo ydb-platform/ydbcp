@@ -3,7 +3,9 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"ydbcp/internal/util/xlog"
 
 	"go.uber.org/zap"
@@ -24,32 +26,49 @@ type Config struct {
 	S3                      S3Config `yaml:"s3"`
 }
 
-func (config Config) ToString() (string, error) {
-	data, err := yaml.Marshal(&config)
+func (c *Config) ToString() (string, error) {
+	data, err := yaml.Marshal(&c)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func InitConfig(ctx context.Context, confPath string) (Config, error) {
-	if len(confPath) != 0 {
-		confTxt, err := os.ReadFile(confPath)
-		if err != nil {
-			xlog.Error(ctx, "Unable to read configuration file",
-				zap.String("config_path", confPath),
-				zap.Error(err))
-			return Config{}, err
-		}
-		var config Config
-		err = yaml.Unmarshal(confTxt, &config)
-		if err != nil {
-			xlog.Error(ctx, "Unable to parse configuration file",
-				zap.String("config_path", confPath),
-				zap.Error(err))
-			return Config{}, err
-		}
-		return config, nil
+func NewConfig(ctx context.Context, confPath string) (*Config, error) {
+	if len(confPath) == 0 {
+		return nil, errors.New("configuration file path is empty")
 	}
-	return Config{}, errors.New("configuration file path is empty")
+	confTxt, err := os.ReadFile(confPath)
+	if err != nil {
+		xlog.Error(ctx, "Unable to read configuration file",
+			zap.String("config_path", confPath),
+			zap.Error(err))
+		return nil, err
+	}
+	var config Config
+	err = yaml.Unmarshal(confTxt, &config)
+	if err != nil {
+		xlog.Error(ctx, "Unable to parse configuration file",
+			zap.String("config_path", confPath),
+			zap.Error(err))
+		return nil, err
+	}
+	return &config, nil
+}
+
+func readSecret(filename string) (string, error) {
+	rawSecret, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("can't read file %s: %w", filename, err)
+	}
+	return strings.TrimSpace(string(rawSecret)), nil
+}
+
+func (c *S3Config) AccessKey() (string, error) {
+	return readSecret(c.AccessKeyIDPath)
+}
+
+func (c *S3Config) SecretKey() (string, error) {
+	return readSecret(c.SecretAccessKeyPath)
+
 }

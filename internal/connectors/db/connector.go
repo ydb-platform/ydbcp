@@ -51,7 +51,7 @@ type YdbConnector struct {
 	driver *ydb.Driver
 }
 
-func NewYdbConnector(config config.Config) *YdbConnector {
+func NewYdbConnector(config *config.Config) *YdbConnector {
 	p := new(YdbConnector)
 	p.driver = InitDriver(config.YdbcpDbConnectionString)
 	return p
