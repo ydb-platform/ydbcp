@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -95,7 +96,17 @@ func (m *MockClientConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3S
 func (m *MockClientConnector) GetOperationStatus(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
 	op, exist := m.operations[operationId]
 	if !exist {
-		return nil, fmt.Errorf("operation %s doesn't exist", operationId)
+		issues := make([]*Ydb_Issue.IssueMessage, 1)
+		issues[0] = &Ydb_Issue.IssueMessage{
+			Message: "operation not found",
+		}
+
+		return &Ydb_Operations.GetOperationResponse{
+			Operation: &Ydb_Operations.Operation{
+				Status: Ydb.StatusIds_NOT_FOUND,
+				Issues: issues,
+			},
+		}, nil
 	}
 
 	return &Ydb_Operations.GetOperationResponse{
@@ -106,11 +117,39 @@ func (m *MockClientConnector) GetOperationStatus(_ context.Context, _ *ydb.Drive
 func (m *MockClientConnector) ForgetOperation(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
 	_, exist := m.operations[operationId]
 	if !exist {
-		return nil, fmt.Errorf("operation %s doesn't exist", operationId)
+		issues := make([]*Ydb_Issue.IssueMessage, 1)
+		issues[0] = &Ydb_Issue.IssueMessage{
+			Message: "operation not found",
+		}
+
+		return &Ydb_Operations.ForgetOperationResponse{
+			Status: Ydb.StatusIds_NOT_FOUND,
+			Issues: issues,
+		}, nil
 	}
 
 	delete(m.operations, operationId)
 	return &Ydb_Operations.ForgetOperationResponse{
+		Status: Ydb.StatusIds_SUCCESS,
+	}, nil
+}
+
+func (m *MockClientConnector) CancelOperation(_ context.Context, _ *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error) {
+	op, exist := m.operations[operationId]
+	if !exist {
+		issues := make([]*Ydb_Issue.IssueMessage, 1)
+		issues[0] = &Ydb_Issue.IssueMessage{
+			Message: "operation not found",
+		}
+
+		return &Ydb_Operations.CancelOperationResponse{
+			Status: Ydb.StatusIds_NOT_FOUND,
+			Issues: issues,
+		}, nil
+	}
+
+	op.Status = Ydb.StatusIds_CANCELLED
+	return &Ydb_Operations.CancelOperationResponse{
 		Status: Ydb.StatusIds_SUCCESS,
 	}, nil
 }

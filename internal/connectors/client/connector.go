@@ -26,6 +26,7 @@ type ClientConnector interface {
 	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error)
 	GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error)
 	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
+	CancelOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error)
 }
 
 type ClientYdbConnector struct {
@@ -175,6 +176,30 @@ func (d *ClientYdbConnector) ForgetOperation(ctx context.Context, clientDb *ydb.
 
 	if err != nil {
 		return nil, fmt.Errorf("error forgetting operation: %s", err.Error())
+	}
+
+	return response, nil
+}
+
+func (d *ClientYdbConnector) CancelOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
+	}
+
+	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
+	xlog.Info(ctx, "Cancelling operation",
+		zap.String("id", operationId),
+	)
+
+	response, err := client.CancelOperation(
+		ctx,
+		&Ydb_Operations.CancelOperationRequest{
+			Id: operationId,
+		},
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("error cancelling operation: %s", err.Error())
 	}
 
 	return response, nil

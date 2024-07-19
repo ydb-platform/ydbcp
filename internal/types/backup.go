@@ -3,11 +3,11 @@ package types
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
+	"strings"
+	"time"
 
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto"
@@ -121,6 +121,42 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
 
+type RestoreBackupOperation struct {
+	Id                  ObjectID
+	ContainerID         string
+	BackupId            ObjectID
+	State               OperationState
+	Message             string
+	YdbConnectionParams YdbConnectionParams
+	YdbOperationId      string
+	DestinationPaths    []string
+	CreatedAt           time.Time
+}
+
+func (o *RestoreBackupOperation) GetId() ObjectID {
+	return o.Id
+}
+func (o *RestoreBackupOperation) SetId(id ObjectID) {
+	o.Id = id
+}
+func (o *RestoreBackupOperation) GetType() OperationType {
+	return OperationTypeRB
+}
+func (o *RestoreBackupOperation) SetType(_ OperationType) {
+}
+func (o *RestoreBackupOperation) GetState() OperationState {
+	return o.State
+}
+func (o *RestoreBackupOperation) SetState(s OperationState) {
+	o.State = s
+}
+func (o *RestoreBackupOperation) GetMessage() string {
+	return o.Message
+}
+func (o *RestoreBackupOperation) SetMessage(m string) {
+	o.Message = m
+}
+
 type GenericOperation struct {
 	Id          ObjectID
 	ContainerID string
@@ -165,6 +201,7 @@ var (
 
 const (
 	OperationTypeTB = OperationType("TB")
+	OperationTypeRB = OperationType("RB")
 
 	BackupStatePending   = "Pending"
 	BackupStateAvailable = "Available"
