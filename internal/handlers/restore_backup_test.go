@@ -43,7 +43,7 @@ func TestRBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
-	assert.Equal(t, "error status: NOT_FOUND, issues: message:\"operation not found\"", op.GetMessage())
+	assert.Equal(t, "Error status: NOT_FOUND, issues: message:\"operation not found\"", op.GetMessage())
 }
 
 func TestRBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
@@ -85,7 +85,7 @@ func TestRBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelling, op.GetState())
-	assert.Equal(t, "operation deadline exceeded", op.GetMessage())
+	assert.Equal(t, "Operation deadline exceeded", op.GetMessage())
 
 	// check ydb operation status (should be cancelled)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, rbOp.YdbOperationId)
