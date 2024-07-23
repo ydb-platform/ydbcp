@@ -12,7 +12,7 @@ require (
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.74.2
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/zap v1.27.0
-	google.golang.org/grpc v1.64.0
+	google.golang.org/grpc v1.64.1
 	google.golang.org/protobuf v1.34.1
 	gopkg.in/yaml.v3 v3.0.1
 )
