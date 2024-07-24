@@ -49,7 +49,7 @@ func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*
 		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
 	}
 	backups, err := s.driver.SelectBackups(
-		ctx, queries.MakeReadTableQuery(
+		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
@@ -118,7 +118,7 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
 	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
 	backups, err := s.driver.SelectBackups(
-		ctx, queries.MakeReadTableQuery(
+		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
@@ -156,7 +156,7 @@ func (s *server) ListOperations(ctx context.Context, request *pb.ListOperationsR
 ) {
 	xlog.Debug(ctx, "ListOperations", zap.String("request", request.String()))
 	operations, err := s.driver.SelectOperations(
-		ctx, queries.MakeReadTableQuery(
+		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
 			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
@@ -270,7 +270,10 @@ func main() {
 
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	err = handlersRegistry.Add(
-		types.OperationTypeTB, handlers.MakeTBOperationHandler(dbConnector, client.NewClientYdbConnector()),
+		types.OperationTypeTB,
+		handlers.NewTBOperationHandler(
+			dbConnector, client.NewClientYdbConnector(), configInstance, queries.NewWriteTableQuery,
+		),
 	)
 	if err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -279,7 +282,7 @@ func main() {
 
 	err = handlersRegistry.Add(
 		types.OperationTypeRB,
-		handlers.MakeRBOperationHandler(dbConnector, client.NewClientYdbConnector(), configInstance),
+		handlers.NewRBOperationHandler(dbConnector, client.NewClientYdbConnector(), configInstance),
 	)
 
 	if err != nil {

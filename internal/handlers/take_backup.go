@@ -3,16 +3,20 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
-
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 )
 
-func MakeTBOperationHandler(db db.DBConnector, client client.ClientConnector) types.OperationHandler {
+func NewTBOperationHandler(
+	db db.DBConnector, client client.ClientConnector, config config.Config,
+	getQueryBuilder func() queries.WriteTableQuery,
+) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client)
+		return TBOperationHandler(ctx, op, db, client, config, getQueryBuilder)
 	}
 }
 
@@ -21,6 +25,8 @@ func TBOperationHandler(
 	operation types.Operation,
 	db db.DBConnector,
 	client client.ClientConnector,
+	config config.Config,
+	getQueryBuilder func() queries.WriteTableQuery,
 ) error {
 	if operation.GetType() != types.OperationTypeTB {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTB)
@@ -37,90 +43,87 @@ func TBOperationHandler(
 
 	defer func() { _ = client.Close(ctx, conn) }()
 
-	//lookup YdbServerOperationStatus
-	opInfo, err := client.GetOperationStatus(ctx, conn, tb.YdbOperationId)
+	ydbOpResponse, err := lookupYdbOperationStatus(
+		ctx, client, conn, operation, tb.YdbOperationId, tb.CreatedAt, config,
+	)
 	if err != nil {
-		//skip, write log
-		//upsert message into operation?
-		return fmt.Errorf(
-			"failed to lookup operation status for operation id %s, export operation id %s: %w",
-			tb.GetId().String(),
-			tb.YdbOperationId,
-			err,
+		return err
+	}
+
+	backupToWrite := types.Backup{
+		ID:     tb.BackupId,
+		Status: types.BackupStateUnknown,
+	}
+
+	if ydbOpResponse.shouldAbortHandler {
+		operation.SetState(ydbOpResponse.opState)
+		operation.SetMessage(ydbOpResponse.opMessage)
+		backupToWrite.Status = types.BackupStateError
+		return db.ExecuteUpsert(
+			ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
+	if ydbOpResponse.opResponse == nil {
+		return nil
+	}
+	opResponse := ydbOpResponse.opResponse
+
 	switch tb.State {
 	case types.OperationStatePending:
 		{
-			if !opInfo.GetOperation().Ready {
-				//if pending: return op, nil
-				//if backup deadline failed: cancel operation. (skip for now)
-				return nil
-			}
-			if opInfo.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				//upsert into operations (id, status) values (id, done)?
-				//db.StartUpdate()
-				//.WithUpdateBackup()
-				//.WithYUpdateOperation()
-				err = db.UpdateBackup(ctx, tb.BackupId, types.BackupStateAvailable)
-				if err != nil {
-					return fmt.Errorf(
-						"error updating backup table, operation id %s: %w",
-						tb.GetId().String(),
-						err,
+			if !opResponse.GetOperation().Ready {
+				if deadlineExceeded(tb.CreatedAt, config) {
+					err = CancelYdbOperation(ctx, client, conn, operation, tb.YdbOperationId, "TTL")
+					if err != nil {
+						return err
+					}
+					backupToWrite.Status = types.BackupStateError
+					return db.ExecuteUpsert(
+						ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
+				} else {
+					return nil
 				}
+			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
+				backupToWrite.Status = types.BackupStateAvailable
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Success")
-			} else {
-				//op.State = Error
-				//upsert into operations (id, status, message) values (id, error, message)?
-				err = db.UpdateBackup(ctx, tb.BackupId, types.BackupStateError)
-				if err != nil {
-					return fmt.Errorf(
-						"error updating backup table, operation id %s: %w",
-						tb.GetId().String(),
-						err,
-					)
-				}
-				if opInfo.GetOperation().Status == Ydb.StatusIds_CANCELLED {
-					operation.SetMessage("got CANCELLED status for PENDING operation")
-				} else {
-					operation.SetMessage(types.IssuesToString(opInfo.GetOperation().Issues))
-				}
+			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
+				backupToWrite.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
+				operation.SetMessage("got CANCELLED status for PENDING operation")
+			} else {
+				backupToWrite.Status = types.BackupStateError
+				operation.SetState(types.OperationStateError)
+				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 		}
 	case types.OperationStateCancelling:
 		{
-			if !opInfo.GetOperation().Ready {
-				//can this hang in cancelling state?
-				return nil
-			}
-			if opInfo.GetOperation().Status == Ydb.StatusIds_CANCELLED {
-				//upsert into operations (id, status, message) values (id, cancelled)?
-				err = db.UpdateBackup(ctx, tb.BackupId, types.BackupStateCancelled)
-				if err != nil {
-					return fmt.Errorf(
-						"error updating backup table, operation id %s: %w",
-						tb.GetId().String(),
-						err,
+			if !opResponse.GetOperation().Ready {
+				if deadlineExceeded(tb.CreatedAt, config) {
+					backupToWrite.Status = types.BackupStateError
+					operation.SetState(types.OperationStateError)
+					operation.SetMessage("Operation deadline exceeded")
+					return db.ExecuteUpsert(
+						ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
+				} else {
+					return nil
 				}
+			}
+			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
+				backupToWrite.Status = types.BackupStateAvailable
+				operation.SetState(types.OperationStateDone)
+				operation.SetMessage("Operation was completed despite cancellation")
+			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
+				backupToWrite.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
 				operation.SetMessage("Success")
 			} else {
-				//upsert into operations (id, status, message) values (id, error, error.message)?
-				err = db.UpdateBackup(ctx, tb.BackupId, types.BackupStateError)
-				if err != nil {
-					return fmt.Errorf(
-						"error updating backup table, operation id %s: %w",
-						tb.GetId().String(),
-						err,
-					)
-				}
+				backupToWrite.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
-				operation.SetMessage(types.IssuesToString(opInfo.GetOperation().Issues))
+				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 		}
 	}
@@ -142,5 +145,7 @@ func TBOperationHandler(
 			types.IssuesToString(response.GetIssues()),
 		)
 	}
-	return db.UpdateOperation(ctx, operation)
+	return db.ExecuteUpsert(
+		ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+	)
 }

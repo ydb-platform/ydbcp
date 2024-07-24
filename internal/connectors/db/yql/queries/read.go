@@ -52,7 +52,7 @@ type ReadTableQueryImpl struct {
 
 type ReadTableQueryOption func(*ReadTableQueryImpl)
 
-func MakeReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
+func NewReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
 	d := &ReadTableQueryImpl{}
 	d.filters = make([][]table_types.Value, 0)
 	d.filterFields = make([]string, 0)

@@ -140,8 +140,26 @@ func (c *MockDBConnector) GetOperation(
 	)
 }
 
-func (d *MockDBConnector) SelectOperations(
-	ctx context.Context, queryBuilder queries.ReadTableQuery,
+func (c *MockDBConnector) GetBackup(
+	_ context.Context, backupID types.ObjectID,
+) (types.Backup, error) {
+	if backup, exist := c.backups[backupID]; exist {
+		return backup, nil
+	}
+	return types.Backup{}, fmt.Errorf(
+		"backup not found, id %s", backupID.String(),
+	)
+}
+
+func (c *MockDBConnector) SelectOperations(
+	_ context.Context, _ queries.ReadTableQuery,
 ) ([]types.Operation, error) {
 	return nil, errors.New("Do not call this method")
+}
+
+func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.WriteTableQuery) error {
+	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
+	c.operations[queryBuilderMock.Operation.GetId()] = queryBuilderMock.Operation
+	c.backups[queryBuilderMock.Backup.ID] = queryBuilderMock.Backup
+	return nil
 }

@@ -110,6 +110,7 @@ type TakeBackupOperation struct {
 	YdbOperationId      string
 	SourcePaths         []string
 	SourcePathToExclude []string
+	CreatedAt           time.Time
 }
 
 func (o *TakeBackupOperation) GetId() ObjectID {
