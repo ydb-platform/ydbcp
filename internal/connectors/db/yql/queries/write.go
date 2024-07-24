@@ -29,11 +29,18 @@ type WriteSingleTableQueryImpl struct {
 	tableName        string
 	upsertFields     []string
 	tableQueryParams []table.ParameterOption
+	updateParam      *table.ParameterOption
 }
 
 func (d *WriteSingleTableQueryImpl) AddValueParam(name string, value table_types.Value) {
 	d.upsertFields = append(d.upsertFields, name[1:])
 	d.tableQueryParams = append(d.tableQueryParams, table.ValueParam(fmt.Sprintf("%s_%d", name, d.index), value))
+}
+
+func (d *WriteSingleTableQueryImpl) AddUpdateId(value table_types.Value) {
+	updateParamName := fmt.Sprintf("$id_%d", d.index)
+	vp := table.ValueParam(updateParamName, value)
+	d.updateParam = &vp
 }
 
 func (d *WriteSingleTableQueryImpl) GetParamNames() []string {
@@ -73,12 +80,14 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		)
 		d.AddValueParam(
 			"$created_at",
-			table_types.StringValueFromString(""), //TODO
+			table_types.TimestampValueFromTime(tb.CreatedAt),
 		)
 		d.AddValueParam(
 			"$operation_id",
 			table_types.StringValueFromString(tb.YdbOperationId),
 		)
+	} else {
+		panic("Implement me")
 	}
 
 	return d
@@ -89,7 +98,7 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 		index:     index,
 		tableName: "Operations",
 	}
-	d.AddValueParam("$id", table_types.UUIDValue(operation.GetId()))
+	d.AddUpdateId(table_types.UUIDValue(operation.GetId()))
 	d.AddValueParam(
 		"$status", table_types.StringValueFromString(operation.GetState().String()),
 	)
@@ -105,7 +114,7 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 		index:     index,
 		tableName: "Backups",
 	}
-	d.AddValueParam("$id", table_types.UUIDValue(backup.ID))
+	d.AddUpdateId(table_types.UUIDValue(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
 	return d
 }
@@ -160,35 +169,83 @@ func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) Wri
 }
 
 func (d *WriteSingleTableQueryImpl) DeclareParameters() string {
-	declares := make([]string, len(d.tableQueryParams))
-	for i, param := range d.tableQueryParams {
-		declares[i] = fmt.Sprintf("DECLARE %s AS %s", param.Name(), param.Value().Type().String())
+	declares := make([]string, 0)
+	if d.updateParam != nil {
+		declares = append(
+			declares,
+			fmt.Sprintf("DECLARE %s AS %s", (*d.updateParam).Name(), (*d.updateParam).Value().Type().String()),
+		)
+	}
+	for _, param := range d.tableQueryParams {
+		declares = append(
+			declares, fmt.Sprintf("DECLARE %s AS %s", param.Name(), param.Value().Type().String()),
+		)
 	}
 	return strings.Join(declares, ";\n")
 }
 
-func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
-	queryStrings := make([]string, len(d.tableQueries))
-	allParams := make([]table.ParameterOption, 0)
-	for i, t := range d.tableQueries {
-		if len(t.upsertFields) == 0 {
-			return nil, errors.New("No fields to upsert")
-		}
-		if len(t.tableName) == 0 {
-			return nil, errors.New("No table")
-		}
-		declares := t.DeclareParameters()
-		paramNames := t.GetParamNames()
-		keyParam := fmt.Sprintf("%s = %s", t.upsertFields[0], paramNames[0])
-		updates := make([]string, 0)
-		for j := 1; j < len(t.upsertFields); j++ {
-			updates = append(updates, fmt.Sprintf("%s = %s", t.upsertFields[j], paramNames[j]))
-		}
-		queryStrings[i] = fmt.Sprintf(
+func ProcessUpsertQuery(
+	queryStrings *[]string, allParams *[]table.ParameterOption, t *WriteSingleTableQueryImpl,
+) error {
+	if len(t.upsertFields) == 0 {
+		return errors.New("No fields to upsert")
+	}
+	if len(t.tableName) == 0 {
+		return errors.New("No table")
+	}
+	declares := t.DeclareParameters()
+	*queryStrings = append(
+		*queryStrings, fmt.Sprintf(
+			"%s;\nUPSERT INTO %s (%s) VALUES (%s)", declares, t.tableName, strings.Join(t.upsertFields, ", "),
+			strings.Join(t.GetParamNames(), ", "),
+		),
+	)
+	for _, p := range t.tableQueryParams {
+		*allParams = append(*allParams, p)
+	}
+	return nil
+}
+
+func ProcessUpdateQuery(
+	queryStrings *[]string, allParams *[]table.ParameterOption, t *WriteSingleTableQueryImpl,
+) error {
+	if len(t.upsertFields) == 0 {
+		return errors.New("No fields to upsert")
+	}
+	if len(t.tableName) == 0 {
+		return errors.New("No table")
+	}
+	declares := t.DeclareParameters()
+	paramNames := t.GetParamNames()
+	keyParam := fmt.Sprintf("id = %s", (*t.updateParam).Name())
+	updates := make([]string, 0)
+	for i := range t.upsertFields {
+		updates = append(updates, fmt.Sprintf("%s = %s", t.upsertFields[i], paramNames[i]))
+	}
+	*queryStrings = append(
+		*queryStrings, fmt.Sprintf(
 			"%s;\nUPDATE %s SET %s WHERE %s", declares, t.tableName, strings.Join(updates, ", "), keyParam,
-		)
-		for _, p := range t.tableQueryParams {
-			allParams = append(allParams, p)
+		),
+	)
+	*allParams = append(*allParams, *t.updateParam)
+	for _, p := range t.tableQueryParams {
+		*allParams = append(*allParams, p)
+	}
+	return nil
+}
+
+func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
+	queryStrings := make([]string, 0)
+	allParams := make([]table.ParameterOption, 0)
+	for _, t := range d.tableQueries {
+		var err error
+		if t.updateParam == nil {
+			err = ProcessUpsertQuery(&queryStrings, &allParams, &t)
+		} else {
+			err = ProcessUpdateQuery(&queryStrings, &allParams, &t)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 	res := strings.Join(queryStrings, ";\n")
