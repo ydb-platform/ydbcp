@@ -48,7 +48,9 @@ message MakeBackupRequest {
     string container_id = 1;
     string database_name = 2;
     string endpoint = 3;
+    // Full path to a table or directory. Empty source_paths means backup of root directory.
     repeated string source_paths = 4;  // [(size) = "<=256"];
+    // Regexp for paths excluded from backup.
     repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
 }
 

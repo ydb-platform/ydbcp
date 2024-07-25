@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
+	"path"
+	"ydbcp/internal/types"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Export"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Import"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
@@ -51,10 +52,10 @@ func (m *MockClientConnector) Close(_ context.Context, _ *ydb.Driver) error {
 	return nil
 }
 
-func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings types.ExportSettings) (string, error) {
 	objects := make([]ObjectPath, 0)
-	for _, item := range s3Settings.Items {
-		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: item.DestinationPrefix}
+	for _, source := range s3Settings.SourcePaths {
+		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: path.Join(s3Settings.DestinationPrefix, source)}
 		if m.storage[objectPath] {
 			return "", fmt.Errorf("object %v already exist", objectPath)
 		}

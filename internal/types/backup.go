@@ -207,6 +207,8 @@ const (
 	BackupStateAvailable = "Available"
 	BackupStateError     = "Error"
 	BackupStateCancelled = "Cancelled"
+
+	BackupTimestampFormat = "20060102_150405"
 )
 
 func OperationToString(o Operation) string {
@@ -265,3 +267,17 @@ func MakeYdbConnectionString(params YdbConnectionParams) string {
 }
 
 type OperationHandler func(context.Context, Operation) error
+
+type ExportSettings struct {
+	Endpoint            string
+	Region              string
+	Bucket              string
+	AccessKey           string
+	SecretKey           string
+	Description         string
+	NumberOfRetries     uint32
+	SourcePaths         []string
+	SourcePathToExclude []string
+	DestinationPrefix   string
+	BackupID            ObjectID
+}
