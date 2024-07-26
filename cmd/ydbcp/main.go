@@ -311,10 +311,11 @@ func main() {
 		xlog.Error(ctx, "Error init DBConnector", zap.Error(err))
 		os.Exit(1)
 	}
+	clientConnector := client.NewClientYdbConnector(configInstance.ClientConnection)
 
 	server := server{
 		driver:     dbConnector,
-		clientConn: client.NewClientYdbConnector(),
+		clientConn: clientConnector,
 		s3:         configInstance.S3,
 	}
 	defer server.driver.Close(ctx)
@@ -337,9 +338,7 @@ func main() {
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	err = handlersRegistry.Add(
 		types.OperationTypeTB,
-		handlers.NewTBOperationHandler(
-			dbConnector, client.NewClientYdbConnector(), configInstance, queries.NewWriteTableQuery,
-		),
+		handlers.NewTBOperationHandler(dbConnector, clientConnector, configInstance, queries.NewWriteTableQuery),
 	)
 	if err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -348,7 +347,7 @@ func main() {
 
 	err = handlersRegistry.Add(
 		types.OperationTypeRB,
-		handlers.NewRBOperationHandler(dbConnector, client.NewClientYdbConnector(), configInstance),
+		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance),
 	)
 
 	if err != nil {
