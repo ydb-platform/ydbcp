@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package ydbcp;
+package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
 
-import "operation.proto";
+import "ydbcp/v1alpha1/operation.proto";
 
 // A set of methods for managing operations;.
 service OperationService {
