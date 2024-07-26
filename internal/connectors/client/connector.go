@@ -3,14 +3,16 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
-	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
 	"path"
 	"regexp"
 	"strings"
 	"time"
+	"ydbcp/internal/config"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
+	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
 
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Export_V1"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Import_V1"
@@ -37,25 +39,32 @@ type ClientConnector interface {
 }
 
 type ClientYdbConnector struct {
+	config config.ClientConnectionConfig
 }
 
-func NewClientYdbConnector() *ClientYdbConnector {
-	return &ClientYdbConnector{}
+func NewClientYdbConnector(config config.ClientConnectionConfig) *ClientYdbConnector {
+	return &ClientYdbConnector{
+		config: config,
+	}
 }
 
 func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
 	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
+
 	opts := []ydb.Option{
 		ydb.WithAnonymousCredentials(),
-		ydb.WithTLSSInsecureSkipVerify(),
-		ydb.WithDialTimeout(time.Second * 10),
-		ydb.WithBalancer(balancers.SingleConn()),
+		ydb.WithDialTimeout(time.Second * time.Duration(d.config.DialTimeoutSeconds)),
+	}
+	if d.config.Insecure {
+		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
+	}
+	if !d.config.Discovery {
+		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
 	}
 
-	db, connErr := ydb.Open(ctx, dsn, opts...)
-
-	if connErr != nil {
-		return nil, fmt.Errorf("error connecting to client db: %s", connErr.Error())
+	db, err := ydb.Open(ctx, dsn, opts...)
+	if err != nil {
+		return nil, fmt.Errorf("error connecting to client db: %w", err)
 	}
 
 	return db, nil
@@ -68,9 +77,8 @@ func (d *ClientYdbConnector) Close(ctx context.Context, clientDb *ydb.Driver) er
 
 	xlog.Info(ctx, "Closing client db driver")
 	err := clientDb.Close(ctx)
-
 	if err != nil {
-		return fmt.Errorf("error closing client db driver: %s", err.Error())
+		return fmt.Errorf("error closing client db driver: %w", err)
 	}
 
 	return nil
@@ -214,7 +222,7 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 		zap.String("description", s3Settings.Description),
 	)
 
-	response, exportErr := exportClient.ExportToS3(
+	response, err := exportClient.ExportToS3(
 		ctx,
 		&Ydb_Export.ExportToS3Request{
 			OperationParams: &Ydb_Operations.OperationParams{
@@ -233,13 +241,12 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 		},
 	)
 
-	if exportErr != nil {
-		return "", fmt.Errorf("error exporting to S3: %s", exportErr.Error())
+	if err != nil {
+		return "", fmt.Errorf("error exporting to S3: %w", err)
 	}
 
 	if response.GetOperation().GetStatus() != Ydb.StatusIds_SUCCESS {
-		return "", fmt.Errorf("exporting to S3 was failed: %v",
-			response.GetOperation().GetIssues())
+		return "", fmt.Errorf("exporting to S3 was failed: %v", response.GetOperation().GetIssues())
 	}
 
 	return response.GetOperation().GetId(), nil
@@ -257,7 +264,7 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 		zap.String("description", s3Settings.Description),
 	)
 
-	response, importErr := importClient.ImportFromS3(
+	response, err := importClient.ImportFromS3(
 		ctx,
 		&Ydb_Import.ImportFromS3Request{
 			OperationParams: &Ydb_Operations.OperationParams{
@@ -268,8 +275,8 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 		},
 	)
 
-	if importErr != nil {
-		return "", fmt.Errorf("error importing from s3: %s", importErr.Error())
+	if err != nil {
+		return "", fmt.Errorf("error importing from s3: %w", err)
 	}
 
 	if response.GetOperation().GetStatus() != Ydb.StatusIds_SUCCESS {

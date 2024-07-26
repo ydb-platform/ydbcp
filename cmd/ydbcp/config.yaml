@@ -5,6 +5,10 @@ db_connection:
   insecure: true
   discovery: false
 
+client_connection:
+  insecure: true
+  discovery: false
+
 s3:
   endpoint: s3.endpoint.com
   region: s3-region

@@ -28,10 +28,17 @@ type YDBConnectionConfig struct {
 	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
 }
 
+type ClientConnectionConfig struct {
+	Insecure           bool   `yaml:"insecure"`
+	Discovery          bool   `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
+}
+
 type Config struct {
-	DBConnection        YDBConnectionConfig `yaml:"db_connection"`
-	S3                  S3Config            `yaml:"s3"`
-	OperationTtlSeconds int64               `yaml:"operation_ttl_seconds"`
+	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
+	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
+	S3                  S3Config               `yaml:"s3"`
+	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
 }
 
 func (config Config) ToString() (string, error) {
