@@ -3,7 +3,13 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
+	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
+	"path"
+	"regexp"
+	"strings"
 	"time"
+	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Export_V1"
@@ -22,7 +28,7 @@ type ClientConnector interface {
 	Open(ctx context.Context, dsn string) (*ydb.Driver, error)
 	Close(ctx context.Context, clientDb *ydb.Driver) error
 
-	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error)
+	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error)
 	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error)
 	GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error)
 	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
@@ -62,9 +68,135 @@ func (d *ClientYdbConnector) Close(ctx context.Context, clientDb *ydb.Driver) er
 	return nil
 }
 
-func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Export.ExportToS3Settings) (string, error) {
+func isSystemDirectory(name string) bool {
+	return strings.HasPrefix(name, ".sys") ||
+		strings.HasPrefix(name, ".metadata") ||
+		strings.HasPrefix(name, "~")
+}
+
+func isExportDirectory(fullPath string, database string) bool {
+	return strings.HasPrefix(fullPath, path.Join(database, "export"))
+}
+
+func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string, exclusions []regexp.Regexp) ([]string, error) {
+	var dir scheme.Directory
+	var err error
+
+	err = retry.Retry(ctx, func(ctx context.Context) (err error) {
+		dir, err = clientDb.Scheme().ListDirectory(ctx, initialPath)
+		return err
+	}, retry.WithIdempotent(true))
+
+	if err != nil {
+		return nil, fmt.Errorf("list directory %s was failed: %v", initialPath, err)
+	}
+
+	excluded := func(path string) bool {
+		for _, exclusion := range exclusions {
+			if exclusion.MatchString(path) {
+				xlog.Info(ctx, "Excluded path", zap.String("path", path))
+				return true
+			}
+		}
+
+		return false
+	}
+
+	result := make([]string, 0)
+	if dir.Entry.IsTable() {
+		if !excluded(initialPath) {
+			xlog.Info(ctx, "Included path", zap.String("path", initialPath))
+			result = append(result, initialPath)
+		}
+	}
+
+	for _, child := range dir.Children {
+		childPath := path.Join(initialPath, child.Name)
+
+		if child.IsDirectory() {
+			if isSystemDirectory(child.Name) || isExportDirectory(childPath, clientDb.Scheme().Database()) {
+				continue
+			}
+
+			var list []string
+			list, err = listDirectory(ctx, clientDb, childPath, exclusions)
+
+			if err != nil {
+				return nil, err
+			}
+
+			result = append(result, list...)
+		} else if child.IsTable() {
+			if !excluded(childPath) {
+				xlog.Info(ctx, "Included path", zap.String("path", childPath))
+				result = append(result, childPath)
+			}
+		}
+	}
+
+	return result, nil
+}
+
+func prepareItemsForExport(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) ([]*Ydb_Export.ExportToS3Settings_Item, error) {
+	sources := make([]string, 0)
+	exclusions := make([]regexp.Regexp, len(s3Settings.SourcePathToExclude))
+
+	for i, excludePath := range s3Settings.SourcePathToExclude {
+		reg, err := regexp.Compile(excludePath)
+		if err != nil {
+			return nil, fmt.Errorf("error compiling exclude path regexp: %s", err.Error())
+		}
+
+		exclusions[i] = *reg
+	}
+
+	if len(s3Settings.SourcePaths) > 0 {
+		for _, sourcePath := range s3Settings.SourcePaths {
+			list, err := listDirectory(ctx, clientDb, sourcePath, exclusions)
+			if err != nil {
+				return nil, err
+			}
+
+			sources = append(sources, list...)
+		}
+	} else {
+		// List root directory
+		list, err := listDirectory(ctx, clientDb, "/", exclusions)
+		if err != nil {
+			return nil, err
+		}
+
+		sources = append(sources, list...)
+	}
+
+	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(sources))
+
+	for i, source := range sources {
+		// Destination prefix format: s3_destination_prefix/database_name/timestamp_backup_id/rel_source_path
+		destinationPrefix := path.Join(
+			s3Settings.DestinationPrefix,
+			clientDb.Scheme().Database(),
+			time.Now().Format(types.BackupTimestampFormat)+"_"+s3Settings.BackupID.String(),
+			strings.TrimPrefix(source, clientDb.Scheme().Database()+"/"),
+		)
+
+		items[i] = &Ydb_Export.ExportToS3Settings_Item{
+			SourcePath:        source,
+			DestinationPrefix: destinationPrefix,
+		}
+	}
+
+	return items, nil
+}
+
+func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
+	}
+
+	items, err := prepareItemsForExport(ctx, clientDb, s3Settings)
+	if err != nil {
+		return "", fmt.Errorf("error preparing list of items for export: %s", err.Error())
 	}
 
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
@@ -81,7 +213,15 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 				OperationTimeout: durationpb.New(time.Second),
 				CancelAfter:      durationpb.New(time.Second),
 			},
-			Settings: s3Settings,
+			Settings: &Ydb_Export.ExportToS3Settings{
+				Endpoint:        s3Settings.Endpoint,
+				Bucket:          s3Settings.Bucket,
+				AccessKey:       s3Settings.AccessKey,
+				SecretKey:       s3Settings.SecretKey,
+				Description:     s3Settings.Description,
+				NumberOfRetries: s3Settings.NumberOfRetries,
+				Items:           items,
+			},
 		},
 	)
 
