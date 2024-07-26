@@ -6,6 +6,7 @@ CREATE TABLE Backups (
     id UUID NOT NULL,
     container_id String NOT NULL,
     database String NOT NULL,
+    endpoint String NOT NULL,
 
     initiated String,
     created_at Timestamp,
@@ -17,6 +18,7 @@ CREATE TABLE Backups (
     s3_path_prefix String,
 
     status String,
+    message String,
 
     paths String,
 
@@ -37,6 +39,7 @@ CREATE TABLE Operations (
     type String NOT NULL,
     container_id String NOT NULL,
     database String NOT NULL,
+    endpoint String NOT NULL,
     backup_id UUID,
 
     initiated String,
@@ -44,6 +47,7 @@ CREATE TABLE Operations (
     completed_at Timestamp,
 
     status String,
+    message String,
 
     paths String,
     operation_id String,

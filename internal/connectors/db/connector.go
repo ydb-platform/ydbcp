@@ -3,12 +3,16 @@ package db
 import (
 	"context"
 	"errors"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"fmt"
+	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+
 	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"go.uber.org/zap"
@@ -48,45 +52,38 @@ type DBConnector interface {
 	CreateBackup(context.Context, types.Backup) (types.ObjectID, error)
 	UpdateBackup(context context.Context, id types.ObjectID, backupState string) error
 	ExecuteUpsert(ctx context.Context, queryBuilder queries.WriteTableQuery) error
-	Close()
+	Close(context.Context)
 }
 
 type YdbConnector struct {
 	driver *ydb.Driver
 }
 
-func NewYdbConnector(config config.Config) *YdbConnector {
-	p := new(YdbConnector)
-	p.driver = InitDriver(config.YdbcpDbConnectionString)
-	return p
-}
-
-func InitDriver(dsn string) *ydb.Driver {
-	ctx := context.Background()
-
+func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*YdbConnector, error) {
 	opts := []ydb.Option{
 		ydb.WithAnonymousCredentials(),
+		ydb.WithDialTimeout(time.Second * time.Duration(config.DialTimeoutSeconds)),
 	}
-	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", dsn))
-	db, err := ydb.Open(ctx, dsn, opts...)
+	if config.Insecure {
+		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
+	}
+	if !config.Discovery {
+		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
+	}
 
+	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", config.ConnectionString))
+	driver, err := ydb.Open(ctx, config.ConnectionString, opts...)
 	if err != nil {
-		// handle a connection error
-		xlog.Error(
-			ctx, "Error connecting to YDB", zap.String("message", err.Error()),
-		)
-		return nil
+		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)
 	}
-
-	return db
+	return &YdbConnector{driver: driver}, nil
 }
 
 func (d *YdbConnector) GetTableClient() table.Client {
 	return d.driver.Table()
 }
 
-func (d *YdbConnector) Close() {
-	ctx := context.Background()
+func (d *YdbConnector) Close(ctx context.Context) {
 	err := d.driver.Close(ctx)
 	if err != nil {
 		xlog.Error(ctx, "Error closing YDB driver")
@@ -288,8 +285,8 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 				queries.QueryFilter{
 					Field: "status",
 					Values: []table_types.Value{
-						table_types.StringValueFromString(string(types.OperationStatePending)),
-						table_types.StringValueFromString(string(types.OperationStateCancelling)),
+						table_types.StringValueFromString(types.OperationStatePending.String()),
+						table_types.StringValueFromString(types.OperationStateCancelling.String()),
 					},
 				},
 			),
@@ -328,11 +325,11 @@ func (d *YdbConnector) CreateBackup(
 }
 
 func (d *YdbConnector) UpdateBackup(
-	context context.Context, id types.ObjectID, backupStatus string,
+	ctx context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	backup := types.Backup{
 		ID:     id,
 		Status: backupStatus,
 	}
-	return d.ExecuteUpsert(context, queries.NewWriteTableQuery().WithUpdateBackup(backup))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackup(backup))
 }

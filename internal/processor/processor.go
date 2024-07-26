@@ -14,10 +14,10 @@ import (
 )
 
 type OperationProcessorImpl struct {
-	ctx                          context.Context
-	wg                           *sync.WaitGroup
-	period                       time.Duration
-	handleOperationResultTimeout time.Duration
+	ctx                    context.Context
+	wg                     *sync.WaitGroup
+	period                 time.Duration
+	handleOperationTimeout time.Duration
 
 	tickerProvider ticker.TickerProvider
 	handlers       OperationHandlerRegistry
@@ -39,9 +39,9 @@ func WithTickerProvider(ticketProvider ticker.TickerProvider) Option {
 		o.tickerProvider = ticketProvider
 	}
 }
-func WithHandleOperationResultTimeout(timeout time.Duration) Option {
+func WithHandleOperationTimeout(timeout time.Duration) Option {
 	return func(o *OperationProcessorImpl) {
-		o.handleOperationResultTimeout = timeout
+		o.handleOperationTimeout = timeout
 	}
 }
 
@@ -53,15 +53,15 @@ func NewOperationProcessor(
 	options ...Option,
 ) *OperationProcessorImpl {
 	op := &OperationProcessorImpl{
-		ctx:                          ctx,
-		period:                       time.Second * 10,
-		handleOperationResultTimeout: time.Second * 10,
-		wg:                           wg,
-		handlers:                     handlers,
-		db:                           db,
-		tickerProvider:               ticker.NewRealTicker,
-		runningOperations:            make(map[types.ObjectID]bool),
-		results:                      make(chan types.ObjectID),
+		ctx:                    ctx,
+		period:                 time.Second * 10,
+		handleOperationTimeout: time.Second * 600,
+		wg:                     wg,
+		handlers:               handlers,
+		db:                     db,
+		tickerProvider:         ticker.NewRealTicker,
+		runningOperations:      make(map[types.ObjectID]bool),
+		results:                make(chan types.ObjectID),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -99,14 +99,14 @@ func (o *OperationProcessorImpl) processOperations() {
 		return
 	}
 	for _, op := range operations {
-		o.processOperation(ctx, op)
+		o.processOperation(op)
 	}
 }
 
-func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.Operation) {
+func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 	if _, exist := o.runningOperations[op.GetId()]; exist {
 		xlog.Debug(
-			ctx, "operation already running",
+			o.ctx, "operation already running",
 			zap.String("operation", types.OperationToString(op)),
 		)
 		return
@@ -115,6 +115,8 @@ func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.
 	o.wg.Add(1)
 	go func() {
 		defer o.wg.Done()
+		ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationTimeout)
+		defer cancel()
 		xlog.Debug(
 			ctx, "start operation handler",
 			zap.String("operation", types.OperationToString(op)),
@@ -124,6 +126,7 @@ func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.
 			xlog.Error(
 				ctx, "operation handler failed",
 				zap.String("operation", types.OperationToString(op)),
+				zap.Error(err),
 			)
 		}
 		o.results <- op.GetId()
@@ -131,47 +134,13 @@ func (o *OperationProcessorImpl) processOperation(ctx context.Context, op types.
 }
 
 func (o *OperationProcessorImpl) handleOperationResult(operationID types.ObjectID) {
-	ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationResultTimeout)
-	defer cancel()
-
-	xlog.Debug(ctx, "operation handler is finished", zap.String("operationID", operationID.String()))
+	xlog.Debug(o.ctx, "operation handler is finished", zap.String("operationID", operationID.String()))
 	if _, exist := o.runningOperations[operationID]; !exist {
 		xlog.Error(
-			ctx, "got result from not running operation",
+			o.ctx, "got result from not running operation",
 			zap.String("operationID", operationID.String()),
 		)
 		return
 	}
 	delete(o.runningOperations, operationID)
-}
-
-func (o *OperationProcessorImpl) updateOperationState(
-	ctx context.Context,
-	old types.Operation,
-	new types.Operation,
-) error {
-	changed := false
-	if old.GetState() != new.GetState() {
-		xlog.Debug(
-			ctx,
-			"operation state changed",
-			zap.String("OperationId", old.GetId().String()),
-			zap.String("oldState", old.GetState().String()),
-			zap.String("newState", new.GetState().String()),
-		)
-		changed = true
-	}
-	if old.GetMessage() != new.GetMessage() {
-		xlog.Debug(
-			ctx,
-			"operation message changed",
-			zap.String("OperationId", old.GetId().String()),
-			zap.String("Message", new.GetMessage()),
-		)
-		changed = true
-	}
-	if !changed {
-		return nil
-	}
-	return o.db.UpdateOperation(ctx, new)
 }

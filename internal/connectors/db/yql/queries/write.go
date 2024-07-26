@@ -4,12 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
 	"strings"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
 )
 
 type WriteTableQuery interface {
@@ -52,43 +53,46 @@ func (d *WriteSingleTableQueryImpl) GetParamNames() []string {
 }
 
 func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingleTableQueryImpl {
+	tb, ok := operation.(*types.TakeBackupOperation)
+	if !ok || operation.GetType() != types.OperationTypeTB {
+		panic("Incorrect operation type")
+	}
 	d := WriteSingleTableQueryImpl{
 		index:     index,
 		tableName: "Operations",
 	}
 	d.AddValueParam("$id", table_types.UUIDValue(operation.GetId()))
 	d.AddValueParam("$type", table_types.StringValueFromString(string(operation.GetType())))
+	d.AddValueParam("$status", table_types.StringValueFromString(operation.GetState().String()))
+
 	d.AddValueParam(
-		"$status", table_types.StringValueFromString(operation.GetState().String()),
+		"$container_id", table_types.StringValueFromString(tb.ContainerID),
 	)
-	if operation.GetType() == types.OperationType("TB") {
-		tb := operation.(*types.TakeBackupOperation)
-		d.AddValueParam(
-			"$container_id", table_types.StringValueFromString(tb.ContainerID),
-		)
-		d.AddValueParam(
-			"$database",
-			table_types.StringValueFromString(tb.YdbConnectionParams.DatabaseName),
-		)
-		d.AddValueParam(
-			"$backup_id",
-			table_types.UUIDValue(tb.BackupId),
-		)
-		d.AddValueParam(
-			"$initiated",
-			table_types.StringValueFromString(""), //TODO
-		)
-		d.AddValueParam(
-			"$created_at",
-			table_types.TimestampValueFromTime(tb.CreatedAt),
-		)
-		d.AddValueParam(
-			"$operation_id",
-			table_types.StringValueFromString(tb.YdbOperationId),
-		)
-	} else {
-		panic("Implement me")
-	}
+	d.AddValueParam(
+		"$database",
+		table_types.StringValueFromString(tb.YdbConnectionParams.DatabaseName),
+	)
+	d.AddValueParam(
+		"$endpoint",
+		table_types.StringValueFromString(tb.YdbConnectionParams.Endpoint),
+	)
+	d.AddValueParam(
+		"$backup_id",
+		table_types.UUIDValue(tb.BackupId),
+	)
+	d.AddValueParam(
+		"$initiated",
+		table_types.StringValueFromString(""), //TODO
+	)
+	d.AddValueParam(
+		"$created_at",
+		table_types.TimestampValueFromTime(tb.CreatedAt),
+	)
+	d.AddValueParam(
+		"$operation_id",
+		table_types.StringValueFromString(tb.YdbOperationId),
+	)
+	d.AddValueParam("$message", table_types.StringValueFromString(tb.Message))
 
 	return d
 }
@@ -127,12 +131,14 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$id", table_types.UUIDValue(b.ID))
 	d.AddValueParam("$container_id", table_types.StringValueFromString(b.ContainerID))
 	d.AddValueParam("$database", table_types.StringValueFromString(b.DatabaseName))
+	d.AddValueParam("$endpoint", table_types.StringValueFromString(b.DatabaseEndpoint))
 	d.AddValueParam("$initiated", table_types.StringValueFromString("")) // TODO
 	d.AddValueParam("$s3_endpoint", table_types.StringValueFromString(b.S3Endpoint))
 	d.AddValueParam("$s3_region", table_types.StringValueFromString(b.S3Region))
 	d.AddValueParam("$s3_bucket", table_types.StringValueFromString(b.S3Bucket))
 	d.AddValueParam("$s3_path_prefix", table_types.StringValueFromString(b.S3PathPrefix))
 	d.AddValueParam("$status", table_types.StringValueFromString(b.Status))
+	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
 	return d
 }
 

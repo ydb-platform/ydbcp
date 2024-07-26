@@ -20,6 +20,7 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Import"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
 )
@@ -44,7 +45,14 @@ func NewClientYdbConnector() *ClientYdbConnector {
 
 func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
 	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
-	db, connErr := ydb.Open(ctx, dsn, ydb.WithAnonymousCredentials())
+	opts := []ydb.Option{
+		ydb.WithAnonymousCredentials(),
+		ydb.WithTLSSInsecureSkipVerify(),
+		ydb.WithDialTimeout(time.Second * 10),
+		ydb.WithBalancer(balancers.SingleConn()),
+	}
+
+	db, connErr := ydb.Open(ctx, dsn, opts...)
 
 	if connErr != nil {
 		return nil, fmt.Errorf("error connecting to client db: %s", connErr.Error())

@@ -11,18 +11,19 @@ message Backup {
         PENDING = 1;
         AVAILABLE = 2;
         ERROR = 3;
-        CANCELED = 4;
+        CANCELLED = 4;
         DELETED = 5;
     }
     string id = 1;
     string container_id = 2;
     string database_name = 3;
-    S3Location location = 4;
-    AuditInfo audit = 5;
-    int64 size = 6;
-    Status status = 7;
-    string message = 8;
-    google.protobuf.Timestamp expire_at = 9;
+    string database_endpoint = 4;
+    S3Location location = 5;
+    AuditInfo audit = 6;
+    int64 size = 7;
+    Status status = 8;
+    string message = 9;
+    google.protobuf.Timestamp expire_at = 10;
 }
 
 message S3Location {

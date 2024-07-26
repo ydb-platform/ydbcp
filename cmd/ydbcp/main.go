@@ -8,9 +8,12 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path"
 	"strconv"
+	"strings"
 	"sync"
 	"syscall"
+	"time"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	_ "go.uber.org/automaxprocs"
@@ -38,8 +41,9 @@ var (
 type server struct {
 	pb.UnimplementedBackupServiceServer
 	pb.UnimplementedOperationServiceServer
-	driver db.DBConnector
-	s3     config.S3Config
+	driver     db.DBConnector
+	clientConn client.ClientConnector
+	s3         config.S3Config
 }
 
 func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
@@ -74,13 +78,65 @@ func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*
 func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
 	xlog.Info(ctx, "MakeBackup", zap.String("request", req.String()))
 
+	clientConnectionParams := types.YdbConnectionParams{
+		Endpoint:     req.GetDatabaseEndpoint(),
+		DatabaseName: req.GetDatabaseName(),
+	}
+	dsn := types.MakeYdbConnectionString(clientConnectionParams)
+	client, err := s.clientConn.Open(ctx, dsn)
+	if err != nil {
+		// xlog.Error(ctx, "can't open client connection", zap.Error(err), zap.String("dsn", dsn))
+		return nil, fmt.Errorf("can't open client connection, dsn %s: %w", dsn, err)
+	}
+	defer func() {
+		if err := s.clientConn.Close(ctx, client); err != nil {
+			xlog.Error(ctx, "can't close client connection", zap.Error(err))
+		}
+	}()
+
+	accessKey, err := s.s3.AccessKey()
+	if err != nil {
+		xlog.Error(ctx, "can't get S3AccessKey", zap.Error(err))
+		return nil, fmt.Errorf("can't get S3AccessKey: %w", err)
+	}
+	secretKey, err := s.s3.SecretKey()
+	if err != nil {
+		xlog.Error(ctx, "can't get S3SecretKey", zap.Error(err))
+		return nil, fmt.Errorf("can't get S3SecretKey: %w", err)
+	}
+
+	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user imput
+	dbNamePath = strings.Trim(dbNamePath, "_")
+	dstPrefix := path.Join(s.s3.PathPrefix, dbNamePath)
+
+	s3Settings := types.ExportSettings{
+		Endpoint:            s.s3.Endpoint,
+		Region:              s.s3.Region,
+		Bucket:              s.s3.Bucket,
+		AccessKey:           accessKey,
+		SecretKey:           secretKey,
+		Description:         "ydbcp backup", // TODO: the description shoud be better
+		NumberOfRetries:     10,             // TODO: get it from configuration
+		SourcePaths:         req.GetSourcePaths(),
+		SourcePathToExclude: req.GetSourcePathsToExclude(),
+		DestinationPrefix:   s.s3.PathPrefix,
+		BackupID:            types.GenerateObjectID(), // TODO: do we need backup id?
+	}
+
+	clientOperationID, err := s.clientConn.ExportToS3(ctx, client, s3Settings)
+	if err != nil {
+		xlog.Error(ctx, "can't start export operation", zap.Error(err), zap.String("dns", dsn))
+		return nil, fmt.Errorf("can't start export operation, dsn %s: %w", dsn, err)
+	}
+	xlog.Debug(ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn))
+
 	backup := types.Backup{
 		ContainerID:  req.GetContainerId(),
 		DatabaseName: req.GetDatabaseName(),
 		S3Endpoint:   s.s3.Endpoint,
 		S3Region:     s.s3.Region,
 		S3Bucket:     s.s3.Bucket,
-		S3PathPrefix: s.s3.PathPrefix,
+		S3PathPrefix: dstPrefix,
 		Status:       types.BackupStatePending,
 	}
 	backupID, err := s.driver.CreateBackup(ctx, backup)
@@ -98,11 +154,13 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 		ContainerID: req.ContainerId,
 		State:       types.OperationStatePending,
 		YdbConnectionParams: types.YdbConnectionParams{
-			Endpoint:     req.GetEndpoint(),
+			Endpoint:     req.GetDatabaseEndpoint(),
 			DatabaseName: req.GetDatabaseName(),
 		},
 		SourcePaths:         req.GetSourcePaths(),
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
+		CreatedAt:           time.Now(),
+		YdbOperationId:      clientOperationID,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
@@ -248,10 +306,18 @@ func main() {
 	s := grpc.NewServer()
 	reflection.Register(s)
 
-	dbConnector := db.NewYdbConnector(configInstance)
+	dbConnector, err := db.NewYdbConnector(ctx, configInstance.DBConnection)
+	if err != nil {
+		xlog.Error(ctx, "Error init DBConnector", zap.Error(err))
+		os.Exit(1)
+	}
 
-	server := server{driver: dbConnector}
-	defer server.driver.Close()
+	server := server{
+		driver:     dbConnector,
+		clientConn: client.NewClientYdbConnector(),
+		s3:         configInstance.S3,
+	}
+	defer server.driver.Close(ctx)
 
 	pb.RegisterBackupServiceServer(s, &server)
 	pb.RegisterOperationServiceServer(s, &server)

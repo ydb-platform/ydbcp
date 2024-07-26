@@ -1,14 +1,15 @@
 PROTOS=$(wildcard ydbcp/*/*.proto)
 PROTOGO=$(PROTOS:.proto=.pb.go)
-compile: $(PROTOGO)
-.PHONY: compile
 PROTOC := $(shell which protoc)
-PROTOC_GEN_GO := $(shell go env GOPATH)/bin/protoc-gen-go
-UNAME := $(shell uname)
-
 ifeq ($(PROTOC),)
     PROTOC = must-rebuild
 endif
+PROTOC_GEN_GO := $(shell go env GOPATH)/bin/protoc-gen-go
+UNAME := $(shell uname)
+
+
+.PHONY: compile
+compile: $(PROTOGO)
 
 $(PROTOC):
 ifeq ($(UNAME), Darwin)
