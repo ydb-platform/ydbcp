@@ -1,0 +1,67 @@
+syntax = "proto3";
+
+package ydbcp;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+
+import "ydbcp/v1alpha1/backup_schedule.proto";
+import "google/protobuf/duration.proto";
+
+service BackupScheduleService {
+    rpc CreateBackupSchedule (CreateBackupScheduleRequest) returns (BackupSchedule);
+    rpc UpdateBackupSchedule (UpdateBackupScheduleRequest) returns (BackupSchedule);
+    rpc GetBackupSchedule (GetBackupScheduleRequest) returns (BackupSchedule);
+    rpc ListBackupSchedules (ListBackupSchedulesRequest) returns (ListBackupSchedulesResponse);
+    rpc ToggleBackupSchedule (ToggleBackupScheduleRequest) returns (BackupSchedule);
+}
+
+message CreateBackupScheduleRequest {
+    //fields of MakeBackupRequest to schedule
+    string container_id = 1;
+    string database_name = 2;
+    string endpoint = 3;
+    repeated string source_paths = 4;  // [(size) = "<=256"];
+    repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
+
+    string schedule_name = 6;
+    BackupScheduleSettings schedule_settings = 7;
+}
+
+message UpdateBackupScheduleRequest {
+    string id = 1;
+    //fields of MakeBackupRequest to schedule
+    repeated string source_paths = 2;  // [(size) = "<=256"];
+    repeated string source_paths_to_exclude = 3;  // [(size) = "<=256"];
+
+    string schedule_name = 4;
+    BackupScheduleSettings schedule_settings = 5;
+}
+
+
+message ListBackupSchedulesRequest {
+    string container_id = 1;
+    string database_name_mask = 2;
+
+    // The maximum number of results per page that should be returned. If the number of available
+    // results is larger than `page_size`, the service returns a `next_page_token` that can be used
+    // to get the next page of results in subsequent ListBackupSchedules requests.
+    // Acceptable values are 0 to 1000, inclusive. Default value: 100.
+    uint32 page_size = 1000; // [(value) = "0-1000"];
+
+    // Page token. Set `page_token` to the `next_page_token` returned by a previous ListBackups
+    // request to get the next page of results.
+    string page_token = 1001; // [(length) = "<=100"];
+}
+
+message ListBackupSchedulesResponse {
+    repeated BackupSchedule schedules = 1;
+    string next_page_token = 2;
+}
+
+message GetBackupScheduleRequest {
+    string id = 1;
+}
+
+message ToggleBackupScheduleRequest {
+    string id = 1;
+    bool active_state = 2;
+}

@@ -1,0 +1,47 @@
+syntax = "proto3";
+
+package ydbcp;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+
+import "ydbcp/v1alpha1/backup.proto";
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+
+message BackupSchedulePattern {
+    string crontab = 1;
+}
+
+message BackupScheduleSettings {
+    BackupSchedulePattern schedule_pattern = 1;
+    google.protobuf.Duration ttl = 2;
+    google.protobuf.Duration recovery_point_objective = 3;
+}
+
+message ScheduledBackupInfo {
+    string backup_id = 1;
+    google.protobuf.Timestamp recovery_point = 2;
+    google.protobuf.Duration last_backup_rpo_margin_interval = 3;
+    float last_backup_rpo_margin_percent = 4;
+}
+
+message BackupSchedule {
+    //backup settings
+    string id = 1;
+    string container_id = 2;
+    string database_name = 3;
+    string endpoint = 4;
+    repeated string source_paths = 5;  // [(size) = "<=256"];
+    repeated string source_paths_to_exclude = 6;  // [(size) = "<=256"];
+
+    ydbcp.v1alpha1.AuditInfo audit = 7;
+
+    string schedule_name = 8;
+    bool active = 9;
+
+    BackupScheduleSettings schedule_settings = 10;
+
+    google.protobuf.Timestamp next_launch = 11;
+
+    ScheduledBackupInfo last_successful_backup_info = 12;
+}
