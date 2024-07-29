@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v5.27.1
-// source: backup_service.proto
+// source: ydbcp/v1alpha1/backup_service.proto
 
 package ydbcp
 
@@ -19,11 +19,11 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BackupService_ListBackups_FullMethodName  = "/ydbcp.BackupService/ListBackups"
-	BackupService_GetBackup_FullMethodName    = "/ydbcp.BackupService/GetBackup"
-	BackupService_MakeBackup_FullMethodName   = "/ydbcp.BackupService/MakeBackup"
-	BackupService_DeleteBackup_FullMethodName = "/ydbcp.BackupService/DeleteBackup"
-	BackupService_MakeRestore_FullMethodName  = "/ydbcp.BackupService/MakeRestore"
+	BackupService_ListBackups_FullMethodName  = "/ydbcp.v1alpha1.BackupService/ListBackups"
+	BackupService_GetBackup_FullMethodName    = "/ydbcp.v1alpha1.BackupService/GetBackup"
+	BackupService_MakeBackup_FullMethodName   = "/ydbcp.v1alpha1.BackupService/MakeBackup"
+	BackupService_DeleteBackup_FullMethodName = "/ydbcp.v1alpha1.BackupService/DeleteBackup"
+	BackupService_MakeRestore_FullMethodName  = "/ydbcp.v1alpha1.BackupService/MakeRestore"
 )
 
 // BackupServiceClient is the client API for BackupService service.
@@ -230,7 +230,7 @@ func _BackupService_MakeRestore_Handler(srv interface{}, ctx context.Context, de
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var BackupService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "ydbcp.BackupService",
+	ServiceName: "ydbcp.v1alpha1.BackupService",
 	HandlerType: (*BackupServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -255,5 +255,5 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "backup_service.proto",
+	Metadata: "ydbcp/v1alpha1/backup_service.proto",
 }

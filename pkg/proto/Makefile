@@ -1,4 +1,4 @@
-PROTOS=$(wildcard *.proto)
+PROTOS=$(wildcard ydbcp/*/*.proto)
 PROTOGO=$(PROTOS:.proto=.pb.go)
 compile: $(PROTOGO)
 .PHONY: compile

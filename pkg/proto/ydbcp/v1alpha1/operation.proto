@@ -1,9 +1,9 @@
 syntax = "proto3";
 
-package ydbcp;
+package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
 
-import "backup.proto";
+import "ydbcp/v1alpha1/backup.proto";
 
 message Operation {
     enum Status {

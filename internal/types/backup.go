@@ -3,17 +3,17 @@ package types
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
-	"time"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"ydbcp/internal/util/xlog"
-	pb "ydbcp/pkg/proto"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 type ObjectID uuid.UUID

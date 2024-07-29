@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.3.0
 // - protoc             v5.27.1
-// source: operation_service.proto
+// source: ydbcp/v1alpha1/operation_service.proto
 
 package ydbcp
 
@@ -19,9 +19,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	OperationService_ListOperations_FullMethodName  = "/ydbcp.OperationService/ListOperations"
-	OperationService_CancelOperation_FullMethodName = "/ydbcp.OperationService/CancelOperation"
-	OperationService_GetOperation_FullMethodName    = "/ydbcp.OperationService/GetOperation"
+	OperationService_ListOperations_FullMethodName  = "/ydbcp.v1alpha1.OperationService/ListOperations"
+	OperationService_CancelOperation_FullMethodName = "/ydbcp.v1alpha1.OperationService/CancelOperation"
+	OperationService_GetOperation_FullMethodName    = "/ydbcp.v1alpha1.OperationService/GetOperation"
 )
 
 // OperationServiceClient is the client API for OperationService service.
@@ -162,7 +162,7 @@ func _OperationService_GetOperation_Handler(srv interface{}, ctx context.Context
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
 var OperationService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "ydbcp.OperationService",
+	ServiceName: "ydbcp.v1alpha1.OperationService",
 	HandlerType: (*OperationServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
@@ -179,5 +179,5 @@ var OperationService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "operation_service.proto",
+	Metadata: "ydbcp/v1alpha1/operation_service.proto",
 }

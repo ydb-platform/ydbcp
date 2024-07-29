@@ -5,13 +5,19 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"net"
 	"os"
 	"os/signal"
 	"strconv"
 	"sync"
 	"syscall"
+
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	_ "go.uber.org/automaxprocs"
+	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/reflection"
+
 	"ydbcp/internal/config"
 	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -21,14 +27,7 @@ import (
 	"ydbcp/internal/processor"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
-
-	_ "go.uber.org/automaxprocs"
-	"go.uber.org/zap"
-
-	pb "ydbcp/pkg/proto"
-
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/reflection"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 var (
