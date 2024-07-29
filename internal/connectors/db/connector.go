@@ -47,6 +47,7 @@ type DBConnector interface {
 	CreateOperation(context.Context, types.Operation) (types.ObjectID, error)
 	CreateBackup(context.Context, types.Backup) (types.ObjectID, error)
 	UpdateBackup(context context.Context, id types.ObjectID, backupState string) error
+	ExecuteUpsert(ctx context.Context, queryBuilder queries.WriteTableQuery) error
 	Close()
 }
 
@@ -238,7 +239,7 @@ func (d *YdbConnector) SelectBackupsByStatus(
 	return DoStructSelect[types.Backup](
 		ctx,
 		d,
-		queries.MakeReadTableQuery(
+		queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithSelectFields("id"),
 			queries.WithQueryFilters(
@@ -280,7 +281,7 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 	return DoInterfaceSelect[types.Operation](
 		ctx,
 		d,
-		queries.MakeReadTableQuery(
+		queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
 			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
@@ -300,14 +301,14 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 func (d *YdbConnector) UpdateOperation(
 	ctx context.Context, operation types.Operation,
 ) error {
-	return d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithUpdateOperation(operation)))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(operation))
 }
 
 func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
 ) (types.ObjectID, error) {
 	operation.SetId(types.GenerateObjectID())
-	err := d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithCreateOperation(operation)))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateOperation(operation))
 	if err != nil {
 		return types.ObjectID{}, err
 	}
@@ -319,7 +320,7 @@ func (d *YdbConnector) CreateBackup(
 ) (types.ObjectID, error) {
 	id := types.GenerateObjectID()
 	backup.ID = id
-	err := d.ExecuteUpsert(ctx, queries.MakeWriteTableQuery(queries.WithCreateBackup(backup)))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackup(backup))
 	if err != nil {
 		return types.ObjectID{}, err
 	}
@@ -333,5 +334,5 @@ func (d *YdbConnector) UpdateBackup(
 		ID:     id,
 		Status: backupStatus,
 	}
-	return d.ExecuteUpsert(context, queries.MakeWriteTableQuery(queries.WithCreateBackup(backup)))
+	return d.ExecuteUpsert(context, queries.NewWriteTableQuery().WithUpdateBackup(backup))
 }

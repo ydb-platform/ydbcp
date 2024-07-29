@@ -5,6 +5,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
+	"time"
 	"ydbcp/internal/types"
 )
 
@@ -70,21 +71,23 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		operationId   types.ObjectID
 		containerId   string
 		operationType string
+		createdAt     time.Time
+		database      string
 
-		operationStateBuf *string
 		backupId          *types.ObjectID
 		ydbOperationId    *string
-		database          *string
+		operationStateBuf *string
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
 		named.Required("container_id", &containerId),
 		named.Required("type", &operationType),
+		named.Required("created_at", &createdAt),
+		named.Required("database", &database),
 
-		named.Optional("status", &operationStateBuf),
 		named.Optional("backup_id", &backupId),
 		named.Optional("operation_id", &ydbOperationId),
-		named.Optional("database", &database),
+		named.Optional("status", &operationStateBuf),
 	)
 	if err != nil {
 		return nil, err
@@ -93,31 +96,37 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	if operationStateBuf != nil {
 		operationState = types.OperationState(*operationStateBuf)
 	}
+	ydbOpId := ""
+	if ydbOperationId != nil {
+		ydbOpId = *ydbOperationId
+	}
 	if operationType == string(types.OperationTypeTB) {
-		if backupId == nil || database == nil || ydbOperationId == nil {
-			return nil, fmt.Errorf("failed to read required fields of operation %s", operationId.String())
+		if backupId == nil {
+			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId.String())
 		}
 		return &types.TakeBackupOperation{
 			Id:                  operationId,
-			BackupId:            types.ObjectID(*backupId),
+			BackupId:            *backupId,
 			ContainerID:         containerId,
 			State:               operationState,
 			Message:             "",
-			YdbConnectionParams: types.GetYdbConnectionParams(*database),
-			YdbOperationId:      *ydbOperationId,
+			YdbConnectionParams: types.GetYdbConnectionParams(database),
+			YdbOperationId:      ydbOpId,
+			CreatedAt:           createdAt,
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
-		if backupId == nil || database == nil || ydbOperationId == nil {
-			return nil, fmt.Errorf("failed to read required fields of operation %s", operationId.String())
+		if backupId == nil {
+			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId.String())
 		}
 		return &types.RestoreBackupOperation{
 			Id:                  operationId,
-			BackupId:            types.ObjectID(*backupId),
+			BackupId:            *backupId,
 			ContainerID:         containerId,
 			State:               operationState,
 			Message:             "",
-			YdbConnectionParams: types.GetYdbConnectionParams(*database),
-			YdbOperationId:      *ydbOperationId,
+			YdbConnectionParams: types.GetYdbConnectionParams(database),
+			YdbOperationId:      ydbOpId,
+			CreatedAt:           createdAt,
 		}, nil
 	}
 

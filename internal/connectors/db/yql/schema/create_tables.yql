@@ -40,7 +40,7 @@ CREATE TABLE Operations (
     backup_id UUID,
 
     initiated String,
-    created_at Timestamp,
+    created_at Timestamp NOT NULL,
     completed_at Timestamp,
 
     status String,

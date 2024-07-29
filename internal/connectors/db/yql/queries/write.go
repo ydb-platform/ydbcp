@@ -14,6 +14,10 @@ import (
 
 type WriteTableQuery interface {
 	FormatQuery(ctx context.Context) (*FormatQueryResult, error)
+	WithCreateBackup(backup types.Backup) WriteTableQuery
+	WithCreateOperation(operation types.Operation) WriteTableQuery
+	WithUpdateBackup(backup types.Backup) WriteTableQuery
+	WithUpdateOperation(operation types.Operation) WriteTableQuery
 }
 
 type WriteTableQueryImpl struct {
@@ -123,42 +127,36 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	return d
 }
 
-type WriteTableQueryOption func(*WriteTableQueryImpl)
+type WriteTableQueryImplOption func(*WriteTableQueryImpl)
 
-func MakeWriteTableQuery(options ...WriteTableQueryOption) *WriteTableQueryImpl {
-	d := &WriteTableQueryImpl{}
-	for _, opt := range options {
-		opt(d)
-	}
+type WriteTableQueryMockOption func(*WriteTableQueryMock)
+
+func NewWriteTableQuery() WriteTableQuery {
+	return &WriteTableQueryImpl{}
+}
+
+func (d *WriteTableQueryImpl) WithCreateBackup(backup types.Backup) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildCreateBackupQuery(backup, index))
 	return d
 }
 
-func WithCreateBackup(backup types.Backup) WriteTableQueryOption {
-	return func(d *WriteTableQueryImpl) {
-		index := len(d.tableQueries)
-		d.tableQueries = append(d.tableQueries, BuildCreateBackupQuery(backup, index))
-	}
+func (d *WriteTableQueryImpl) WithUpdateBackup(backup types.Backup) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildUpdateBackupQuery(backup, index))
+	return d
 }
 
-func WithUpdateBackup(backup types.Backup) WriteTableQueryOption {
-	return func(d *WriteTableQueryImpl) {
-		index := len(d.tableQueries)
-		d.tableQueries = append(d.tableQueries, BuildUpdateBackupQuery(backup, index))
-	}
+func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildUpdateOperationQuery(operation, index))
+	return d
 }
 
-func WithUpdateOperation(operation types.Operation) WriteTableQueryOption {
-	return func(d *WriteTableQueryImpl) {
-		index := len(d.tableQueries)
-		d.tableQueries = append(d.tableQueries, BuildUpdateOperationQuery(operation, index))
-	}
-}
-
-func WithCreateOperation(operation types.Operation) WriteTableQueryOption {
-	return func(d *WriteTableQueryImpl) {
-		index := len(d.tableQueries)
-		d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
-	}
+func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
+	return d
 }
 
 func (d *WriteSingleTableQueryImpl) DeclareParameters() string {
@@ -180,9 +178,14 @@ func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResu
 			return nil, errors.New("No table")
 		}
 		declares := t.DeclareParameters()
+		paramNames := t.GetParamNames()
+		keyParam := fmt.Sprintf("%s = %s", t.upsertFields[0], paramNames[0])
+		updates := make([]string, 0)
+		for j := 1; j < len(t.upsertFields); j++ {
+			updates = append(updates, fmt.Sprintf("%s = %s", t.upsertFields[j], paramNames[j]))
+		}
 		queryStrings[i] = fmt.Sprintf(
-			"%s;\nUPSERT INTO %s (%s) VALUES (%s)", declares, t.tableName, strings.Join(t.upsertFields, ", "),
-			strings.Join(t.GetParamNames(), ", "),
+			"%s;\nUPDATE %s SET %s WHERE %s", declares, t.tableName, strings.Join(updates, ", "), keyParam,
 		)
 		for _, p := range t.tableQueryParams {
 			allParams = append(allParams, p)

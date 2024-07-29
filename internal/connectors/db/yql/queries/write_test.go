@@ -13,11 +13,11 @@ func TestQueryBuilder_Write(t *testing.T) {
 	const (
 		queryString = `DECLARE $id_0 AS Uuid;
 DECLARE $status_0 AS String;
-UPSERT INTO Backups (id, status) VALUES ($id_0, $status_0);
+UPDATE Backups SET status = $status_0 WHERE id = $id_0;
 DECLARE $id_1 AS Uuid;
 DECLARE $status_1 AS String;
 DECLARE $message_1 AS String;
-UPSERT INTO Operations (id, status, message) VALUES ($id_1, $status_1, $message_1)`
+UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	)
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
@@ -30,10 +30,9 @@ UPSERT INTO Operations (id, status, message) VALUES ($id_1, $status_1, $message_
 		ID:     backupId,
 		Status: "Available",
 	}
-	builder := MakeWriteTableQuery(
-		WithUpdateBackup(backup),
-		WithUpdateOperation(&op),
-	)
+	builder := NewWriteTableQuery().
+		WithUpdateBackup(backup).
+		WithUpdateOperation(&op)
 	var (
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.UUIDValue(backupId)),

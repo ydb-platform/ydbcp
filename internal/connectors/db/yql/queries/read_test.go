@@ -24,7 +24,7 @@ SELECT column1, column2, column3 FROM table1 WHERE (column1 = $param0 OR column1
 			table.ValueParam("$param3", table_types.StringValueFromString("yyy")),
 		)
 	)
-	builder := MakeReadTableQuery(
+	builder := NewReadTableQuery(
 		WithTableName("table1"),
 		WithSelectFields("column1", "column2", "column3"),
 		WithQueryFilters(
