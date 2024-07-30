@@ -3,7 +3,9 @@ package config
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
+	"strings"
 	"ydbcp/internal/util/xlog"
 
 	"go.uber.org/zap"
@@ -19,10 +21,24 @@ type S3Config struct {
 	SecretAccessKeyPath string `yaml:"secret_access_key_path"`
 }
 
+type YDBConnectionConfig struct {
+	ConnectionString   string `yaml:"connection_string"`
+	Insecure           bool   `yaml:"insecure"`
+	Discovery          bool   `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
+}
+
+type ClientConnectionConfig struct {
+	Insecure           bool   `yaml:"insecure"`
+	Discovery          bool   `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
+}
+
 type Config struct {
-	YdbcpDbConnectionString string   `yaml:"ydbcp_db_connection_string"`
-	S3                      S3Config `yaml:"s3"`
-	OperationTtlSeconds     int64    `yaml:"operation_ttl_seconds"`
+	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
+	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
+	S3                  S3Config               `yaml:"s3"`
+	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
 }
 
 func (config Config) ToString() (string, error) {
@@ -53,4 +69,21 @@ func InitConfig(ctx context.Context, confPath string) (Config, error) {
 		return config, nil
 	}
 	return Config{}, errors.New("configuration file path is empty")
+}
+
+func readSecret(filename string) (string, error) {
+	rawSecret, err := os.ReadFile(filename)
+	if err != nil {
+		return "", fmt.Errorf("can't read file %s: %w", filename, err)
+	}
+	return strings.TrimSpace(string(rawSecret)), nil
+}
+
+func (c *S3Config) AccessKey() (string, error) {
+	return readSecret(c.AccessKeyIDPath)
+}
+
+func (c *S3Config) SecretKey() (string, error) {
+	return readSecret(c.SecretAccessKeyPath)
+
 }

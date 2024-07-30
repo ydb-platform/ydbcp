@@ -51,21 +51,24 @@ func ParseObjectId(objectId string) (ObjectID, error) {
 }
 
 type Backup struct {
-	ID           ObjectID
-	ContainerID  string
-	DatabaseName string
-	S3Endpoint   string
-	S3Region     string
-	S3Bucket     string
-	S3PathPrefix string
-	Status       string
+	ID               ObjectID
+	ContainerID      string
+	DatabaseName     string
+	DatabaseEndpoint string
+	S3Endpoint       string
+	S3Region         string
+	S3Bucket         string
+	S3PathPrefix     string
+	Status           string
+	Message          string
 }
 
 func (o *Backup) String() string {
 	return fmt.Sprintf(
-		"ID: %s, ContainerID: %s, DatabaseName: %s, Status %s",
+		"ID: %s, ContainerID: %s, DatabaseEndpoint: %s, DatabaseName: %s, Status %s",
 		o.ID,
 		o.ContainerID,
+		o.DatabaseEndpoint,
 		o.DatabaseName,
 		o.Status,
 	)
@@ -73,15 +76,21 @@ func (o *Backup) String() string {
 
 func (o *Backup) Proto() *pb.Backup {
 	return &pb.Backup{
-		Id:           o.ID.String(),
-		ContainerId:  o.ContainerID,
-		DatabaseName: o.DatabaseName,
-		Location:     nil,
-		Audit:        nil,
-		Size:         0,
-		Status:       pb.Backup_Status(pb.Backup_Status_value[o.Status]),
-		Message:      "",
-		ExpireAt:     nil,
+		Id:               o.ID.String(),
+		ContainerId:      o.ContainerID,
+		DatabaseName:     o.DatabaseName,
+		DatabaseEndpoint: o.DatabaseEndpoint,
+		Location: &pb.S3Location{
+			Endpoint:   o.S3Endpoint,
+			Region:     o.S3Region,
+			Bucket:     o.S3Bucket,
+			PathPrefix: o.S3PathPrefix,
+		},
+		Audit:    nil,
+		Size:     0,
+		Status:   pb.Backup_Status(pb.Backup_Status_value[o.Status]),
+		Message:  o.Message,
+		ExpireAt: nil,
 	}
 }
 
@@ -143,6 +152,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		ContainerId:          o.ContainerID,
 		Type:                 string(OperationTypeTB),
 		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
 		BackupId:             o.BackupId.String(),
 		SourcePaths:          o.SourcePaths,
@@ -196,6 +206,7 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		ContainerId:          o.ContainerID,
 		Type:                 string(OperationTypeTB),
 		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
 		BackupId:             o.BackupId.String(),
 		SourcePaths:          nil,
@@ -255,18 +266,18 @@ var (
 	OperationStateError      = OperationState(pb.Operation_ERROR.String())
 	OperationStateCancelling = OperationState(pb.Operation_CANCELLING.String())
 	OperationStateCancelled  = OperationState(pb.Operation_CANCELED.String())
+
+	BackupStateUnknown   = pb.Backup_STATUS_UNSPECIFIED.String()
+	BackupStatePending   = pb.Backup_PENDING.String()
+	BackupStateAvailable = pb.Backup_AVAILABLE.String()
+	BackupStateError     = pb.Backup_ERROR.String()
+	BackupStateCancelled = pb.Backup_CANCELLED.String()
+	BackupStateDeleted   = pb.Backup_DELETED.String()
 )
 
 const (
-	OperationTypeTB = OperationType("TB")
-	OperationTypeRB = OperationType("RB")
-
-	BackupStateUnknown   = "Unknown"
-	BackupStatePending   = "Pending"
-	BackupStateAvailable = "Available"
-	BackupStateError     = "Error"
-	BackupStateCancelled = "Cancelled"
-
+	OperationTypeTB       = OperationType("TB")
+	OperationTypeRB       = OperationType("RB")
 	BackupTimestampFormat = "20060102_150405"
 )
 
@@ -306,13 +317,6 @@ func IssuesToString(issues []*Ydb_Issue.IssueMessage) string {
 		str[i] = v.String()
 	}
 	return strings.Join(str, ", ")
-}
-
-func GetYdbConnectionParams(dbname string) YdbConnectionParams {
-	return YdbConnectionParams{
-		Endpoint:     "grpc://localhost:2136", // TODO
-		DatabaseName: dbname,
-	}
 }
 
 type YdbConnectionParams struct {

@@ -47,7 +47,7 @@ message GetBackupRequest {
 message MakeBackupRequest {
     string container_id = 1;
     string database_name = 2;
-    string endpoint = 3;
+    string database_endpoint = 3;
     // Full path to a table or directory. Empty source_paths means backup of root directory.
     repeated string source_paths = 4;  // [(size) = "<=256"];
     // Regexp for paths excluded from backup.
@@ -62,5 +62,6 @@ message MakeRestoreRequest {
     string container_id = 1;
     string backup_id = 2;
     string database_name = 3;
-    string destination_prefix = 4;
+    string database_endpoint = 4;
+    string destination_prefix = 5;
 }

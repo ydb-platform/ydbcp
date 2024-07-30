@@ -72,7 +72,7 @@ func (c *MockDBConnector) UpdateBackup(
 	return nil
 }
 
-func (c *MockDBConnector) Close() {}
+func (c *MockDBConnector) Close(_ context.Context) {}
 func (c *MockDBConnector) GetTableClient() table.Client {
 	return nil
 }

@@ -4,23 +4,24 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
+	"ydbcp/internal/util/xlog"
+
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-	"strings"
-	"ydbcp/internal/util/xlog"
 )
 
 var (
 	AllBackupFields = []string{
-		"id", "container_id", "database",
+		"id", "container_id", "database", "endpoint",
 		"initiated", "created_at", "completed_at",
 		"s3_endpoint", "s3_region", "s3_bucket",
-		"s3_path_prefix", "status", "paths",
+		"s3_path_prefix", "status", "paths", "message",
 	}
 	AllOperationFields = []string{
-		"id", "type", "container_id", "database", "backup_id",
-		"initiated", "created_at", "completed_at", "status",
+		"id", "type", "container_id", "database", "endpoint", "backup_id",
+		"initiated", "created_at", "completed_at", "status", "message",
 		"paths", "operation_id",
 	}
 )

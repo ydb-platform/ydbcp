@@ -1,2 +1,18 @@
-ydbcp_db_connection_string: "grpc://localhost:2136/local"
 operation_ttl_seconds: 86400 # 24 hours
+
+db_connection:
+  connection_string: "grpcs://localhost:2135/domain/database"
+  insecure: true
+  discovery: false
+
+client_connection:
+  insecure: true
+  discovery: false
+
+s3:
+  endpoint: s3.endpoint.com
+  region: s3-region
+  bucket: s3-bucket
+  path_prefix: cluster-domain
+  access_key_id_path: path-to-s3-key
+  secret_access_key_path: path-to-s3-sec
