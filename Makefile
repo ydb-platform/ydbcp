@@ -23,4 +23,4 @@ vet:
 
 build: ydbcp
 ydbcp:
-	go build ./cmd/ydbcp -o ydbcp
+	go build -C cmd/ydbcp -o ydbcp
