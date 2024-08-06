@@ -4,8 +4,8 @@ UPSERT INTO `OperationTypes` (code, description, is_cancellable) VALUES
     ('RM', 'Remove backup', False);
 
 --for testing purposes
-UPSERT INTO `Backups` (id, container_id, database, status) VALUES
-    (Uuid('12345678-1234-5678-1234-567812345678'), '', '', 'PENDING');
+UPSERT INTO `Backups` (id, container_id, database, status, endpoint) VALUES
+    (Uuid('12345678-1234-5678-1234-567812345678'), '', '', 'PENDING', '');
 
-UPSERT INTO `Operations` (id, container_id, database, type, status, operation_id, backup_id, created_at) VALUES
-    (Uuid('11111111-1111-1111-1111-111111111111'), '', '', 'TB', 'DONE', '', Uuid('11111111-1111-1111-1111-111111111112'), CurrentUtcTimestamp());
+UPSERT INTO `Operations` (id, container_id, database, type, status, operation_id, backup_id, created_at, endpoint) VALUES
+    (Uuid('11111111-1111-1111-1111-111111111111'), '', '', 'TB', 'DONE', '', Uuid('11111111-1111-1111-1111-111111111112'), CurrentUtcTimestamp(), '');

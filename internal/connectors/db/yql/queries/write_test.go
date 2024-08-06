@@ -13,12 +13,7 @@ import (
 
 func TestQueryBuilder_UpdateUpdate(t *testing.T) {
 	const (
-		queryString = `DECLARE $id_0 AS Uuid;
-DECLARE $status_0 AS String;
-UPDATE Backups SET status = $status_0 WHERE id = $id_0;
-DECLARE $id_1 AS Uuid;
-DECLARE $status_1 AS String;
-DECLARE $message_1 AS String;
+		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
 UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	)
 	opId := types.GenerateObjectID()
@@ -55,29 +50,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 
 func TestQueryBuilder_CreateCreate(t *testing.T) {
 	const (
-		queryString = `DECLARE $id_0 AS Uuid;
-DECLARE $container_id_0 AS String;
-DECLARE $database_0 AS String;
-DECLARE $endpoint_0 AS String;
-DECLARE $initiated_0 AS String;
-DECLARE $s3_endpoint_0 AS String;
-DECLARE $s3_region_0 AS String;
-DECLARE $s3_bucket_0 AS String;
-DECLARE $s3_path_prefix_0 AS String;
-DECLARE $status_0 AS String;
-DECLARE $message_0 AS String;
-UPSERT INTO Backups (id, container_id, database, endpoint, initiated, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $initiated_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0);
-DECLARE $id_1 AS Uuid;
-DECLARE $type_1 AS String;
-DECLARE $status_1 AS String;
-DECLARE $container_id_1 AS String;
-DECLARE $database_1 AS String;
-DECLARE $endpoint_1 AS String;
-DECLARE $backup_id_1 AS Uuid;
-DECLARE $initiated_1 AS String;
-DECLARE $created_at_1 AS Timestamp;
-DECLARE $operation_id_1 AS String;
-DECLARE $message_1 AS String;
+		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, initiated, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $initiated_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0);
 UPSERT INTO Operations (id, type, status, container_id, database, endpoint, backup_id, initiated, created_at, operation_id, message) VALUES ($id_1, $type_1, $status_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $initiated_1, $created_at_1, $operation_id_1, $message_1)`
 	)
 	opId := types.GenerateObjectID()
@@ -171,20 +144,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
-		queryString = `DECLARE $id_0 AS Uuid;
-DECLARE $status_0 AS String;
-UPDATE Backups SET status = $status_0 WHERE id = $id_0;
-DECLARE $id_1 AS Uuid;
-DECLARE $type_1 AS String;
-DECLARE $status_1 AS String;
-DECLARE $container_id_1 AS String;
-DECLARE $database_1 AS String;
-DECLARE $endpoint_1 AS String;
-DECLARE $backup_id_1 AS Uuid;
-DECLARE $initiated_1 AS String;
-DECLARE $created_at_1 AS Timestamp;
-DECLARE $operation_id_1 AS String;
-DECLARE $message_1 AS String;
+		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
 UPSERT INTO Operations (id, type, status, container_id, database, endpoint, backup_id, initiated, created_at, operation_id, message) VALUES ($id_1, $type_1, $status_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $initiated_1, $created_at_1, $operation_id_1, $message_1)`
 	)
 	opId := types.GenerateObjectID()

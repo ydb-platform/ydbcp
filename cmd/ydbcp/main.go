@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/signal"
 	"path"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
@@ -128,7 +127,10 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 		xlog.Error(ctx, "can't start export operation", zap.Error(err), zap.String("dns", dsn))
 		return nil, fmt.Errorf("can't start export operation, dsn %s: %w", dsn, err)
 	}
-	xlog.Debug(ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn))
+	xlog.Debug(
+		ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn),
+	)
+	//TODO: forbid empty container id
 
 	backup := types.Backup{
 		ContainerID:  req.GetContainerId(),
@@ -175,25 +177,34 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 
 func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
 	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
+	queryFilters := make([]queries.QueryFilter, 0)
+	//TODO: forbid empty containerId
+	if request.GetContainerId() != "" {
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field: "container_id",
+				Values: []table_types.Value{
+					table_types.StringValueFromString(request.ContainerId),
+				},
+			},
+		)
+	}
+	if request.GetDatabaseNameMask() != "" {
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field: "database",
+				Values: []table_types.Value{
+					table_types.StringValueFromString(request.DatabaseNameMask),
+				},
+				IsLike: true,
+			},
+		)
+	}
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithSelectFields(queries.AllBackupFields...),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "container_id",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.ContainerId),
-					},
-				},
-				queries.QueryFilter{
-					Field: "database",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.DatabaseNameMask),
-					},
-					IsLike: true,
-				},
-			),
+			queries.WithQueryFilters(queryFilters...),
 		),
 	)
 	if err != nil {
@@ -204,8 +215,7 @@ func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest
 		pbBackups = append(pbBackups, backup.Proto())
 	}
 	return &pb.ListBackupsResponse{
-		Backups:       pbBackups,
-		NextPageToken: strconv.Itoa(len(backups)),
+		Backups: pbBackups,
 	}, nil
 }
 
@@ -213,37 +223,45 @@ func (s *server) ListOperations(ctx context.Context, request *pb.ListOperationsR
 	*pb.ListOperationsResponse, error,
 ) {
 	xlog.Debug(ctx, "ListOperations", zap.String("request", request.String()))
+	queryFilters := make([]queries.QueryFilter, 0)
+	//TODO: forbid empty containerId
+	if request.GetContainerId() != "" {
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field: "container_id",
+				Values: []table_types.Value{
+					table_types.StringValueFromString(request.ContainerId),
+				},
+			},
+		)
+	}
+	if request.GetDatabaseNameMask() != "" {
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field: "database",
+				Values: []table_types.Value{
+					table_types.StringValueFromString(request.DatabaseNameMask),
+				},
+				IsLike: true,
+			},
+		)
+	}
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
 			queries.WithSelectFields(queries.AllOperationFields...),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "container_id",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.ContainerId),
-					},
-				},
-				queries.QueryFilter{
-					Field: "database",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.DatabaseNameMask),
-					},
-					IsLike: true,
-				},
-			),
+			queries.WithQueryFilters(queryFilters...),
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error getting backups: %w", err)
+		return nil, fmt.Errorf("error getting operations: %w", err)
 	}
 	pbOperations := make([]*pb.Operation, 0, len(operations))
 	for _, operation := range operations {
 		pbOperations = append(pbOperations, operation.Proto())
 	}
 	return &pb.ListOperationsResponse{
-		Operations:    pbOperations,
-		NextPageToken: strconv.Itoa(len(operations)),
+		Operations: pbOperations,
 	}, nil
 }
 
