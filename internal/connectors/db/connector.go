@@ -61,7 +61,6 @@ type YdbConnector struct {
 
 func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*YdbConnector, error) {
 	opts := []ydb.Option{
-		ydb.WithAnonymousCredentials(),
 		ydb.WithDialTimeout(time.Second * time.Duration(config.DialTimeoutSeconds)),
 	}
 	if config.Insecure {
@@ -69,6 +68,11 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	}
 	if !config.Discovery {
 		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
+	}
+	if len(config.OAuth2KeyFile) > 0 {
+		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(config.OAuth2KeyFile))
+	} else {
+		opts = append(opts, ydb.WithAnonymousCredentials())
 	}
 
 	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", config.ConnectionString))

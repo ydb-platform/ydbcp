@@ -9,7 +9,7 @@ require (
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/stretchr/testify v1.8.1
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240528144234-5d5a685e41f7
-	github.com/ydb-platform/ydb-go-sdk/v3 v3.74.2
+	github.com/ydb-platform/ydb-go-sdk/v3 v3.75.2
 	go.uber.org/automaxprocs v1.5.3
 	go.uber.org/zap v1.27.0
 	google.golang.org/grpc v1.64.1

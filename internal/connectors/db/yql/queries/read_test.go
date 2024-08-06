@@ -2,10 +2,11 @@ package queries
 
 import (
 	"context"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"testing"
 )
 
 func TestQueryBuilder_Read(t *testing.T) {

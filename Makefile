@@ -1,9 +1,9 @@
-FILES ?= $(shell find . -type f -name '*.go')
-PACKAGES ?= $(shell go list ./...)
+FILES := $(filter-out ./pkg/proto/%, $(shell find . -type f -name '*.go'))
+PACKAGES ?= $(filter-out ydbcp/pkg/proto/%, $(shell go list ./...))
 
 .PHONY: all
 
-all: test fmt lint vet proto build
+all: test fmt lint proto build
 
 proto:
 	$(MAKE) -C pkg/proto
@@ -12,14 +12,12 @@ test:
 	go test -v ./... -short
 
 fmt:
-	go fmt ./...
+	go fmt $(PACKAGES)
 	goimports -w $(FILES)
+	go vet $(PACKAGES)
 
 lint:
 	golint $(PACKAGES)
-
-vet:
-	go vet ./...
 
 build: ydbcp
 ydbcp:

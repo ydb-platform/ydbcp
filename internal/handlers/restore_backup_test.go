@@ -2,15 +2,16 @@ package handlers
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"testing"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 )
 
 func TestRBOperationHandlerInvalidOperationResponse(t *testing.T) {
