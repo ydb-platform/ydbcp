@@ -3,15 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
-	"go.uber.org/zap"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"go.uber.org/zap"
 )
 
 func deadlineExceeded(createdAt time.Time, config config.Config) bool {

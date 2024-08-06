@@ -70,6 +70,9 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	if !config.Discovery {
 		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
 	}
+	if len(config.OAuth2KeyFile) > 0 {
+		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(config.OAuth2KeyFile))
+	}
 
 	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", config.ConnectionString))
 	driver, err := ydb.Open(ctx, config.ConnectionString, opts...)

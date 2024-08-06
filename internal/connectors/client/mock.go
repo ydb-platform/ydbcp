@@ -3,9 +3,10 @@ package client
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"path"
 	"ydbcp/internal/types"
+
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"

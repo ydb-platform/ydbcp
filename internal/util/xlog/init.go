@@ -1,9 +1,10 @@
 package xlog
 
 import (
+	"log"
+
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-	"log"
 )
 
 func SetupLogging(verbose bool) *zap.Logger {

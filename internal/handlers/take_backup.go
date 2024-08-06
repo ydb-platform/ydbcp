@@ -3,12 +3,13 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
+
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 )
 
 func NewTBOperationHandler(
