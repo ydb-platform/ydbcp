@@ -174,22 +174,6 @@ func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) Wri
 	return d
 }
 
-func (d *WriteSingleTableQueryImpl) DeclareParameters() string {
-	declares := make([]string, 0)
-	if d.updateParam != nil {
-		declares = append(
-			declares,
-			fmt.Sprintf("DECLARE %s AS %s", (*d.updateParam).Name(), (*d.updateParam).Value().Type().String()),
-		)
-	}
-	for _, param := range d.tableQueryParams {
-		declares = append(
-			declares, fmt.Sprintf("DECLARE %s AS %s", param.Name(), param.Value().Type().String()),
-		)
-	}
-	return strings.Join(declares, ";\n")
-}
-
 func ProcessUpsertQuery(
 	queryStrings *[]string, allParams *[]table.ParameterOption, t *WriteSingleTableQueryImpl,
 ) error {
@@ -199,10 +183,9 @@ func ProcessUpsertQuery(
 	if len(t.tableName) == 0 {
 		return errors.New("No table")
 	}
-	declares := t.DeclareParameters()
 	*queryStrings = append(
 		*queryStrings, fmt.Sprintf(
-			"%s;\nUPSERT INTO %s (%s) VALUES (%s)", declares, t.tableName, strings.Join(t.upsertFields, ", "),
+			"UPSERT INTO %s (%s) VALUES (%s)", t.tableName, strings.Join(t.upsertFields, ", "),
 			strings.Join(t.GetParamNames(), ", "),
 		),
 	)
@@ -221,7 +204,6 @@ func ProcessUpdateQuery(
 	if len(t.tableName) == 0 {
 		return errors.New("No table")
 	}
-	declares := t.DeclareParameters()
 	paramNames := t.GetParamNames()
 	keyParam := fmt.Sprintf("id = %s", (*t.updateParam).Name())
 	updates := make([]string, 0)
@@ -230,7 +212,7 @@ func ProcessUpdateQuery(
 	}
 	*queryStrings = append(
 		*queryStrings, fmt.Sprintf(
-			"%s;\nUPDATE %s SET %s WHERE %s", declares, t.tableName, strings.Join(updates, ", "), keyParam,
+			"UPDATE %s SET %s WHERE %s", t.tableName, strings.Join(updates, ", "), keyParam,
 		),
 	)
 	*allParams = append(*allParams, *t.updateParam)

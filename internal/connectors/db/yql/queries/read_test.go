@@ -11,11 +11,7 @@ import (
 
 func TestQueryBuilder_Read(t *testing.T) {
 	const (
-		queryString = `DECLARE $param0 AS String;
-DECLARE $param1 AS String;
-DECLARE $param2 AS String;
-DECLARE $param3 AS String;
-SELECT column1, column2, column3 FROM table1 WHERE (column1 = $param0 OR column1 = $param1) AND (column2 = $param2 OR column2 = $param3)`
+		queryString = `SELECT column1, column2, column3 FROM table1 WHERE (column1 = $param0 OR column1 = $param1) AND (column2 = $param2 OR column2 = $param3)`
 	)
 	var (
 		queryParams = table.NewQueryParameters(

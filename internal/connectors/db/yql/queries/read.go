@@ -100,15 +100,10 @@ func (d *ReadTableQueryImpl) AddTableQueryParam(paramValue table_types.Value) st
 	return paramName
 }
 
-func (d *ReadTableQueryImpl) DeclareParameters() string {
-	declares := make([]string, len(d.tableQueryParams))
-	for i, param := range d.tableQueryParams {
-		declares[i] = fmt.Sprintf("DECLARE %s AS %s", param.Name(), param.Value().Type().String())
-	}
-	return strings.Join(declares, ";\n")
-}
-
 func (d *ReadTableQueryImpl) MakeFilterString() string {
+	if len(d.filters) == 0 {
+		return ""
+	}
 	filterStrings := make([]string, 0, len(d.filters))
 	for i := 0; i < len(d.filterFields); i++ {
 		fieldFilterStrings := make([]string, 0, len(d.filters[i]))
@@ -122,7 +117,7 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 		}
 		filterStrings = append(filterStrings, fmt.Sprintf("(%s)", strings.Join(fieldFilterStrings, " OR ")))
 	}
-	return strings.Join(filterStrings, " AND ")
+	return fmt.Sprintf(" WHERE %s", strings.Join(filterStrings, " AND "))
 }
 
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
@@ -132,13 +127,9 @@ func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResul
 	if len(d.tableName) == 0 {
 		return nil, errors.New("No table")
 	}
-	if len(d.filters) == 0 {
-		return nil, errors.New("No filters")
-	}
 	filter := d.MakeFilterString()
 	res := fmt.Sprintf(
-		"%s;\nSELECT %s FROM %s WHERE %s",
-		d.DeclareParameters(),
+		"SELECT %s FROM %s%s",
 		strings.Join(d.selectFields, ", "),
 		d.tableName,
 		filter,
