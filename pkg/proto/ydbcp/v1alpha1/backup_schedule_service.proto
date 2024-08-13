@@ -1,10 +1,9 @@
 syntax = "proto3";
 
 package ydbcp;
-option go_package = "github.com/ydb-platform/ydbcp/pkg/proto;ydbcp";
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup_schedule.proto";
-import "google/protobuf/duration.proto";
 
 service BackupScheduleService {
     rpc CreateBackupSchedule (CreateBackupScheduleRequest) returns (BackupSchedule);

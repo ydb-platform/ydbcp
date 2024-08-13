@@ -35,11 +35,17 @@ type ClientConnectionConfig struct {
 	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
 }
 
+type AuthConfig struct {
+	PluginPath    string      `yaml:"plugin_path"`
+	Configuration interface{} `yaml:"configuration"`
+}
+
 type Config struct {
 	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
 	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
 	S3                  S3Config               `yaml:"s3"`
 	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
+	Auth                AuthConfig             `yaml:"auth"`
 }
 
 func (config Config) ToString() (string, error) {
@@ -87,4 +93,12 @@ func (c *S3Config) AccessKey() (string, error) {
 func (c *S3Config) SecretKey() (string, error) {
 	return readSecret(c.SecretAccessKeyPath)
 
+}
+
+func (c *AuthConfig) ConfigurationString() (string, error) {
+	txt, err := yaml.Marshal(c.Configuration)
+	if err != nil {
+		return "", fmt.Errorf("can't marshal Auth.Configuration to YAML: %w", err)
+	}
+	return string(txt), nil
 }

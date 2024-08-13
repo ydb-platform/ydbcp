@@ -1,0 +1,78 @@
+syntax = "proto3";
+
+package nebius.iam.v1;
+
+import "google/protobuf/timestamp.proto";
+import "iam/v1/access.proto";
+
+// DO NOT REMOVE! THESE OPTIONS ARE NEEDED FOR Bazel BUILD TO CORRESPOND TO buf generate:
+option java_multiple_files = true;
+option java_outer_classname = "AccessServiceProto";
+option java_package = "ai.nebius.iam.access.api.priv.v1";
+option go_package = "a.yandex-team.ru/api/nebius-ai/proto/nebius/iam/v1";
+// END
+
+service AccessService {
+  rpc Authorize(AuthorizeRequest) returns (AuthorizeResponse);
+}
+
+message AuthorizeRequest {
+  map<int64, AuthorizeCheck> checks = 1;
+}
+
+message AuthorizeResponse {
+  map<int64, AuthorizeResult> results = 1;
+}
+
+message AuthorizeCheck {
+  Permission permission = 1;
+  string container_id = 2;
+  ResourcePath resource_path = 3;
+  oneof identifier {
+    string iam_token = 4;
+    Account account = 5;
+    AwsCompatibleSignature aws_compatible_signature = 6;
+    AnonymousCredential anonymous_credential = 7;
+  }
+}
+
+message AuthorizeResult {
+  ResultCode resultCode = 1;
+  Account account = 2;
+  AuthorizeStatus status = 3;
+
+  message AuthorizeStatus {
+    AuthorizeStatusCode code = 1;
+    string message = 2;
+
+    enum AuthorizeStatusCode {
+      UNSPECIFIED = 0;
+      OK = 1;
+      PERMISSION_DENIED = 2;
+      UNAUTHENTICATED = 3;
+    }
+  }
+
+  enum ResultCode {
+    OK = 0; // Access granted.
+    PERMISSION_DENIED = 1; // Other cases of access denied.
+    UNKNOWN_SUBJECT = 2; // if the subject: doesn't exist, deleted, not found or account doesn't exist in the tenant owning the resource.
+    INVALID_TOKEN = 3; // The iam_token is not valid. It has an invalid length, invalid signature, etc.
+  }
+}
+
+message AwsCompatibleSignature {
+  string aws_access_key_id = 1;
+  string string_to_sign = 2;
+  string signature = 3;
+  AmzSignatureV4KeyParams sign_key_params = 4;
+}
+
+message AmzSignatureV4KeyParams {
+  google.protobuf.Timestamp amz_date = 1;
+  string amz_region = 2;
+  string amz_service = 3;
+}
+
+message AnonymousCredential {
+}
