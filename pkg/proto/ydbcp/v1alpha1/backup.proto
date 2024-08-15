@@ -24,6 +24,7 @@ message Backup {
     Status status = 8;
     string message = 9;
     google.protobuf.Timestamp expire_at = 10;
+    string schedule_id = 11;
 }
 
 message S3Location {
