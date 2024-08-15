@@ -64,4 +64,6 @@ message MakeRestoreRequest {
     string database_name = 3;
     string database_endpoint = 4;
     string destination_prefix = 5;
+    // Paths to s3 objects to restore.
+    repeated string source_paths = 6;
 }

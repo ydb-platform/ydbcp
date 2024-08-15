@@ -3,6 +3,10 @@ package client
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"path"
 	"regexp"
 	"strings"
@@ -32,7 +36,7 @@ type ClientConnector interface {
 	Close(ctx context.Context, clientDb *ydb.Driver) error
 
 	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error)
-	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error)
+	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error)
 	GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error)
 	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
 	CancelOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error)
@@ -218,6 +222,7 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(ctx, "Exporting data to s3",
 		zap.String("endpoint", s3Settings.Endpoint),
+		zap.String("region", s3Settings.Region),
 		zap.String("bucket", s3Settings.Bucket),
 		zap.String("description", s3Settings.Description),
 	)
@@ -232,6 +237,7 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 			Settings: &Ydb_Export.ExportToS3Settings{
 				Endpoint:        s3Settings.Endpoint,
 				Bucket:          s3Settings.Bucket,
+				Region:          s3Settings.Region,
 				AccessKey:       s3Settings.AccessKey,
 				SecretKey:       s3Settings.SecretKey,
 				Description:     s3Settings.Description,
@@ -252,14 +258,79 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings *Ydb_Import.ImportFromS3Settings) (string, error) {
+func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) ([]*Ydb_Import.ImportFromS3Settings_Item, error) {
+	if len(s3Settings.SourcePaths) == 0 {
+		return nil, fmt.Errorf("empty list of source paths for import")
+	}
+
+	s := session.Must(session.NewSession())
+
+	s3Client := s3.New(s,
+		&aws.Config{
+			Region:           &s3Settings.Region,
+			Credentials:      credentials.NewStaticCredentials(s3Settings.AccessKey, s3Settings.SecretKey, ""),
+			Endpoint:         &s3Settings.Endpoint,
+			S3ForcePathStyle: &s3Settings.S3ForcePathStyle,
+		},
+	)
+
+	items := make([]*Ydb_Import.ImportFromS3Settings_Item, len(s3Settings.SourcePaths))
+
+	for _, sourcePath := range s3Settings.SourcePaths {
+		if sourcePath[len(sourcePath)-1] != '/' {
+			sourcePath = sourcePath + "/"
+		}
+
+		err := s3Client.ListObjectsPages(
+			&s3.ListObjectsInput{
+				Bucket: &s3Settings.Bucket,
+				Prefix: &sourcePath,
+			},
+			func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
+				for _, object := range p.Contents {
+
+					key, found := strings.CutSuffix(*object.Key, "scheme.pb")
+					if found {
+						items = append(
+							items,
+							&Ydb_Import.ImportFromS3Settings_Item{
+								SourcePrefix: key,
+								DestinationPath: path.Join(
+									clientDb.Scheme().Database(),
+									s3Settings.DestinationPrefix,
+									key[len(sourcePath):],
+								),
+							},
+						)
+					}
+				}
+
+				return true
+			},
+		)
+
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return items, nil
+}
+
+func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
+	}
+
+	items, err := prepareItemsForImport(ctx, clientDb, s3Settings)
+	if err != nil {
+		return "", fmt.Errorf("error preparing list of items for import: %s", err.Error())
 	}
 
 	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(ctx, "Importing data from s3",
 		zap.String("endpoint", s3Settings.Endpoint),
+		zap.String("region", s3Settings.Region),
 		zap.String("bucket", s3Settings.Bucket),
 		zap.String("description", s3Settings.Description),
 	)
@@ -271,7 +342,16 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 				OperationTimeout: durationpb.New(time.Second),
 				CancelAfter:      durationpb.New(time.Second),
 			},
-			Settings: s3Settings,
+			Settings: &Ydb_Import.ImportFromS3Settings{
+				Endpoint:        s3Settings.Endpoint,
+				Bucket:          s3Settings.Bucket,
+				Region:          s3Settings.Region,
+				AccessKey:       s3Settings.AccessKey,
+				SecretKey:       s3Settings.SecretKey,
+				Description:     s3Settings.Description,
+				NumberOfRetries: s3Settings.NumberOfRetries,
+				Items:           items,
+			},
 		},
 	)
 
