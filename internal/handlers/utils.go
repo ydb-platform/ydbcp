@@ -45,7 +45,7 @@ func lookupYdbOperationStatus(
 ) (*LookupYdbOperationResponse, error) {
 	xlog.Info(
 		ctx, "getting operation status",
-		zap.String("id", operation.GetId().String()),
+		zap.String("id", operation.GetID()),
 		zap.String("type", string(operation.GetType())),
 		zap.String("ydb_operation_id", ydbOperationId),
 	)
@@ -61,14 +61,14 @@ func lookupYdbOperationStatus(
 
 		return nil, fmt.Errorf(
 			"failed to get operation status for operation #%s, import operation id %s: %w",
-			operation.GetId().String(), ydbOperationId, err,
+			operation.GetID(), ydbOperationId, err,
 		)
 	}
 
 	if isRetriableStatus(opResponse.GetOperation().GetStatus()) {
 		xlog.Info(
 			ctx, "received retriable error",
-			zap.String("id", operation.GetId().String()),
+			zap.String("id", operation.GetID()),
 			zap.String("type", string(operation.GetType())),
 			zap.String("ydb_operation_id", ydbOperationId),
 		)
@@ -98,7 +98,7 @@ func CancelYdbOperation(
 ) error {
 	xlog.Info(
 		ctx, "cancelling operation", zap.String("reason", reason),
-		zap.String("id", operation.GetId().String()),
+		zap.String("id", operation.GetID()),
 		zap.String("type", string(operation.GetType())),
 		zap.String("ydb_operation_id", ydbOperationId),
 	)
@@ -107,7 +107,7 @@ func CancelYdbOperation(
 	if err != nil {
 		return fmt.Errorf(
 			"error cancelling operation #%s, import operation id %s: %w",
-			operation.GetId().String(),
+			operation.GetID(),
 			ydbOperationId,
 			err,
 		)
@@ -116,7 +116,7 @@ func CancelYdbOperation(
 	if response == nil || response.GetStatus() != Ydb.StatusIds_SUCCESS {
 		return fmt.Errorf(
 			"error cancelling operation id %s, import operation id %s, issues: %s",
-			operation.GetId().String(),
+			operation.GetID(),
 			ydbOperationId,
 			types.IssuesToString(response.GetIssues()),
 		)

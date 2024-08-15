@@ -80,14 +80,16 @@ func (s *OperationService) ListOperations(
 	}, nil
 }
 
-func (s *OperationService) CancelOperation(ctx context.Context, request *pb.CancelOperationRequest) (*pb.Operation, error) {
+func (s *OperationService) CancelOperation(ctx context.Context, request *pb.CancelOperationRequest) (
+	*pb.Operation, error,
+) {
 	//TODO implement me
 	return nil, errors.New("not implemented")
 }
 
 func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (*pb.Operation, error) {
 	xlog.Debug(ctx, "GetOperation", zap.String("request", request.String()))
-	requestId, err := types.ParseObjectId(request.GetId())
+	requestId, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
 	}
@@ -98,7 +100,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
-					Values: []table_types.Value{table_types.UUIDValue(requestId)},
+					Values: []table_types.Value{table_types.StringValueFromString(requestId)},
 				},
 			),
 		),
@@ -111,7 +113,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 		return nil, errors.New("no operation with such Id") // TODO: Permission denied?
 	}
 	// TODO: Need to check access to operation resource by operationID
-	if _, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operations[0].GetContainerId(), ""); err != nil {
+	if _, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operations[0].GetContainerID(), ""); err != nil {
 		return nil, err
 	}
 

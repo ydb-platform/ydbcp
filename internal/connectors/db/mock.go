@@ -11,16 +11,16 @@ import (
 )
 
 type MockDBConnector struct {
-	operations map[types.ObjectID]types.Operation
-	backups    map[types.ObjectID]types.Backup
+	operations map[string]types.Operation
+	backups    map[string]types.Backup
 }
 
 type Option func(*MockDBConnector)
 
 func NewMockDBConnector(options ...Option) *MockDBConnector {
 	connector := &MockDBConnector{
-		operations: make(map[types.ObjectID]types.Operation),
-		backups:    make(map[types.ObjectID]types.Backup),
+		operations: make(map[string]types.Operation),
+		backups:    make(map[string]types.Backup),
 	}
 	for _, opt := range options {
 		opt(connector)
@@ -28,13 +28,13 @@ func NewMockDBConnector(options ...Option) *MockDBConnector {
 	return connector
 }
 
-func WithOperations(operations map[types.ObjectID]types.Operation) Option {
+func WithOperations(operations map[string]types.Operation) Option {
 	return func(c *MockDBConnector) {
 		c.operations = operations
 	}
 }
 
-func WithBackups(backups map[types.ObjectID]types.Backup) Option {
+func WithBackups(backups map[string]types.Backup) Option {
 	return func(c *MockDBConnector) {
 		c.backups = backups
 	}
@@ -61,7 +61,7 @@ func (c *MockDBConnector) SelectBackupsByStatus(
 }
 
 func (c *MockDBConnector) UpdateBackup(
-	_ context.Context, id types.ObjectID, backupStatus string,
+	_ context.Context, id string, backupStatus string,
 ) error {
 	if _, ok := c.backups[id]; !ok {
 		return fmt.Errorf("no backup found for id %v", id)
@@ -77,8 +77,8 @@ func (c *MockDBConnector) GetTableClient() table.Client {
 	return nil
 }
 
-func (c *MockDBConnector) CreateBackup(_ context.Context, backup types.Backup) (types.ObjectID, error) {
-	var id types.ObjectID
+func (c *MockDBConnector) CreateBackup(_ context.Context, backup types.Backup) (string, error) {
+	var id string
 	for {
 		id = types.GenerateObjectID()
 		if _, exist := c.backups[id]; !exist {
@@ -105,49 +105,49 @@ func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 func (c *MockDBConnector) UpdateOperation(
 	_ context.Context, op types.Operation,
 ) error {
-	if _, exist := c.operations[op.GetId()]; !exist {
+	if _, exist := c.operations[op.GetID()]; !exist {
 		return fmt.Errorf(
 			"update nonexistent operation %s", types.OperationToString(op),
 		)
 	}
-	c.operations[op.GetId()] = op
+	c.operations[op.GetID()] = op
 	return nil
 }
 
 func (c *MockDBConnector) CreateOperation(
 	_ context.Context, op types.Operation,
-) (types.ObjectID, error) {
-	var id types.ObjectID
+) (string, error) {
+	var id string
 	for {
 		id = types.GenerateObjectID()
 		if _, exist := c.operations[id]; !exist {
 			break
 		}
 	}
-	op.SetId(id)
+	op.SetID(id)
 	c.operations[id] = op
 	return id, nil
 }
 
 func (c *MockDBConnector) GetOperation(
-	_ context.Context, operationID types.ObjectID,
+	_ context.Context, operationID string,
 ) (types.Operation, error) {
 	if op, exist := c.operations[operationID]; exist {
 		return op, nil
 	}
 	return &types.GenericOperation{}, fmt.Errorf(
-		"operation not found, id %s", operationID.String(),
+		"operation not found, id %s", operationID,
 	)
 }
 
 func (c *MockDBConnector) GetBackup(
-	_ context.Context, backupID types.ObjectID,
+	_ context.Context, backupID string,
 ) (types.Backup, error) {
 	if backup, exist := c.backups[backupID]; exist {
 		return backup, nil
 	}
 	return types.Backup{}, fmt.Errorf(
-		"backup not found, id %s", backupID.String(),
+		"backup not found, id %s", backupID,
 	)
 }
 
@@ -159,7 +159,7 @@ func (c *MockDBConnector) SelectOperations(
 
 func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.WriteTableQuery) error {
 	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
-	c.operations[queryBuilderMock.Operation.GetId()] = queryBuilderMock.Operation
+	c.operations[queryBuilderMock.Operation.GetID()] = queryBuilderMock.Operation
 	c.backups[queryBuilderMock.Backup.ID] = queryBuilderMock.Backup
 	return nil
 }

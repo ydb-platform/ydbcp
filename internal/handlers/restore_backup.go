@@ -30,7 +30,7 @@ func RBOperationHandler(
 ) error {
 	xlog.Info(
 		ctx, "received operation",
-		zap.String("id", operation.GetId().String()),
+		zap.String("id", operation.GetID()),
 		zap.String("type", string(operation.GetType())),
 		zap.String("state", string(operation.GetState())),
 		zap.String("message", operation.GetMessage()),
@@ -52,7 +52,7 @@ func RBOperationHandler(
 	if err != nil {
 		return fmt.Errorf(
 			"error initializing client connector for operation #%s: %w",
-			mr.GetId().String(), err,
+			mr.GetID(), err,
 		)
 	}
 
@@ -119,7 +119,7 @@ func RBOperationHandler(
 
 	xlog.Info(
 		ctx, "forgetting operation",
-		zap.String("id", mr.Id.String()),
+		zap.String("id", mr.ID),
 		zap.String("type", string(operation.GetType())),
 		zap.String("ydb_operation_id", mr.YdbOperationId),
 	)
@@ -128,7 +128,7 @@ func RBOperationHandler(
 	if err != nil {
 		return fmt.Errorf(
 			"error forgetting operation #%s, import operation id %s: %w",
-			mr.GetId().String(),
+			mr.GetID(),
 			mr.YdbOperationId,
 			err,
 		)
@@ -137,7 +137,7 @@ func RBOperationHandler(
 	if response == nil || response.GetStatus() != Ydb.StatusIds_SUCCESS {
 		return fmt.Errorf(
 			"error forgetting operation #%s, import operation id %s, issues: %s",
-			mr.GetId().String(),
+			mr.GetID(),
 			mr.YdbOperationId,
 			types.IssuesToString(response.GetIssues()),
 		)

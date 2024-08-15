@@ -40,7 +40,7 @@ func TestOperationHandlerRegistry(t *testing.T) {
 	assert.NotEmpty(t, err, "registry must prohibit re-register handlers")
 
 	op = &types.GenericOperation{
-		Id:    types.GenerateObjectID(),
+		ID:    types.GenerateObjectID(),
 		Type:  opType,
 		State: types.OperationStatePending,
 	}

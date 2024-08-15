@@ -38,9 +38,15 @@ type ClientConnector interface {
 
 	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error)
 	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error)
-	GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error)
-	ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error)
-	CancelOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error)
+	GetOperationStatus(
+		ctx context.Context, clientDb *ydb.Driver, operationId string,
+	) (*Ydb_Operations.GetOperationResponse, error)
+	ForgetOperation(
+		ctx context.Context, clientDb *ydb.Driver, operationId string,
+	) (*Ydb_Operations.ForgetOperationResponse, error)
+	CancelOperation(
+		ctx context.Context, clientDb *ydb.Driver, operationId string,
+	) (*Ydb_Operations.CancelOperationResponse, error)
 }
 
 type ClientYdbConnector struct {
@@ -99,14 +105,18 @@ func isExportDirectory(fullPath string, database string) bool {
 	return strings.HasPrefix(fullPath, path.Join(database, "export"))
 }
 
-func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string, exclusions []regexp.Regexp) ([]string, error) {
+func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string, exclusions []regexp.Regexp) (
+	[]string, error,
+) {
 	var dir scheme.Directory
 	var err error
 
-	err = retry.Retry(ctx, func(ctx context.Context) (err error) {
-		dir, err = clientDb.Scheme().ListDirectory(ctx, initialPath)
-		return err
-	}, retry.WithIdempotent(true))
+	err = retry.Retry(
+		ctx, func(ctx context.Context) (err error) {
+			dir, err = clientDb.Scheme().ListDirectory(ctx, initialPath)
+			return err
+		}, retry.WithIdempotent(true),
+	)
 
 	if err != nil {
 		return nil, fmt.Errorf("list directory %s was failed: %v", initialPath, err)
@@ -158,7 +168,9 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 	return result, nil
 }
 
-func prepareItemsForExport(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) ([]*Ydb_Export.ExportToS3Settings_Item, error) {
+func prepareItemsForExport(
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
+) ([]*Ydb_Export.ExportToS3Settings_Item, error) {
 	sources := make([]string, 0)
 	exclusions := make([]regexp.Regexp, len(s3Settings.SourcePathToExclude))
 
@@ -197,7 +209,7 @@ func prepareItemsForExport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 		destinationPrefix := path.Join(
 			s3Settings.DestinationPrefix,
 			clientDb.Scheme().Database(),
-			time.Now().Format(types.BackupTimestampFormat)+"_"+s3Settings.BackupID.String(),
+			time.Now().Format(types.BackupTimestampFormat)+"_"+s3Settings.BackupID,
 			strings.TrimPrefix(source, clientDb.Scheme().Database()+"/"),
 		)
 
@@ -210,7 +222,9 @@ func prepareItemsForExport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 	return items, nil
 }
 
-func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error) {
+func (d *ClientYdbConnector) ExportToS3(
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
+) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
 	}
@@ -221,7 +235,8 @@ func (d *ClientYdbConnector) ExportToS3(ctx context.Context, clientDb *ydb.Drive
 	}
 
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
-	xlog.Info(ctx, "Exporting data to s3",
+	xlog.Info(
+		ctx, "Exporting data to s3",
 		zap.String("endpoint", s3Settings.Endpoint),
 		zap.String("region", s3Settings.Region),
 		zap.String("bucket", s3Settings.Bucket),
@@ -329,7 +344,8 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 	}
 
 	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
-	xlog.Info(ctx, "Importing data from s3",
+	xlog.Info(
+		ctx, "Importing data from s3",
 		zap.String("endpoint", s3Settings.Endpoint),
 		zap.String("region", s3Settings.Region),
 		zap.String("bucket", s3Settings.Bucket),
@@ -361,7 +377,8 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 	}
 
 	if response.GetOperation().GetStatus() != Ydb.StatusIds_SUCCESS {
-		return "", fmt.Errorf("importing from s3 was failed: %v",
+		return "", fmt.Errorf(
+			"importing from s3 was failed: %v",
 			response.GetOperation().GetIssues(),
 		)
 	}
@@ -369,13 +386,16 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 	return response.GetOperation().GetId(), nil
 }
 
-func (d *ClientYdbConnector) GetOperationStatus(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.GetOperationResponse, error) {
+func (d *ClientYdbConnector) GetOperationStatus(
+	ctx context.Context, clientDb *ydb.Driver, operationId string,
+) (*Ydb_Operations.GetOperationResponse, error) {
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}
 
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
-	xlog.Info(ctx, "Requesting operation status",
+	xlog.Info(
+		ctx, "Requesting operation status",
 		zap.String("id", operationId),
 	)
 
@@ -393,13 +413,16 @@ func (d *ClientYdbConnector) GetOperationStatus(ctx context.Context, clientDb *y
 	return response, nil
 }
 
-func (d *ClientYdbConnector) ForgetOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.ForgetOperationResponse, error) {
+func (d *ClientYdbConnector) ForgetOperation(
+	ctx context.Context, clientDb *ydb.Driver, operationId string,
+) (*Ydb_Operations.ForgetOperationResponse, error) {
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}
 
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
-	xlog.Info(ctx, "Forgetting operation",
+	xlog.Info(
+		ctx, "Forgetting operation",
 		zap.String("id", operationId),
 	)
 
@@ -417,13 +440,16 @@ func (d *ClientYdbConnector) ForgetOperation(ctx context.Context, clientDb *ydb.
 	return response, nil
 }
 
-func (d *ClientYdbConnector) CancelOperation(ctx context.Context, clientDb *ydb.Driver, operationId string) (*Ydb_Operations.CancelOperationResponse, error) {
+func (d *ClientYdbConnector) CancelOperation(
+	ctx context.Context, clientDb *ydb.Driver, operationId string,
+) (*Ydb_Operations.CancelOperationResponse, error) {
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}
 
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
-	xlog.Info(ctx, "Cancelling operation",
+	xlog.Info(
+		ctx, "Cancelling operation",
 		zap.String("id", operationId),
 	)
 

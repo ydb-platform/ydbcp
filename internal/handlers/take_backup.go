@@ -132,7 +132,7 @@ func TBOperationHandler(
 	if err != nil {
 		return fmt.Errorf(
 			"error forgetting operation id %s, export operation id %s: %w",
-			tb.GetId().String(),
+			tb.GetID(),
 			tb.YdbOperationId,
 			err,
 		)
@@ -141,7 +141,7 @@ func TBOperationHandler(
 	if response == nil || response.GetStatus() != Ydb.StatusIds_SUCCESS {
 		return fmt.Errorf(
 			"error forgetting operation id %s, export operation id %s, issues: %s",
-			tb.GetId().String(),
+			tb.GetID(),
 			tb.YdbOperationId,
 			types.IssuesToString(response.GetIssues()),
 		)

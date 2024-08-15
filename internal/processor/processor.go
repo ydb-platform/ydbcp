@@ -23,8 +23,8 @@ type OperationProcessorImpl struct {
 	handlers       OperationHandlerRegistry
 	db             db.DBConnector
 
-	runningOperations map[types.ObjectID]bool
-	results           chan types.ObjectID
+	runningOperations map[string]bool
+	results           chan string
 }
 
 type Option func(*OperationProcessorImpl)
@@ -60,8 +60,8 @@ func NewOperationProcessor(
 		handlers:               handlers,
 		db:                     db,
 		tickerProvider:         ticker.NewRealTicker,
-		runningOperations:      make(map[types.ObjectID]bool),
-		results:                make(chan types.ObjectID),
+		runningOperations:      make(map[string]bool),
+		results:                make(chan string),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -104,14 +104,14 @@ func (o *OperationProcessorImpl) processOperations() {
 }
 
 func (o *OperationProcessorImpl) processOperation(op types.Operation) {
-	if _, exist := o.runningOperations[op.GetId()]; exist {
+	if _, exist := o.runningOperations[op.GetID()]; exist {
 		xlog.Debug(
 			o.ctx, "operation already running",
 			zap.String("operation", types.OperationToString(op)),
 		)
 		return
 	}
-	o.runningOperations[op.GetId()] = true
+	o.runningOperations[op.GetID()] = true
 	o.wg.Add(1)
 	go func() {
 		defer o.wg.Done()
@@ -129,16 +129,16 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 				zap.Error(err),
 			)
 		}
-		o.results <- op.GetId()
+		o.results <- op.GetID()
 	}()
 }
 
-func (o *OperationProcessorImpl) handleOperationResult(operationID types.ObjectID) {
-	xlog.Debug(o.ctx, "operation handler is finished", zap.String("operationID", operationID.String()))
+func (o *OperationProcessorImpl) handleOperationResult(operationID string) {
+	xlog.Debug(o.ctx, "operation handler is finished", zap.String("operationID", operationID))
 	if _, exist := o.runningOperations[operationID]; !exist {
 		xlog.Error(
 			o.ctx, "got result from not running operation",
-			zap.String("operationID", operationID.String()),
+			zap.String("operationID", operationID),
 		)
 		return
 	}

@@ -5,7 +5,6 @@ import (
 	"time"
 	"ydbcp/internal/types"
 
-	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
 )
@@ -27,7 +26,7 @@ func StringOrEmpty(str *string) string {
 
 func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	var (
-		backupId         [16]byte
+		backupId         string
 		containerId      string
 		databaseName     string
 		databaseEndpoint string
@@ -55,14 +54,8 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		return nil, err
 	}
 
-	id, err := uuid.FromBytes(backupId[:])
-
-	if err != nil {
-		return nil, err
-	}
-
 	return &types.Backup{
-		ID:               types.ObjectID(id),
+		ID:               backupId,
 		ContainerID:      containerId,
 		DatabaseName:     databaseName,
 		DatabaseEndpoint: databaseEndpoint,
@@ -77,14 +70,14 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 
 func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	var (
-		operationId      types.ObjectID
+		operationId      string
 		containerId      string
 		operationType    string
 		createdAt        time.Time
 		databaseName     string
 		databaseEndpoint string
 
-		backupId          *types.ObjectID
+		backupId          *string
 		ydbOperationId    *string
 		operationStateBuf *string
 		message           *string
@@ -111,10 +104,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	}
 	if operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
-			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId.String())
+			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
 		}
 		return &types.TakeBackupOperation{
-			Id:          operationId,
+			ID:          operationId,
 			BackupId:    *backupId,
 			ContainerID: containerId,
 			State:       operationState,
@@ -128,10 +121,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
-			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId.String())
+			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
 		}
 		return &types.RestoreBackupOperation{
-			Id:          operationId,
+			ID:          operationId,
 			BackupId:    *backupId,
 			ContainerID: containerId,
 			State:       operationState,
@@ -145,5 +138,5 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		}, nil
 	}
 
-	return &types.GenericOperation{Id: operationId}, nil
+	return &types.GenericOperation{ID: operationId}, nil
 }

@@ -19,7 +19,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
 	op := types.TakeBackupOperation{
-		Id:      opId,
+		ID:      opId,
 		State:   "Done",
 		Message: "Abcde",
 	}
@@ -32,9 +32,9 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		WithUpdateOperation(&op)
 	var (
 		queryParams = table.NewQueryParameters(
-			table.ValueParam("$id_0", table_types.UUIDValue(backupId)),
+			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
-			table.ValueParam("$id_1", table_types.UUIDValue(opId)),
+			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$status_1", table_types.StringValueFromString("Done")),
 			table.ValueParam("$message_1", table_types.StringValueFromString("Abcde")),
 		)
@@ -56,7 +56,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:          opId,
+		ID:          opId,
 		ContainerID: "a",
 		BackupId:    backupId,
 		State:       "PENDING",
@@ -87,7 +87,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 		WithCreateOperation(&tbOp)
 	var (
 		queryParams = table.NewQueryParameters(
-			table.ValueParam("$id_0", table_types.UUIDValue(backupId)),
+			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$container_id_0", table_types.StringValueFromString("a")),
 			table.ValueParam("$database_0", table_types.StringValueFromString("b")),
 			table.ValueParam("$endpoint_0", table_types.StringValueFromString("g")),
@@ -98,7 +98,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			table.ValueParam("$s3_path_prefix_0", table_types.StringValueFromString("f")),
 			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
 			table.ValueParam("$message_0", table_types.StringValueFromString("msg backup")),
-			table.ValueParam("$id_1", table_types.UUIDValue(opId)),
+			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
@@ -116,7 +116,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			),
 			table.ValueParam(
 				"$backup_id_1",
-				table_types.UUIDValue(tbOp.BackupId),
+				table_types.StringValueFromString(tbOp.BackupId),
 			),
 			table.ValueParam(
 				"$initiated_1",
@@ -150,7 +150,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:          opId,
+		ID:          opId,
 		ContainerID: "a",
 		BackupId:    backupId,
 		State:       "PENDING",
@@ -173,9 +173,9 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 		WithCreateOperation(&tbOp)
 	var (
 		queryParams = table.NewQueryParameters(
-			table.ValueParam("$id_0", table_types.UUIDValue(backupId)),
+			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
-			table.ValueParam("$id_1", table_types.UUIDValue(opId)),
+			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
@@ -193,7 +193,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			),
 			table.ValueParam(
 				"$backup_id_1",
-				table_types.UUIDValue(tbOp.BackupId),
+				table_types.StringValueFromString(tbOp.BackupId),
 			),
 			table.ValueParam(
 				"$initiated_1",
