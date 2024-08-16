@@ -175,6 +175,77 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 	return op.Proto(), nil
 }
 
+func (s *server) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
+	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
+
+	clientConnectionParams := types.YdbConnectionParams{
+		Endpoint:     req.GetDatabaseEndpoint(),
+		DatabaseName: req.GetDatabaseName(),
+	}
+	dsn := types.MakeYdbConnectionString(clientConnectionParams)
+	client, err := s.clientConn.Open(ctx, dsn)
+	if err != nil {
+		return nil, fmt.Errorf("can't open client connection, dsn %s: %w", dsn, err)
+	}
+	defer func() {
+		if err := s.clientConn.Close(ctx, client); err != nil {
+			xlog.Error(ctx, "can't close client connection", zap.Error(err))
+		}
+	}()
+
+	accessKey, err := s.s3.AccessKey()
+	if err != nil {
+		return nil, fmt.Errorf("can't get S3AccessKey: %w", err)
+	}
+	secretKey, err := s.s3.SecretKey()
+	if err != nil {
+		return nil, fmt.Errorf("can't get S3SecretKey: %w", err)
+	}
+
+	s3Settings := types.ImportSettings{
+		Endpoint:          s.s3.Endpoint,
+		Bucket:            s.s3.Bucket,
+		AccessKey:         accessKey,
+		SecretKey:         secretKey,
+		Description:       "ydbcp restore", // TODO: write description
+		NumberOfRetries:   10,              // TODO: get value from configuration
+		BackupID:          req.GetBackupId(),
+		SourcePaths:       req.GetSourcePaths(),
+		S3ForcePathStyle:  true,
+		DestinationPrefix: req.GetDestinationPrefix(),
+	}
+
+	clientOperationID, err := s.clientConn.ImportFromS3(ctx, client, s3Settings)
+	if err != nil {
+		return nil, fmt.Errorf("can't start import operation, dsn %s: %w", dsn, err)
+	}
+
+	xlog.Debug(
+		ctx, "import operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn),
+	)
+
+	op := &types.RestoreBackupOperation{
+		ContainerID: req.GetContainerId(),
+		BackupId:    types.MustObjectIDFromString(req.GetBackupId()),
+		State:       types.OperationStatePending,
+		YdbConnectionParams: types.YdbConnectionParams{
+			Endpoint:     req.GetDatabaseEndpoint(),
+			DatabaseName: req.GetDatabaseName(),
+		},
+		YdbOperationId: clientOperationID,
+		CreatedAt:      time.Now(),
+	}
+
+	operationID, err := s.driver.CreateOperation(ctx, op)
+	if err != nil {
+		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
+		return nil, err
+	}
+
+	op.Id = operationID
+	return op.Proto(), nil
+}
+
 func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
 	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
 	queryFilters := make([]queries.QueryFilter, 0)

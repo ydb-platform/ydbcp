@@ -22,6 +22,10 @@ func MustObjectIDFromBytes(b [16]byte) ObjectID {
 	return ObjectID(uuid.Must(uuid.FromBytes(b[:])))
 }
 
+func MustObjectIDFromString(s string) ObjectID {
+	return ObjectID(uuid.Must(uuid.Parse(s)))
+}
+
 func (bid ObjectID) Bytes() [16]byte {
 	return bid
 }
@@ -279,6 +283,7 @@ const (
 	OperationTypeTB       = OperationType("TB")
 	OperationTypeRB       = OperationType("RB")
 	BackupTimestampFormat = "20060102_150405"
+	S3ForcePathStyle      = true
 )
 
 func OperationToString(o Operation) string {
@@ -343,4 +348,18 @@ type ExportSettings struct {
 	SourcePathToExclude []string
 	DestinationPrefix   string
 	BackupID            ObjectID
+}
+
+type ImportSettings struct {
+	Endpoint          string
+	Region            string
+	Bucket            string
+	AccessKey         string
+	SecretKey         string
+	Description       string
+	NumberOfRetries   uint32
+	BackupID          string
+	SourcePaths       []string
+	S3ForcePathStyle  bool
+	DestinationPrefix string
 }
