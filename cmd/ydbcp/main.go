@@ -18,8 +18,10 @@ import (
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/reflection"
 
+	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
 	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -29,11 +31,14 @@ import (
 	"ydbcp/internal/processor"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 var (
-	port = flag.Int("port", 50051, "The server port")
+	port                = flag.Int("port", 50051, "The server port")
+	errPermissionDenied = errors.New("permission denied")
+	errGetAuthToken     = errors.New("can't get auth token")
 )
 
 // server is used to implement BackupService.
@@ -43,6 +48,57 @@ type server struct {
 	driver     db.DBConnector
 	clientConn client.ClientConnector
 	s3         config.S3Config
+	auth       ap.AuthProvider
+}
+
+func tokenFromContext(ctx context.Context) (string, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return "", errGetAuthToken
+	}
+	tokens, ok := md["authorization"]
+	if !ok {
+		return "", fmt.Errorf("can't find authorization header, %w", errGetAuthToken)
+	}
+	if len(tokens) == 0 {
+		return "", fmt.Errorf("incorrect authorization header format, %w", errGetAuthToken)
+	}
+	token := tokens[0]
+	if len(token) < 8 || token[0:7] != "Bearer " {
+		return "", fmt.Errorf("incorrect authorization header format, %w", errGetAuthToken)
+	}
+	token = token[7:]
+	return token, nil
+}
+
+func (s *server) checkAuth(ctx context.Context, permission, containerID, resourceID string) (string, error) {
+	token, err := tokenFromContext(ctx)
+	if err != nil {
+		xlog.Debug(ctx, "can't get auth token", zap.Error(err))
+		token = ""
+	}
+	check := ap.AuthorizeCheck{
+		Permission:  permission,
+		ContainerID: containerID,
+	}
+	if len(resourceID) > 0 {
+		check.ResourceID = []string{resourceID}
+	}
+
+	resp, subject, err := s.auth.Authorize(ctx, token, check)
+	if err != nil {
+		xlog.Error(ctx, "auth plugin authorize error", zap.Error(err))
+		return "", errPermissionDenied
+	}
+	if len(resp) != 1 {
+		xlog.Error(ctx, "incorrect auth plugin response length != 1")
+		return "", errPermissionDenied
+	}
+	if resp[0].Code != ap.AuthCodeSuccess {
+		xlog.Error(ctx, "auth plugin response", zap.Int("code", int(resp[0].Code)), zap.String("message", resp[0].Message))
+		return "", errPermissionDenied
+	}
+	return subject, nil
 }
 
 func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
@@ -68,14 +124,24 @@ func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*
 		return nil, err
 	}
 	if len(backups) == 0 {
-		return nil, errors.New("No backup with such Id")
+		return nil, errors.New("No backup with such Id") // TODO: Permission denied?
 	}
+	// TODO: Need to check access to backup resource by backupID
+	if _, err := s.checkAuth(ctx, auth.PermissionBackupGet, backups[0].ContainerID, ""); err != nil {
+		return nil, err
+	}
+
 	xlog.Debug(ctx, "GetBackup", zap.String("backup", backups[0].String()))
 	return backups[0].Proto(), nil
 }
 
 func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
 	xlog.Info(ctx, "MakeBackup", zap.String("request", req.String()))
+	subject, err := s.checkAuth(ctx, auth.PermissionBackupCreate, req.ContainerId, "")
+	if err != nil {
+		return nil, err
+	}
+	xlog.Debug(ctx, "MakeBackup", zap.String("subject", subject))
 
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.GetDatabaseEndpoint(),
@@ -104,7 +170,7 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 		return nil, fmt.Errorf("can't get S3SecretKey: %w", err)
 	}
 
-	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user imput
+	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user input
 	dbNamePath = strings.Trim(dbNamePath, "_")
 	dstPrefix := path.Join(s.s3.PathPrefix, dbNamePath)
 
@@ -130,7 +196,6 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 	xlog.Debug(
 		ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn),
 	)
-	//TODO: forbid empty container id
 
 	backup := types.Backup{
 		ContainerID:  req.GetContainerId(),
@@ -177,6 +242,12 @@ func (s *server) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb
 
 func (s *server) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
 	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
+
+	subject, err := s.checkAuth(ctx, auth.PermissionBackupRestore, req.ContainerId, "") // TODO: check access to backup as resource
+	if err != nil {
+		return nil, err
+	}
+	xlog.Debug(ctx, "MakeRestore", zap.String("subject", subject))
 
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.GetDatabaseEndpoint(),
@@ -248,6 +319,10 @@ func (s *server) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*
 
 func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
 	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
+	if _, err := s.checkAuth(ctx, auth.PermissionBackupList, request.ContainerId, ""); err != nil {
+		return nil, err
+	}
+
 	queryFilters := make([]queries.QueryFilter, 0)
 	//TODO: forbid empty containerId
 	if request.GetContainerId() != "" {
@@ -271,6 +346,7 @@ func (s *server) ListBackups(ctx context.Context, request *pb.ListBackupsRequest
 			},
 		)
 	}
+
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
@@ -294,6 +370,10 @@ func (s *server) ListOperations(ctx context.Context, request *pb.ListOperationsR
 	*pb.ListOperationsResponse, error,
 ) {
 	xlog.Debug(ctx, "ListOperations", zap.String("request", request.String()))
+	if _, err := s.checkAuth(ctx, auth.PermissionBackupList, request.ContainerId, ""); err != nil {
+		return nil, err
+	}
+
 	queryFilters := make([]queries.QueryFilter, 0)
 	//TODO: forbid empty containerId
 	if request.GetContainerId() != "" {
@@ -317,6 +397,7 @@ func (s *server) ListOperations(ctx context.Context, request *pb.ListOperationsR
 			},
 		)
 	}
+
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
@@ -401,11 +482,24 @@ func main() {
 		os.Exit(1)
 	}
 	clientConnector := client.NewClientYdbConnector(configInstance.ClientConnection)
+	var authProvider ap.AuthProvider
+	if len(configInstance.Auth.PluginPath) == 0 {
+		authProvider, err = auth.NewDummyAuthProvider(ctx)
+	} else {
+		authProvider, err = auth.NewAuthProvider(ctx, configInstance.Auth)
+
+	}
+	if err != nil {
+		xlog.Error(ctx, "Error init AuthProvider", zap.Error(err))
+		os.Exit(1)
+	}
+	defer authProvider.Finish(ctx)
 
 	server := server{
 		driver:     dbConnector,
 		clientConn: clientConnector,
 		s3:         configInstance.S3,
+		auth:       authProvider,
 	}
 	defer server.driver.Close(ctx)
 
