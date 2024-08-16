@@ -302,14 +302,14 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 func (d *YdbConnector) UpdateOperation(
 	ctx context.Context, operation types.Operation,
 ) error {
-	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(operation))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithUpdateOperation(operation))
 }
 
 func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
 ) (string, error) {
 	operation.SetID(types.GenerateObjectID())
-	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateOperation(operation))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithCreateOperation(operation))
 	if err != nil {
 		return "", err
 	}
@@ -321,7 +321,7 @@ func (d *YdbConnector) CreateBackup(
 ) (string, error) {
 	id := types.GenerateObjectID()
 	backup.ID = id
-	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackup(backup))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithCreateBackup(backup))
 	if err != nil {
 		return "", err
 	}
@@ -335,5 +335,5 @@ func (d *YdbConnector) UpdateBackup(
 		ID:     id,
 		Status: backupStatus,
 	}
-	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackup(backup))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithUpdateBackup(backup))
 }

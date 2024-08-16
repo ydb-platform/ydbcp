@@ -9,6 +9,8 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"go.uber.org/zap"
 )
@@ -59,7 +61,7 @@ func RBOperationHandler(
 	defer func() { _ = client.Close(ctx, conn) }()
 
 	ydbOpResponse, err := lookupYdbOperationStatus(
-		ctx, client, conn, operation, mr.YdbOperationId, mr.CreatedAt, config,
+		ctx, client, conn, operation, mr.YdbOperationId, mr.Audit.CreatedAt, config,
 	)
 	if err != nil {
 		return err
@@ -67,6 +69,7 @@ func RBOperationHandler(
 	if ydbOpResponse.shouldAbortHandler {
 		operation.SetState(ydbOpResponse.opState)
 		operation.SetMessage(ydbOpResponse.opMessage)
+		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return db.UpdateOperation(ctx, operation)
 	}
 
@@ -79,7 +82,7 @@ func RBOperationHandler(
 	case types.OperationStatePending:
 		{
 			if !opResponse.GetOperation().Ready {
-				if deadlineExceeded(mr.CreatedAt, config) {
+				if deadlineExceeded(mr.Audit.CreatedAt, config) {
 					err = CancelYdbOperation(ctx, client, conn, operation, mr.YdbOperationId, "TTL")
 					if err != nil {
 						return err
@@ -99,9 +102,10 @@ func RBOperationHandler(
 	case types.OperationStateCancelling:
 		{
 			if !opResponse.GetOperation().Ready {
-				if deadlineExceeded(mr.CreatedAt, config) {
+				if deadlineExceeded(mr.Audit.CreatedAt, config) {
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
+					operation.GetAudit().CompletedAt = timestamppb.Now()
 					return db.UpdateOperation(ctx, operation)
 				}
 
@@ -143,5 +147,6 @@ func RBOperationHandler(
 		)
 	}
 
+	operation.GetAudit().CompletedAt = timestamppb.Now()
 	return db.UpdateOperation(ctx, operation)
 }

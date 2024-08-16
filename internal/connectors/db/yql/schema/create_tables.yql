@@ -43,7 +43,7 @@ CREATE TABLE Operations (
     backup_id String,
 
     initiated String,
-    created_at Timestamp NOT NULL,
+    created_at Timestamp,
     completed_at Timestamp,
 
     status String,

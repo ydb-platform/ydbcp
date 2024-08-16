@@ -5,15 +5,13 @@ import (
 	"fmt"
 	"log"
 	"strings"
-	"time"
+
+	"ydbcp/internal/util/xlog"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"ydbcp/internal/util/xlog"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 func GenerateObjectID() string {
@@ -42,6 +40,7 @@ type Backup struct {
 	S3PathPrefix     string
 	Status           string
 	Message          string
+	AuditInfo        *pb.AuditInfo
 }
 
 func (o *Backup) String() string {
@@ -67,7 +66,7 @@ func (o *Backup) Proto() *pb.Backup {
 			Bucket:     o.S3Bucket,
 			PathPrefix: o.S3PathPrefix,
 		},
-		Audit:    nil,
+		Audit:    o.AuditInfo,
 		Size:     0,
 		Status:   pb.Backup_Status(pb.Backup_Status_value[o.Status]),
 		Message:  o.Message,
@@ -88,6 +87,7 @@ type Operation interface {
 	SetState(s OperationState)
 	GetMessage() string
 	SetMessage(m string)
+	GetAudit() *pb.AuditInfo
 	Proto() *pb.Operation
 }
 
@@ -101,7 +101,7 @@ type TakeBackupOperation struct {
 	YdbOperationId      string
 	SourcePaths         []string
 	SourcePathToExclude []string
-	CreatedAt           time.Time
+	Audit               *pb.AuditInfo
 }
 
 func (o *TakeBackupOperation) GetID() string {
@@ -130,6 +130,9 @@ func (o *TakeBackupOperation) GetMessage() string {
 func (o *TakeBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
+func (o *TakeBackupOperation) GetAudit() *pb.AuditInfo {
+	return o.Audit
+}
 
 func (o *TakeBackupOperation) Proto() *pb.Operation {
 	return &pb.Operation{
@@ -143,7 +146,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: o.SourcePathToExclude,
 		RestorePaths:         nil,
-		Audit:                nil,
+		Audit:                o.Audit,
 		Status:               o.State.Enum(),
 		Message:              o.Message,
 	}
@@ -158,7 +161,7 @@ type RestoreBackupOperation struct {
 	YdbConnectionParams YdbConnectionParams
 	YdbOperationId      string
 	DestinationPaths    []string
-	CreatedAt           time.Time
+	Audit               *pb.AuditInfo
 }
 
 func (o *RestoreBackupOperation) GetID() string {
@@ -187,6 +190,9 @@ func (o *RestoreBackupOperation) GetMessage() string {
 func (o *RestoreBackupOperation) SetMessage(m string) {
 	o.Message = m
 }
+func (o *RestoreBackupOperation) GetAudit() *pb.AuditInfo {
+	return o.Audit
+}
 
 func (o *RestoreBackupOperation) Proto() *pb.Operation {
 	return &pb.Operation{
@@ -200,13 +206,9 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		SourcePaths:          nil,
 		SourcePathsToExclude: nil,
 		RestorePaths:         o.DestinationPaths,
-		Audit: &pb.AuditInfo{
-			Creator:     "",
-			CreatedAt:   timestamppb.New(o.CreatedAt),
-			CompletedAt: nil,
-		},
-		Status:  o.State.Enum(),
-		Message: o.Message,
+		Audit:                o.Audit,
+		Status:               o.State.Enum(),
+		Message:              o.Message,
 	}
 }
 
@@ -244,6 +246,9 @@ func (o *GenericOperation) GetMessage() string {
 }
 func (o *GenericOperation) SetMessage(m string) {
 	o.Message = m
+}
+func (o *GenericOperation) GetAudit() *pb.AuditInfo {
+	return nil
 }
 func (o *GenericOperation) Proto() *pb.Operation {
 	log.Fatalf("Converting GenericOperation to Proto: %s", o.ID)

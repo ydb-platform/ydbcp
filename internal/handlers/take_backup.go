@@ -8,13 +8,16 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 )
 
 func NewTBOperationHandler(
 	db db.DBConnector, client client.ClientConnector, config config.Config,
-	getQueryBuilder func() queries.WriteTableQuery,
+	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
 		return TBOperationHandler(ctx, op, db, client, config, getQueryBuilder)
@@ -27,7 +30,7 @@ func TBOperationHandler(
 	db db.DBConnector,
 	client client.ClientConnector,
 	config config.Config,
-	getQueryBuilder func() queries.WriteTableQuery,
+	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
 ) error {
 	if operation.GetType() != types.OperationTypeTB {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTB)
@@ -45,23 +48,27 @@ func TBOperationHandler(
 	defer func() { _ = client.Close(ctx, conn) }()
 
 	ydbOpResponse, err := lookupYdbOperationStatus(
-		ctx, client, conn, operation, tb.YdbOperationId, tb.CreatedAt, config,
+		ctx, client, conn, operation, tb.YdbOperationId, tb.Audit.CreatedAt, config,
 	)
 	if err != nil {
 		return err
 	}
 
+	now := timestamppb.Now()
 	backupToWrite := types.Backup{
-		ID:     tb.BackupId,
-		Status: types.BackupStateUnknown,
+		ID:        tb.BackupId,
+		Status:    types.BackupStateUnknown,
+		AuditInfo: &pb.AuditInfo{},
 	}
 
 	if ydbOpResponse.shouldAbortHandler {
 		operation.SetState(ydbOpResponse.opState)
 		operation.SetMessage(ydbOpResponse.opMessage)
+		operation.GetAudit().CompletedAt = now
 		backupToWrite.Status = types.BackupStateError
+		backupToWrite.AuditInfo.CompletedAt = now
 		return db.ExecuteUpsert(
-			ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
 	if ydbOpResponse.opResponse == nil {
@@ -73,14 +80,15 @@ func TBOperationHandler(
 	case types.OperationStatePending:
 		{
 			if !opResponse.GetOperation().Ready {
-				if deadlineExceeded(tb.CreatedAt, config) {
+				if deadlineExceeded(tb.Audit.CreatedAt, config) {
 					err = CancelYdbOperation(ctx, client, conn, operation, tb.YdbOperationId, "TTL")
 					if err != nil {
 						return err
 					}
 					backupToWrite.Status = types.BackupStateError
+					backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
 					return db.ExecuteUpsert(
-						ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
 				} else {
 					return nil
@@ -102,12 +110,14 @@ func TBOperationHandler(
 	case types.OperationStateCancelling:
 		{
 			if !opResponse.GetOperation().Ready {
-				if deadlineExceeded(tb.CreatedAt, config) {
+				if deadlineExceeded(tb.Audit.CreatedAt, config) {
 					backupToWrite.Status = types.BackupStateError
+					backupToWrite.AuditInfo.CompletedAt = now
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
+					operation.GetAudit().CompletedAt = now
 					return db.ExecuteUpsert(
-						ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
 				} else {
 					return nil
@@ -146,7 +156,9 @@ func TBOperationHandler(
 			types.IssuesToString(response.GetIssues()),
 		)
 	}
+	backupToWrite.AuditInfo.CompletedAt = now
+	operation.GetAudit().CompletedAt = now
 	return db.ExecuteUpsert(
-		ctx, getQueryBuilder().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 	)
 }

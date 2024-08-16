@@ -9,14 +9,16 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"go.uber.org/zap"
 )
 
-func deadlineExceeded(createdAt time.Time, config config.Config) bool {
-	return time.Since(createdAt) > time.Duration(config.OperationTtlSeconds)*time.Second
+func deadlineExceeded(createdAt *timestamppb.Timestamp, config config.Config) bool {
+	return time.Since(createdAt.AsTime()) > time.Duration(config.OperationTtlSeconds)*time.Second
 }
 func isValidStatus(status Ydb.StatusIds_StatusCode) bool {
 	return status == Ydb.StatusIds_SUCCESS || status == Ydb.StatusIds_CANCELLED
@@ -41,7 +43,7 @@ func (r *LookupYdbOperationResponse) IssueString() string {
 func lookupYdbOperationStatus(
 	ctx context.Context, client client.ClientConnector, conn *ydb.Driver, operation types.Operation,
 	ydbOperationId string,
-	createdAt time.Time, config config.Config,
+	createdAt *timestamppb.Timestamp, config config.Config,
 ) (*LookupYdbOperationResponse, error) {
 	xlog.Info(
 		ctx, "getting operation status",
@@ -124,5 +126,6 @@ func CancelYdbOperation(
 
 	operation.SetState(types.OperationStateCancelling)
 	operation.SetMessage("Operation deadline exceeded")
+	operation.GetAudit().CompletedAt = timestamppb.Now()
 	return nil
 }
