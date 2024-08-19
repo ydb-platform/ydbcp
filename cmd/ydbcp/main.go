@@ -23,7 +23,6 @@ import (
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
-	configInit "ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -124,7 +123,7 @@ func (s *server) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*
 		return nil, err
 	}
 	if len(backups) == 0 {
-		return nil, errors.New("No backup with such Id") // TODO: Permission denied?
+		return nil, errors.New("no backup with such Id") // TODO: Permission denied?
 	}
 	// TODO: Need to check access to backup resource by backupID
 	if _, err := s.checkAuth(ctx, auth.PermissionBackupGet, backups[0].ContainerID, ""); err != nil {
@@ -427,11 +426,6 @@ func (s *server) GetOperation(ctx context.Context, request *pb.GetOperationReque
 	panic("implement me")
 }
 
-func (s *server) mustEmbedUnimplementedOperationServiceServer() {
-	//TODO implement me
-	panic("implement me")
-}
-
 func main() {
 	var confPath string
 
@@ -453,7 +447,7 @@ func main() {
 		}
 	}(logger)
 
-	configInstance, err := configInit.InitConfig(ctx, confPath)
+	configInstance, err := config.InitConfig(ctx, confPath)
 
 	if err != nil {
 		xlog.Error(ctx, "Unable to initialize config", zap.Error(err))

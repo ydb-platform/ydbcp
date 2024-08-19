@@ -178,10 +178,10 @@ func ProcessUpsertQuery(
 	queryStrings *[]string, allParams *[]table.ParameterOption, t *WriteSingleTableQueryImpl,
 ) error {
 	if len(t.upsertFields) == 0 {
-		return errors.New("No fields to upsert")
+		return errors.New("no fields to upsert")
 	}
 	if len(t.tableName) == 0 {
-		return errors.New("No table")
+		return errors.New("no table")
 	}
 	*queryStrings = append(
 		*queryStrings, fmt.Sprintf(
@@ -189,9 +189,7 @@ func ProcessUpsertQuery(
 			strings.Join(t.GetParamNames(), ", "),
 		),
 	)
-	for _, p := range t.tableQueryParams {
-		*allParams = append(*allParams, p)
-	}
+	*allParams = append(*allParams, t.tableQueryParams...)
 	return nil
 }
 
@@ -199,10 +197,10 @@ func ProcessUpdateQuery(
 	queryStrings *[]string, allParams *[]table.ParameterOption, t *WriteSingleTableQueryImpl,
 ) error {
 	if len(t.upsertFields) == 0 {
-		return errors.New("No fields to upsert")
+		return errors.New("no fields to upsert")
 	}
 	if len(t.tableName) == 0 {
-		return errors.New("No table")
+		return errors.New("no table")
 	}
 	paramNames := t.GetParamNames()
 	keyParam := fmt.Sprintf("id = %s", (*t.updateParam).Name())
@@ -216,9 +214,7 @@ func ProcessUpdateQuery(
 		),
 	)
 	*allParams = append(*allParams, *t.updateParam)
-	for _, p := range t.tableQueryParams {
-		*allParams = append(*allParams, p)
-	}
+	*allParams = append(*allParams, t.tableQueryParams...)
 	return nil
 }
 

@@ -21,12 +21,10 @@ ifeq ($(UNAME), Linux)
 endif
 
 $(PROTOC_GEN_GO):
-	go get -u google.golang.org/protobuf/cmd/protoc-gen-go
-	go install google.golang.org/protobuf/cmd/protoc-gen-go
+	go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
 
 $(PROTOC_GEN_GO_GRPC):
-	go get -u google.golang.org/grpc/cmd/protoc-gen-go-grpc
-	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc
+	go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
 %.pb.go: %.proto | $(PROTOC_GEN_GO) $(PROTOC) $(PROTOC_GEN_GO_GRPC)
 	$(PROTOC) -I=. --go_out=. --go_opt=paths=source_relative --go-grpc_out=. --go-grpc_opt=paths=source_relative $<

@@ -81,9 +81,7 @@ func WithQueryFilters(filters ...QueryFilter) ReadTableQueryOption {
 		for _, filter := range filters {
 			d.filterFields = append(d.filterFields, filter.Field)
 			newFilters := make([]table_types.Value, 0, len(filter.Values))
-			for _, value := range filter.Values {
-				newFilters = append(newFilters, value)
-			}
+			newFilters = append(newFilters, filter.Values...)
 			d.filters = append(d.filters, newFilters)
 			if filter.IsLike {
 				d.isLikeFilter[filter.Field] = true
@@ -122,10 +120,10 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
 	if len(d.selectFields) == 0 {
-		return nil, errors.New("No fields to select")
+		return nil, errors.New("no fields to select")
 	}
 	if len(d.tableName) == 0 {
-		return nil, errors.New("No table")
+		return nil, errors.New("no table")
 	}
 	filter := d.MakeFilterString()
 	res := fmt.Sprintf(

@@ -159,7 +159,7 @@ func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) (
 			authResult.Message = r.Status.Message
 		default:
 			authResult.Code = auth.AuthCodeError
-			authResult.Message = fmt.Sprintf("Unknown AuthorizeCode")
+			authResult.Message = "Unknown AuthorizeCode"
 		}
 		results = append(results, authResult)
 	}
