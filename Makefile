@@ -1,6 +1,8 @@
 FILES := $(shell find . -type f -name '*.go' ! -path '*/proto/*' )
 PACKAGES := $(foreach path,$(shell go list ./...),$(if $(findstring /proto/,$(path)),,$(path)))
 RELEASE_DIR := $(shell pwd)
+STATICCHECK := $(shell go env GOPATH)/bin/staticcheck
+
 
 $(info $$FILES = $(FILES))
 $(info $$PACKAGES = $(PACKAGES))
@@ -20,10 +22,13 @@ test:
 fmt:
 	go fmt $(PACKAGES)
 	goimports -w $(FILES)
-	go vet $(PACKAGES)
 
-lint:
-	golint $(PACKAGES)
+$(STATICCHECK):
+	go install honnef.co/go/tools/cmd/staticcheck@latest
+
+lint: | $(STATICCHECK)
+	$(STATICCHECK) $(PACKAGES)
+	go vet $(PACKAGES)
 
 build: build-plugins build-ydbcp
 build-ydbcp:

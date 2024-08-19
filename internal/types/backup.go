@@ -46,7 +46,7 @@ func GenerateObjectID() ObjectID {
 func ParseObjectId(objectId string) (ObjectID, error) {
 	parsed, err := uuid.Parse(objectId)
 	if err != nil {
-		return ObjectID{}, fmt.Errorf("Invalid uuid: %w", err)
+		return ObjectID{}, fmt.Errorf("invalid uuid: %w", err)
 	}
 	if parsed.Variant() != uuid.RFC4122 && parsed.Version() != 4 {
 		return ObjectID{}, fmt.Errorf("ObjectId is not UUID4: %w", err)

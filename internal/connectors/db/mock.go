@@ -64,7 +64,7 @@ func (c *MockDBConnector) UpdateBackup(
 	_ context.Context, id types.ObjectID, backupStatus string,
 ) error {
 	if _, ok := c.backups[id]; !ok {
-		return errors.New(fmt.Sprintf("no backup found for id %v", id))
+		return fmt.Errorf("no backup found for id %v", id)
 	}
 	backup := c.backups[id]
 	backup.Status = backupStatus
@@ -154,7 +154,7 @@ func (c *MockDBConnector) GetBackup(
 func (c *MockDBConnector) SelectOperations(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]types.Operation, error) {
-	return nil, errors.New("Do not call this method")
+	return nil, errors.New("do not call this method")
 }
 
 func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.WriteTableQuery) error {
