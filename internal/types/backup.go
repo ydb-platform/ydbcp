@@ -104,6 +104,7 @@ type OperationState string
 type Operation interface {
 	GetId() ObjectID
 	SetId(id ObjectID)
+	GetContainerId() string
 	GetType() OperationType
 	SetType(t OperationType)
 	GetState() OperationState
@@ -131,6 +132,9 @@ func (o *TakeBackupOperation) GetId() ObjectID {
 }
 func (o *TakeBackupOperation) SetId(id ObjectID) {
 	o.Id = id
+}
+func (o *TakeBackupOperation) GetContainerId() string {
+	return o.ContainerID
 }
 func (o *TakeBackupOperation) GetType() OperationType {
 	return OperationTypeTB
@@ -186,6 +190,9 @@ func (o *RestoreBackupOperation) GetId() ObjectID {
 func (o *RestoreBackupOperation) SetId(id ObjectID) {
 	o.Id = id
 }
+func (o *RestoreBackupOperation) GetContainerId() string {
+	return o.ContainerID
+}
 func (o *RestoreBackupOperation) GetType() OperationType {
 	return OperationTypeRB
 }
@@ -239,6 +246,9 @@ func (o *GenericOperation) GetId() ObjectID {
 }
 func (o *GenericOperation) SetId(id ObjectID) {
 	o.Id = id
+}
+func (o *GenericOperation) GetContainerId() string {
+	return o.ContainerID
 }
 func (o *GenericOperation) GetType() OperationType {
 	return o.Type

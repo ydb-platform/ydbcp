@@ -40,5 +40,5 @@ message CancelOperationRequest {
 }
 
 message GetOperationRequest {
-    string operation_id = 1;
+    string id = 1;
 }
