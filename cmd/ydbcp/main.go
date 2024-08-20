@@ -422,8 +422,37 @@ func (s *server) CancelOperation(ctx context.Context, request *pb.CancelOperatio
 }
 
 func (s *server) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (*pb.Operation, error) {
-	//TODO implement me
-	panic("implement me")
+	xlog.Debug(ctx, "GetOperation", zap.String("request", request.String()))
+	requestId, err := types.ParseObjectId(request.GetId())
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
+	}
+	operations, err := s.driver.SelectOperations(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Operations"),
+			queries.WithSelectFields(queries.AllOperationFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.UUIDValue(requestId)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "can't select operations", zap.Error(err))
+		return nil, err
+	}
+	if len(operations) == 0 {
+		return nil, errors.New("no operation with such Id") // TODO: Permission denied?
+	}
+	// TODO: Need to check access to operation resource by operationID
+	if _, err := s.checkAuth(ctx, auth.PermissionBackupGet, operations[0].GetContainerId(), ""); err != nil {
+		return nil, err
+	}
+
+	xlog.Debug(ctx, "GetOperation", zap.String("operation", types.OperationToString(operations[0])))
+	return operations[0].Proto(), nil
 }
 
 func main() {
