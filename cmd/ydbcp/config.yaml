@@ -16,3 +16,13 @@ s3:
   path_prefix: cluster-domain
   access_key_id_path: path-to-s3-key
   secret_access_key_path: path-to-s3-sec
+
+auth:
+  plugin_path: path/to/plugin.so
+  configuration:
+    param: value
+
+grpc_server:
+  bind_port: 50051
+  tls_certificate_path: path/to/tls.crt
+  tls_key_path: path/to/tls.key
