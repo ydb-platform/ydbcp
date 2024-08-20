@@ -5,11 +5,21 @@ if [[ -z "$1" ]]; then
 fi
 doneflag=0
 
+INSECURE=${INSECURE-false}
+TLS=${TLS-false}
+
 ARGS=()
-GRPCURL="grpcurl -plaintext"
+GRPCURL="grpcurl"
 if [[ -n $IAM_TOKEN ]]; then
   ARGS+=("-H" "Authorization: Bearer ${IAM_TOKEN}")
 fi
+if [[ $INSECURE != "false" ]]; then
+  ARGS+=("-insecure")
+fi
+if [[ $TLS == "false" ]]; then
+  ARGS+=("-plaintext")
+fi
+
 if [[ "GetBackup" == "$1" ]]; then
   $GRPCURL "${ARGS[@]}" -d '{"id": "12345678-1234-5678-1234-567812345678"}' localhost:50051 ydbcp.v1alpha1.BackupService.GetBackup
   doneflag=1

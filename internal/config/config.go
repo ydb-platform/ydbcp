@@ -40,12 +40,20 @@ type AuthConfig struct {
 	Configuration interface{} `yaml:"configuration"`
 }
 
+type GRPCServerConfig struct {
+	BindAddress        string `yaml:"bind_address"`
+	BindPort           uint16 `yaml:"bind_port" default:"2135"`
+	TLSCertificatePath string `yaml:"tls_certificate_path"`
+	TLSKeyPath         string `yaml:"tls_key_path"`
+}
+
 type Config struct {
 	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
 	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
 	S3                  S3Config               `yaml:"s3"`
 	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
 	Auth                AuthConfig             `yaml:"auth"`
+	GRPCServer          GRPCServerConfig       `yaml:"grpc_server"`
 }
 
 func (config Config) ToString() (string, error) {
