@@ -95,7 +95,14 @@ func main() {
 		}
 	}()
 
-	backup.NewBackupService(dbConnector, clientConnector, configInstance.S3, authProvider).Register(server)
+	backup.NewBackupService(
+		dbConnector,
+		clientConnector,
+		configInstance.S3,
+		authProvider,
+		configInstance.ClientConnection.AllowedEndpointDomains,
+		configInstance.ClientConnection.AllowInsecureEndpoint,
+	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
 
 	if err := server.Start(ctx, &wg); err != nil {

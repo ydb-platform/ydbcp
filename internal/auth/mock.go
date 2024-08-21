@@ -184,13 +184,10 @@ func (p *MockAuthProvider) Authorize(
 	return results, subject, nil
 }
 
-func NewMockAuthProvider(ctx context.Context, options ...Option) (auth.AuthProvider, error) {
+func NewMockAuthProvider(options ...Option) *MockAuthProvider {
 	p := &MockAuthProvider{}
 	for _, opt := range options {
 		opt(p)
 	}
-	if err := p.Init(ctx, ""); err != nil {
-		return nil, err
-	}
-	return p, nil
+	return p
 }

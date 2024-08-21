@@ -30,10 +30,12 @@ type YDBConnectionConfig struct {
 }
 
 type ClientConnectionConfig struct {
-	Insecure           bool   `yaml:"insecure"`
-	Discovery          bool   `yaml:"discovery" default:"true"`
-	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
-	OAuth2KeyFile      string `yaml:"oauth2_key_file"`
+	Insecure               bool     `yaml:"insecure"`
+	Discovery              bool     `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds     uint32   `yaml:"dial_timeout_seconds" default:"5"`
+	OAuth2KeyFile          string   `yaml:"oauth2_key_file"`
+	AllowedEndpointDomains []string `yaml:"allowed_endpoint_domains"`
+	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint"`
 }
 
 type AuthConfig struct {
