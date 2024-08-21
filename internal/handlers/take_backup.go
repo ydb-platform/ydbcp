@@ -59,7 +59,7 @@ func TBOperationHandler(
 
 	now := timestamppb.Now()
 	backupToWrite := types.Backup{
-		ID:        tb.BackupId,
+		ID:        tb.BackupID,
 		Status:    types.BackupStateUnknown,
 		AuditInfo: &pb.AuditInfo{},
 	}
@@ -121,7 +121,7 @@ func TBOperationHandler(
 					return nil
 				}
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(tb.BackupId)
+				size, err := getBackupSize(tb.BackupID)
 				if err != nil {
 					return err
 				}
@@ -173,7 +173,7 @@ func TBOperationHandler(
 				}
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(tb.BackupId)
+				size, err := getBackupSize(tb.BackupID)
 				if err != nil {
 					return err
 				}

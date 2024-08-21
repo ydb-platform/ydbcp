@@ -6,6 +6,7 @@ toolchain go1.22.1
 
 require (
 	github.com/aws/aws-sdk-go v1.55.5
+	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/stretchr/testify v1.8.1
@@ -29,5 +30,4 @@ require (
 	golang.org/x/sys v0.21.0 // indirect
 	golang.org/x/text v0.16.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240604185151-ef581f913117 // indirect
-	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.5.1 // indirect
 )

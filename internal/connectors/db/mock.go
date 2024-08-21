@@ -12,9 +12,10 @@ import (
 )
 
 type MockDBConnector struct {
-	guard      sync.Mutex
-	operations map[string]types.Operation
-	backups    map[string]types.Backup
+	guard           sync.Mutex
+	operations      map[string]types.Operation
+	backups         map[string]types.Backup
+	backupSchedules map[string]types.BackupSchedule
 }
 
 type Option func(*MockDBConnector)
@@ -42,6 +43,12 @@ func WithBackups(backups map[string]types.Backup) Option {
 	}
 }
 
+func WithBackupSchedules(backupSchedules map[string]types.BackupSchedule) Option {
+	return func(c *MockDBConnector) {
+		c.backupSchedules = backupSchedules
+	}
+}
+
 func (c *MockDBConnector) SelectBackups(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]*types.Backup, error) {
@@ -53,6 +60,19 @@ func (c *MockDBConnector) SelectBackups(
 		backups = append(backups, &backup)
 	}
 	return backups, nil
+}
+
+func (c *MockDBConnector) SelectBackupSchedules(
+	_ context.Context, _ queries.ReadTableQuery,
+) ([]*types.BackupSchedule, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
+	schedules := make([]*types.BackupSchedule, 0, len(c.backupSchedules))
+	for _, schedule := range c.backupSchedules {
+		schedules = append(schedules, &schedule)
+	}
+	return schedules, nil
 }
 
 func (c *MockDBConnector) SelectBackupsByStatus(

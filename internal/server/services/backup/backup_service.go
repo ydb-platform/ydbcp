@@ -116,7 +116,9 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	xlog.Debug(ctx, "MakeBackup", zap.String("subject", subject))
 
 	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
-		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
+		return nil, status.Errorf(
+			codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint,
+		)
 	}
 
 	clientConnectionParams := types.YdbConnectionParams{
@@ -213,15 +215,15 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	}
 
 	op := &types.TakeBackupOperation{
-		BackupId:    backupID,
+		BackupID:    backupID,
 		ContainerID: req.ContainerId,
 		State:       types.OperationStateRunning,
 		YdbConnectionParams: types.YdbConnectionParams{
 			Endpoint:     req.GetDatabaseEndpoint(),
 			DatabaseName: req.GetDatabaseName(),
 		},
-		SourcePaths:         req.GetSourcePaths(),
-		SourcePathToExclude: req.GetSourcePathsToExclude(),
+		SourcePaths:          req.GetSourcePaths(),
+		SourcePathsToExclude: req.GetSourcePathsToExclude(),
 		Audit: &pb.AuditInfo{
 			CreatedAt: now,
 			Creator:   subject,
@@ -316,7 +318,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	xlog.Debug(ctx, "MakeRestore", zap.String("subject", subject))
 
 	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
-		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
+		return nil, status.Errorf(
+			codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint,
+		)
 	}
 
 	backups, err := s.driver.SelectBackups(

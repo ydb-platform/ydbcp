@@ -45,6 +45,9 @@ type DBConnector interface {
 	SelectOperations(ctx context.Context, queryBuilder queries.ReadTableQuery) (
 		[]types.Operation, error,
 	)
+	SelectBackupSchedules(ctx context.Context, queryBuilder queries.ReadTableQuery) (
+		[]*types.BackupSchedule, error,
+	)
 	SelectBackupsByStatus(ctx context.Context, backupStatus string) ([]*types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
 	UpdateOperation(context.Context, types.Operation) error
@@ -273,6 +276,17 @@ func (d *YdbConnector) SelectOperations(
 		d,
 		queryBuilder,
 		ReadOperationFromResultSet,
+	)
+}
+
+func (d *YdbConnector) SelectBackupSchedules(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]*types.BackupSchedule, error) {
+	return DoStructSelect[types.BackupSchedule](
+		ctx,
+		d,
+		queryBuilder,
+		ReadBackupScheduleFromResultSet,
 	)
 }
 
