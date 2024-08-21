@@ -24,8 +24,7 @@ const (
 )
 
 var (
-	ErrPermissionDenied = errors.New("permission denied")
-	ErrGetAuthToken     = errors.New("can't get auth token")
+	ErrGetAuthToken = errors.New("can't get auth token")
 )
 
 func NewAuthProvider(ctx context.Context, cfg config.AuthConfig) (auth.AuthProvider, error) {
