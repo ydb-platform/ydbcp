@@ -2,6 +2,7 @@ package queries
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -149,7 +150,7 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
 		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
-UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1)`
+UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1, $paths_1, $paths_to_exclude_1)`
 	)
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
@@ -165,8 +166,8 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 			DatabaseName: "dbname",
 		},
 		YdbOperationId:      "1234",
-		SourcePaths:         nil,
-		SourcePathToExclude: nil,
+		SourcePaths:         []string{"path"},
+		SourcePathToExclude: []string{"exclude1", "exclude2"},
 		Audit: &pb.AuditInfo{
 			CreatedAt: timestamppb.Now(),
 		},
@@ -217,6 +218,14 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 			table.ValueParam(
 				"$message_1",
 				table_types.StringValueFromString(tbOp.Message),
+			),
+			table.ValueParam(
+				"$paths_1",
+				table_types.StringValueFromString(strings.Join(tbOp.SourcePaths, ",")),
+			),
+			table.ValueParam(
+				"$paths_to_exclude_1",
+				table_types.StringValueFromString(strings.Join(tbOp.SourcePathToExclude, ",")),
 			),
 		)
 	)
