@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 
@@ -11,6 +12,7 @@ import (
 )
 
 type MockDBConnector struct {
+	guard      sync.Mutex
 	operations map[string]types.Operation
 	backups    map[string]types.Backup
 }
@@ -43,6 +45,9 @@ func WithBackups(backups map[string]types.Backup) Option {
 func (c *MockDBConnector) SelectBackups(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]*types.Backup, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	backups := make([]*types.Backup, 0, len(c.backups))
 	for _, backup := range c.backups {
 		backups = append(backups, &backup)
@@ -53,6 +58,9 @@ func (c *MockDBConnector) SelectBackups(
 func (c *MockDBConnector) SelectBackupsByStatus(
 	_ context.Context, _ string,
 ) ([]*types.Backup, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	backups := make([]*types.Backup, 0, len(c.backups))
 	for _, backup := range c.backups {
 		backups = append(backups, &backup)
@@ -63,6 +71,9 @@ func (c *MockDBConnector) SelectBackupsByStatus(
 func (c *MockDBConnector) UpdateBackup(
 	_ context.Context, id string, backupStatus string,
 ) error {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	if _, ok := c.backups[id]; !ok {
 		return fmt.Errorf("no backup found for id %v", id)
 	}
@@ -78,6 +89,9 @@ func (c *MockDBConnector) GetTableClient() table.Client {
 }
 
 func (c *MockDBConnector) CreateBackup(_ context.Context, backup types.Backup) (string, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	var id string
 	for {
 		id = types.GenerateObjectID()
@@ -93,6 +107,9 @@ func (c *MockDBConnector) CreateBackup(_ context.Context, backup types.Backup) (
 func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 	[]types.Operation, error,
 ) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	operations := make([]types.Operation, 0, len(c.operations))
 	for _, op := range c.operations {
 		if types.IsActive(op) {
@@ -105,6 +122,9 @@ func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 func (c *MockDBConnector) UpdateOperation(
 	_ context.Context, op types.Operation,
 ) error {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	if _, exist := c.operations[op.GetID()]; !exist {
 		return fmt.Errorf(
 			"update nonexistent operation %s", types.OperationToString(op),
@@ -117,6 +137,9 @@ func (c *MockDBConnector) UpdateOperation(
 func (c *MockDBConnector) CreateOperation(
 	_ context.Context, op types.Operation,
 ) (string, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	var id string
 	for {
 		id = types.GenerateObjectID()
@@ -132,6 +155,9 @@ func (c *MockDBConnector) CreateOperation(
 func (c *MockDBConnector) GetOperation(
 	_ context.Context, operationID string,
 ) (types.Operation, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	if op, exist := c.operations[operationID]; exist {
 		return op, nil
 	}
@@ -143,6 +169,9 @@ func (c *MockDBConnector) GetOperation(
 func (c *MockDBConnector) GetBackup(
 	_ context.Context, backupID string,
 ) (types.Backup, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	if backup, exist := c.backups[backupID]; exist {
 		return backup, nil
 	}
@@ -158,6 +187,9 @@ func (c *MockDBConnector) SelectOperations(
 }
 
 func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.WriteTableQuery) error {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
 	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
 	c.operations[queryBuilderMock.Operation.GetID()] = queryBuilderMock.Operation
 	c.backups[queryBuilderMock.Backup.ID] = queryBuilderMock.Backup
