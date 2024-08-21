@@ -63,7 +63,6 @@ func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver,
 	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
 
 	opts := []ydb.Option{
-		ydb.WithAnonymousCredentials(),
 		ydb.WithDialTimeout(time.Second * time.Duration(d.config.DialTimeoutSeconds)),
 	}
 	if d.config.Insecure {
@@ -71,6 +70,11 @@ func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver,
 	}
 	if !d.config.Discovery {
 		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
+	}
+	if len(d.config.OAuth2KeyFile) > 0 {
+		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(d.config.OAuth2KeyFile))
+	} else {
+		opts = append(opts, ydb.WithAnonymousCredentials())
 	}
 
 	db, err := ydb.Open(ctx, dsn, opts...)

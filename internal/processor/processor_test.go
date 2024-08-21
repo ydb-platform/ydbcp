@@ -33,10 +33,9 @@ func TestProcessor(t *testing.T) {
 
 	db := db.NewMockDBConnector()
 	handlers := NewOperationHandlerRegistry()
-	operationTypeTB := types.OperationType("TB")
 	handlerCalled := make(chan struct{})
 	handlers.Add(
-		operationTypeTB,
+		types.OperationTypeTB,
 		func(ctx context.Context, op types.Operation) error {
 			xlog.Debug(
 				ctx, "TB handler called for operation",
@@ -57,6 +56,7 @@ func TestProcessor(t *testing.T) {
 		handlers,
 		WithTickerProvider(tickerProvider),
 		WithPeriod(time.Second*10),
+		WithHandleOperationTimeout(time.Second*60),
 	)
 
 	select {

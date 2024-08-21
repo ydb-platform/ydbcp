@@ -17,7 +17,7 @@ proto:
 	$(MAKE) -C plugins/auth_nebius/proto
 
 test:
-	go test -v ./... -short
+	go test -v ./... -short -race
 
 fmt:
 	go fmt $(PACKAGES)

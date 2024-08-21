@@ -33,7 +33,7 @@ if [[ "ListOperations" == "$1" ]]; then
   doneflag=1
 fi
 if [[ "MakeBackup" == "$1" ]]; then
-  $GRPCURL "${ARGS[@]}" -d '{"database_name": "/testing-global/ydbc", "database_endpoint": "grpcs://localhost:2135", "source_paths": ["/testing-global/ydbc/orders"], "containerId": "'"$CONTAINER_ID"'"}' localhost:50051 ydbcp.v1alpha1.BackupService.MakeBackup
+  $GRPCURL "${ARGS[@]}" -d '{"database_name": "/testing-global/ydbc", "database_endpoint": "grpcs://localhost:2135", "source_paths": ["/testing-global/ydbc"], "containerId": "'"$CONTAINER_ID"'"}' localhost:50051 ydbcp.v1alpha1.BackupService.MakeBackup
   doneflag=1
 fi
 if [[ 0 == $doneflag ]]; then
