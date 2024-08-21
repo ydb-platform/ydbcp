@@ -2,11 +2,14 @@ package db
 
 import (
 	"fmt"
+	"strings"
 	"time"
 	"ydbcp/internal/types"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type StructFromResultSet[T any] func(result result.Result) (*T, error)
@@ -24,6 +27,28 @@ func StringOrEmpty(str *string) string {
 	return StringOrDefault(str, "")
 }
 
+func auditFromDb(initiated *string, createdAt *time.Time, completedAt *time.Time) *pb.AuditInfo {
+	var createdTs *timestamppb.Timestamp
+	var completedTs *timestamppb.Timestamp
+	creatorStr := ""
+	if initiated != nil {
+		creatorStr = *initiated
+	}
+	createdTs = nil
+	completedTs = nil
+	if createdAt != nil {
+		createdTs = timestamppb.New(*createdAt)
+	}
+	if completedAt != nil {
+		completedTs = timestamppb.New(*completedAt)
+	}
+	return &pb.AuditInfo{
+		Creator:     creatorStr,
+		CreatedAt:   createdTs,
+		CompletedAt: completedTs,
+	}
+}
+
 func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	var (
 		backupId         string
@@ -36,6 +61,10 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		s3pathprefix     *string
 		status           *string
 		message          *string
+
+		creator     *string
+		completedAt *time.Time
+		createdAt   *time.Time
 	)
 
 	err := res.ScanNamed(
@@ -49,6 +78,10 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		named.Optional("s3_path_prefix", &s3pathprefix),
 		named.Optional("status", &status),
 		named.Optional("message", &message),
+
+		named.Optional("created_at", &createdAt),
+		named.Optional("completed_at", &completedAt),
+		named.Optional("initiated", &creator),
 	)
 	if err != nil {
 		return nil, err
@@ -65,6 +98,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		S3PathPrefix:     StringOrEmpty(s3pathprefix),
 		Status:           StringOrDefault(status, types.BackupStateUnknown),
 		Message:          StringOrEmpty(message),
+		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
 	}, nil
 }
 
@@ -73,7 +107,6 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		operationId      string
 		containerId      string
 		operationType    string
-		createdAt        time.Time
 		databaseName     string
 		databaseEndpoint string
 
@@ -81,12 +114,16 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		ydbOperationId    *string
 		operationStateBuf *string
 		message           *string
+		paths             *string
+
+		creator     *string
+		createdAt   *time.Time
+		completedAt *time.Time
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
 		named.Required("container_id", &containerId),
 		named.Required("type", &operationType),
-		named.Required("created_at", &createdAt),
 		named.Required("database", &databaseName),
 		named.Required("endpoint", &databaseEndpoint),
 
@@ -94,6 +131,11 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("operation_id", &ydbOperationId),
 		named.Optional("status", &operationStateBuf),
 		named.Optional("message", &message),
+		named.Optional("paths", &paths),
+
+		named.Optional("created_at", &createdAt),
+		named.Optional("completed_at", &completedAt),
+		named.Optional("initiated", &creator),
 	)
 	if err != nil {
 		return nil, err
@@ -101,6 +143,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	operationState := types.OperationStateUnknown
 	if operationStateBuf != nil {
 		operationState = types.OperationState(*operationStateBuf)
+	}
+	sourcePaths := make([]string, 0)
+	if paths != nil {
+		sourcePaths = strings.Split(*paths, ",")
 	}
 	if operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
@@ -116,12 +162,13 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				Endpoint:     databaseEndpoint,
 				DatabaseName: databaseName,
 			},
+			SourcePaths:    sourcePaths,
 			YdbOperationId: StringOrEmpty(ydbOperationId),
-			CreatedAt:      createdAt,
+			Audit:          auditFromDb(creator, createdAt, completedAt),
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
-			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
+			return nil, fmt.Errorf("failed to read backup_id for RB operation: %s", operationId)
 		}
 		return &types.RestoreBackupOperation{
 			ID:          operationId,
@@ -134,7 +181,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				DatabaseName: databaseName,
 			},
 			YdbOperationId: StringOrEmpty(ydbOperationId),
-			CreatedAt:      createdAt,
+			Audit:          auditFromDb(creator, createdAt, completedAt),
 		}, nil
 	}
 

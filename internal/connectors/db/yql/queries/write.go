@@ -22,6 +22,7 @@ type WriteTableQuery interface {
 }
 
 type WriteTableQueryImpl struct {
+	ctx          context.Context
 	tableQueries []WriteSingleTableQueryImpl
 }
 
@@ -52,11 +53,7 @@ func (d *WriteSingleTableQueryImpl) GetParamNames() []string {
 	return res
 }
 
-func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingleTableQueryImpl {
-	tb, ok := operation.(*types.TakeBackupOperation)
-	if !ok || operation.GetType() != types.OperationTypeTB {
-		panic("Incorrect operation type")
-	}
+func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, index int) WriteSingleTableQueryImpl {
 	d := WriteSingleTableQueryImpl{
 		index:     index,
 		tableName: "Operations",
@@ -64,35 +61,51 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 	d.AddValueParam("$id", table_types.StringValueFromString(operation.GetID()))
 	d.AddValueParam("$type", table_types.StringValueFromString(string(operation.GetType())))
 	d.AddValueParam("$status", table_types.StringValueFromString(operation.GetState().String()))
-
-	d.AddValueParam(
-		"$container_id", table_types.StringValueFromString(tb.ContainerID),
-	)
-	d.AddValueParam(
-		"$database",
-		table_types.StringValueFromString(tb.YdbConnectionParams.DatabaseName),
-	)
-	d.AddValueParam(
-		"$endpoint",
-		table_types.StringValueFromString(tb.YdbConnectionParams.Endpoint),
-	)
-	d.AddValueParam(
-		"$backup_id",
-		table_types.StringValueFromString(tb.BackupId),
-	)
-	d.AddValueParam(
-		"$initiated",
-		table_types.StringValueFromString(""), //TODO
-	)
-	d.AddValueParam(
-		"$created_at",
-		table_types.TimestampValueFromTime(tb.CreatedAt),
-	)
-	d.AddValueParam(
-		"$operation_id",
-		table_types.StringValueFromString(tb.YdbOperationId),
-	)
-	d.AddValueParam("$message", table_types.StringValueFromString(tb.Message))
+	if operation.GetAudit() != nil {
+		d.AddValueParam(
+			"$initiated",
+			table_types.StringValueFromString(operation.GetAudit().Creator),
+		)
+		d.AddValueParam(
+			"$created_at",
+			table_types.TimestampValueFromTime(operation.GetAudit().CreatedAt.AsTime()),
+		)
+		if operation.GetAudit().CompletedAt != nil {
+			d.AddValueParam(
+				"completed_at",
+				table_types.TimestampValueFromTime(operation.GetAudit().CompletedAt.AsTime()),
+			)
+		}
+	}
+	tb, ok := operation.(*types.TakeBackupOperation)
+	if ok {
+		d.AddValueParam(
+			"$container_id", table_types.StringValueFromString(tb.ContainerID),
+		)
+		d.AddValueParam(
+			"$database",
+			table_types.StringValueFromString(tb.YdbConnectionParams.DatabaseName),
+		)
+		d.AddValueParam(
+			"$endpoint",
+			table_types.StringValueFromString(tb.YdbConnectionParams.Endpoint),
+		)
+		d.AddValueParam(
+			"$backup_id",
+			table_types.StringValueFromString(tb.BackupId),
+		)
+		d.AddValueParam(
+			"$operation_id",
+			table_types.StringValueFromString(tb.YdbOperationId),
+		)
+		d.AddValueParam("$message", table_types.StringValueFromString(tb.Message))
+		if len(tb.SourcePaths) > 0 {
+			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tb.SourcePaths, ",")))
+		}
+	} else {
+		//TODO: support RestoreBackup operation
+		xlog.Error(ctx, "unknown operation type write to db", zap.String("operation_type", string(operation.GetType())))
+	}
 
 	return d
 }
@@ -110,6 +123,12 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 		"$message",
 		table_types.StringValueFromString(operation.GetMessage()),
 	)
+	if operation.GetAudit() != nil {
+		d.AddValueParam(
+			"$completed_at",
+			table_types.TimestampValueFromTime(operation.GetAudit().GetCompletedAt().AsTime()),
+		)
+	}
 	return d
 }
 
@@ -120,6 +139,9 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 	}
 	d.AddUpdateId(table_types.StringValueFromString(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
+	if backup.AuditInfo != nil && backup.AuditInfo.CompletedAt != nil {
+		d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(backup.AuditInfo.CompletedAt.AsTime()))
+	}
 	return d
 }
 
@@ -139,6 +161,12 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$s3_path_prefix", table_types.StringValueFromString(b.S3PathPrefix))
 	d.AddValueParam("$status", table_types.StringValueFromString(b.Status))
 	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
+	if b.AuditInfo != nil {
+		d.AddValueParam("$initiated", table_types.StringValueFromString(b.AuditInfo.Creator))
+		if b.AuditInfo.CreatedAt != nil {
+			d.AddValueParam("$created_at", table_types.TimestampValueFromTime(b.AuditInfo.CreatedAt.AsTime()))
+		}
+	}
 	return d
 }
 
@@ -146,8 +174,8 @@ type WriteTableQueryImplOption func(*WriteTableQueryImpl)
 
 type WriteTableQueryMockOption func(*WriteTableQueryMock)
 
-func NewWriteTableQuery() WriteTableQuery {
-	return &WriteTableQueryImpl{}
+func NewWriteTableQuery(ctx context.Context) WriteTableQuery {
+	return &WriteTableQueryImpl{ctx: ctx}
 }
 
 func (d *WriteTableQueryImpl) WithCreateBackup(backup types.Backup) WriteTableQuery {
@@ -170,7 +198,7 @@ func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) Wri
 
 func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
 	index := len(d.tableQueries)
-	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
+	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(d.ctx, operation, index))
 	return d
 }
 

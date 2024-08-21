@@ -3,8 +3,10 @@ package queries
 import (
 	"context"
 	"testing"
-	"time"
 	"ydbcp/internal/types"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -27,7 +29,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		ID:     backupId,
 		Status: "Available",
 	}
-	builder := NewWriteTableQuery().
+	builder := NewWriteTableQuery(context.Background()).
 		WithUpdateBackup(backup).
 		WithUpdateOperation(&op)
 	var (
@@ -51,7 +53,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 func TestQueryBuilder_CreateCreate(t *testing.T) {
 	const (
 		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, initiated, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $initiated_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0);
-UPSERT INTO Operations (id, type, status, container_id, database, endpoint, backup_id, initiated, created_at, operation_id, message) VALUES ($id_1, $type_1, $status_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $initiated_1, $created_at_1, $operation_id_1, $message_1)`
+UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1)`
 	)
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
@@ -68,7 +70,9 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 		YdbOperationId:      "1234",
 		SourcePaths:         nil,
 		SourcePathToExclude: nil,
-		CreatedAt:           time.Unix(0, 0),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:               backupId,
@@ -82,7 +86,7 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 		Status:           "Available",
 		Message:          "msg backup",
 	}
-	builder := NewWriteTableQuery().
+	builder := NewWriteTableQuery(context.Background()).
 		WithCreateBackup(backup).
 		WithCreateOperation(&tbOp)
 	var (
@@ -104,6 +108,14 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
 			),
 			table.ValueParam(
+				"$initiated_1",
+				table_types.StringValueFromString(""),
+			),
+			table.ValueParam(
+				"$created_at_1",
+				table_types.TimestampValueFromTime(tbOp.Audit.CreatedAt.AsTime()),
+			),
+			table.ValueParam(
 				"$container_id_1", table_types.StringValueFromString(tbOp.ContainerID),
 			),
 			table.ValueParam(
@@ -117,14 +129,6 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			table.ValueParam(
 				"$backup_id_1",
 				table_types.StringValueFromString(tbOp.BackupId),
-			),
-			table.ValueParam(
-				"$initiated_1",
-				table_types.StringValueFromString(""),
-			),
-			table.ValueParam(
-				"$created_at_1",
-				table_types.TimestampValueFromTime(tbOp.CreatedAt),
 			),
 			table.ValueParam(
 				"$operation_id_1",
@@ -145,8 +149,9 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
 		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
-UPSERT INTO Operations (id, type, status, container_id, database, endpoint, backup_id, initiated, created_at, operation_id, message) VALUES ($id_1, $type_1, $status_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $initiated_1, $created_at_1, $operation_id_1, $message_1)`
+UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1)`
 	)
+	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
@@ -162,13 +167,15 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 		YdbOperationId:      "1234",
 		SourcePaths:         nil,
 		SourcePathToExclude: nil,
-		CreatedAt:           time.Unix(0, 0),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupId,
 		Status: "Available",
 	}
-	builder := NewWriteTableQuery().
+	builder := NewWriteTableQuery(ctx).
 		WithUpdateBackup(backup).
 		WithCreateOperation(&tbOp)
 	var (
@@ -179,6 +186,14 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
+			),
+			table.ValueParam(
+				"$initiated_1",
+				table_types.StringValueFromString(""),
+			),
+			table.ValueParam(
+				"$created_at_1",
+				table_types.TimestampValueFromTime(tbOp.Audit.CreatedAt.AsTime()),
 			),
 			table.ValueParam(
 				"$container_id_1", table_types.StringValueFromString(tbOp.ContainerID),
@@ -194,14 +209,6 @@ UPSERT INTO Operations (id, type, status, container_id, database, endpoint, back
 			table.ValueParam(
 				"$backup_id_1",
 				table_types.StringValueFromString(tbOp.BackupId),
-			),
-			table.ValueParam(
-				"$initiated_1",
-				table_types.StringValueFromString(""),
-			),
-			table.ValueParam(
-				"$created_at_1",
-				table_types.TimestampValueFromTime(tbOp.CreatedAt),
 			),
 			table.ValueParam(
 				"$operation_id_1",

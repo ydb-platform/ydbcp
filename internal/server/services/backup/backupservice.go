@@ -4,13 +4,13 @@ import (
 	"context"
 	"path"
 	"strings"
-	"time"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
@@ -158,8 +158,11 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		},
 		SourcePaths:         req.GetSourcePaths(),
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
-		CreatedAt:           time.Now(),
-		YdbOperationId:      clientOperationID,
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+			Creator:   subject,
+		},
+		YdbOperationId: clientOperationID,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
@@ -238,7 +241,10 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			DatabaseName: req.GetDatabaseName(),
 		},
 		YdbOperationId: clientOperationID,
-		CreatedAt:      time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+			Creator:   subject,
+		},
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)

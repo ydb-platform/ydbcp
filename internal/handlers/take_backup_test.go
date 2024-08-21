@@ -3,9 +3,11 @@ package handlers
 import (
 	"context"
 	"testing"
-	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -27,6 +29,9 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -65,6 +70,9 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -131,7 +139,9 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -199,7 +209,9 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -265,7 +277,9 @@ func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -331,7 +345,9 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -399,7 +415,9 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -466,7 +484,9 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -532,7 +552,9 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,
@@ -599,7 +621,9 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 	backup := types.Backup{
 		ID:     backupID,

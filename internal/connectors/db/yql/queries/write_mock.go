@@ -10,7 +10,7 @@ type WriteTableQueryMock struct {
 	Backup    types.Backup
 }
 
-func NewWriteTableQueryMock() WriteTableQuery {
+func NewWriteTableQueryMock(_ context.Context) WriteTableQuery {
 	return &WriteTableQueryMock{}
 }
 

@@ -3,11 +3,13 @@ package handlers
 import (
 	"context"
 	"testing"
-	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -25,6 +27,9 @@ func TestRBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -65,7 +70,9 @@ func TestRBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -112,7 +119,9 @@ func TestRBOperationHandlerPendingOperationInProgress(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -159,7 +168,9 @@ func TestRBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -204,7 +215,9 @@ func TestRBOperationHandlerPendingOperationCancelled(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -250,7 +263,9 @@ func TestRBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -298,7 +313,9 @@ func TestRBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -344,7 +361,9 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -390,7 +409,9 @@ func TestRBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -436,7 +457,9 @@ func TestRBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
-		CreatedAt:           time.Now(),
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
 	}
 
 	opMap := make(map[string]types.Operation)
