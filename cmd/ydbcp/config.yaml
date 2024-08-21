@@ -8,6 +8,10 @@ db_connection:
 client_connection:
   insecure: true
   discovery: false
+  allowed_endpoint_domains:
+    - .allowed-domain.com
+    - allowed-hostname.domain.com
+  allow_insecure_endpoint: false
 
 s3:
   endpoint: s3.endpoint.com

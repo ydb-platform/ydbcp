@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"path"
+	"regexp"
 	"strings"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
@@ -26,10 +27,39 @@ import (
 
 type BackupService struct {
 	pb.UnimplementedBackupServiceServer
-	driver     db.DBConnector
-	clientConn client.ClientConnector
-	s3         config.S3Config
-	auth       ap.AuthProvider
+	driver                 db.DBConnector
+	clientConn             client.ClientConnector
+	s3                     config.S3Config
+	auth                   ap.AuthProvider
+	allowedEndpointDomains []string
+	allowInsecureEndpoint  bool
+}
+
+var (
+	validEndpoint = regexp.MustCompile(`^(grpcs://|grpc://)?([A-Za-z0-9\-\.]+)(:[0-9]+)?$`)
+)
+
+func (s *BackupService) isAllowedEndpoint(e string) bool {
+	groups := validEndpoint.FindStringSubmatch(e)
+	if len(groups) < 3 {
+		return false
+	}
+	tls := groups[1] == "grpcs://"
+	if !tls && !s.allowInsecureEndpoint {
+		return false
+	}
+	fqdn := groups[2]
+
+	for _, domain := range s.allowedEndpointDomains {
+		if strings.HasPrefix(domain, ".") {
+			if strings.HasSuffix(fqdn, domain) {
+				return true
+			}
+		} else if fqdn == domain {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
@@ -75,9 +105,13 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	}
 	xlog.Debug(ctx, "MakeBackup", zap.String("subject", subject))
 
+	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
+		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
+	}
+
 	clientConnectionParams := types.YdbConnectionParams{
-		Endpoint:     req.GetDatabaseEndpoint(),
-		DatabaseName: req.GetDatabaseName(),
+		Endpoint:     req.DatabaseEndpoint,
+		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
 	client, err := s.clientConn.Open(ctx, dsn)
@@ -186,9 +220,13 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	}
 	xlog.Debug(ctx, "MakeRestore", zap.String("subject", subject))
 
+	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
+		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
+	}
+
 	clientConnectionParams := types.YdbConnectionParams{
-		Endpoint:     req.GetDatabaseEndpoint(),
-		DatabaseName: req.GetDatabaseName(),
+		Endpoint:     req.DatabaseEndpoint,
+		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
 	client, err := s.clientConn.Open(ctx, dsn)
@@ -315,11 +353,15 @@ func NewBackupService(
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
 	auth ap.AuthProvider,
+	allowedEndpointDomains []string,
+	allowInsecureEndpoint bool,
 ) *BackupService {
 	return &BackupService{
-		driver:     driver,
-		clientConn: clientConn,
-		s3:         s3,
-		auth:       auth,
+		driver:                 driver,
+		clientConn:             clientConn,
+		s3:                     s3,
+		auth:                   auth,
+		allowedEndpointDomains: allowedEndpointDomains,
+		allowInsecureEndpoint:  allowInsecureEndpoint,
 	}
 }

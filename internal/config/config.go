@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"ydbcp/internal/util/xlog"
 
@@ -30,10 +31,12 @@ type YDBConnectionConfig struct {
 }
 
 type ClientConnectionConfig struct {
-	Insecure           bool   `yaml:"insecure"`
-	Discovery          bool   `yaml:"discovery" default:"true"`
-	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
-	OAuth2KeyFile      string `yaml:"oauth2_key_file"`
+	Insecure               bool     `yaml:"insecure"`
+	Discovery              bool     `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds     uint32   `yaml:"dial_timeout_seconds" default:"5"`
+	OAuth2KeyFile          string   `yaml:"oauth2_key_file"`
+	AllowedEndpointDomains []string `yaml:"allowed_endpoint_domains"`
+	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint"`
 }
 
 type AuthConfig struct {
@@ -56,6 +59,10 @@ type Config struct {
 	Auth                AuthConfig             `yaml:"auth"`
 	GRPCServer          GRPCServerConfig       `yaml:"grpc_server"`
 }
+
+var (
+	validDomainFilter = regexp.MustCompile(`^[A-Za-z\.][A-Za-z0-9\-\.]+[A-Za-z]$`)
+)
 
 func (config Config) ToString() (string, error) {
 	data, err := yaml.Marshal(&config)
@@ -82,9 +89,18 @@ func InitConfig(ctx context.Context, confPath string) (Config, error) {
 				zap.Error(err))
 			return Config{}, err
 		}
-		return config, nil
+		return config, config.Validate()
 	}
 	return Config{}, errors.New("configuration file path is empty")
+}
+
+func (c *Config) Validate() error {
+	for _, domain := range c.ClientConnection.AllowedEndpointDomains {
+		if !validDomainFilter.MatchString(domain) {
+			return fmt.Errorf("incorrect domain filter in allowed_endpoint_domains: %s", domain)
+		}
+	}
+	return nil
 }
 
 func readSecret(filename string) (string, error) {
