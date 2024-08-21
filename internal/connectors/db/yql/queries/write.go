@@ -102,6 +102,12 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		if len(tb.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tb.SourcePaths, ",")))
 		}
+		if len(tb.SourcePathToExclude) > 0 {
+			d.AddValueParam(
+				"$paths_to_exclude",
+				table_types.StringValueFromString(strings.Join(tb.SourcePathToExclude, ",")),
+			)
+		}
 	} else {
 		//TODO: support RestoreBackup operation
 		xlog.Error(ctx, "unknown operation type write to db", zap.String("operation_type", string(operation.GetType())))

@@ -49,6 +49,8 @@ func auditFromDb(initiated *string, createdAt *time.Time, completedAt *time.Time
 	}
 }
 
+//TODO: unit test this
+
 func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	var (
 		backupId         string
@@ -110,15 +112,15 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		databaseName     string
 		databaseEndpoint string
 
-		backupId          *string
-		ydbOperationId    *string
-		operationStateBuf *string
-		message           *string
-		paths             *string
-
-		creator     *string
-		createdAt   *time.Time
-		completedAt *time.Time
+		backupId             *string
+		ydbOperationId       *string
+		operationStateBuf    *string
+		message              *string
+		sourcePaths          *string
+		sourcePathsToExclude *string
+		creator              *string
+		createdAt            *time.Time
+		completedAt          *time.Time
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
@@ -131,7 +133,8 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("operation_id", &ydbOperationId),
 		named.Optional("status", &operationStateBuf),
 		named.Optional("message", &message),
-		named.Optional("paths", &paths),
+		named.Optional("paths", &sourcePaths),
+		named.Optional("paths_to_exclude", &sourcePathsToExclude),
 
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
@@ -144,9 +147,13 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	if operationStateBuf != nil {
 		operationState = types.OperationState(*operationStateBuf)
 	}
-	sourcePaths := make([]string, 0)
-	if paths != nil {
-		sourcePaths = strings.Split(*paths, ",")
+	sourcePathsSlice := make([]string, 0)
+	sourcePathsToExcludeSlice := make([]string, 0)
+	if sourcePaths != nil {
+		sourcePathsSlice = strings.Split(*sourcePaths, ",")
+	}
+	if sourcePathsToExclude != nil {
+		sourcePathsToExcludeSlice = strings.Split(*sourcePathsToExclude, ",")
 	}
 	if operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
@@ -162,9 +169,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				Endpoint:     databaseEndpoint,
 				DatabaseName: databaseName,
 			},
-			SourcePaths:    sourcePaths,
-			YdbOperationId: StringOrEmpty(ydbOperationId),
-			Audit:          auditFromDb(creator, createdAt, completedAt),
+			SourcePaths:         sourcePathsSlice,
+			SourcePathToExclude: sourcePathsToExcludeSlice,
+			YdbOperationId:      StringOrEmpty(ydbOperationId),
+			Audit:               auditFromDb(creator, createdAt, completedAt),
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {

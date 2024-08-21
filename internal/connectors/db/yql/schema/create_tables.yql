@@ -50,6 +50,7 @@ CREATE TABLE Operations (
     message String,
 
     paths String,
+    paths_to_exclude String,
     operation_id String,
 
     INDEX idx_cc GLOBAL ON (container_id, created_at, id),
