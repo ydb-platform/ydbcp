@@ -106,7 +106,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	xlog.Debug(ctx, "MakeBackup", zap.String("subject", subject))
 
 	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
-		return nil, status.Error(codes.InvalidArgument, "database endpoint is invalid")
+		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
 	}
 
 	clientConnectionParams := types.YdbConnectionParams{
@@ -218,7 +218,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	xlog.Debug(ctx, "MakeRestore", zap.String("subject", subject))
 
 	if !s.isAllowedEndpoint(req.DatabaseEndpoint) {
-		return nil, status.Error(codes.InvalidArgument, "database endpoint is invalid")
+		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
 	}
 
 	clientConnectionParams := types.YdbConnectionParams{
