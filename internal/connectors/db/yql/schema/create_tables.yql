@@ -3,7 +3,7 @@ DROP TABLE OperationTypes;
 DROP TABLE Operations;
 
 CREATE TABLE Backups (
-    id UUID NOT NULL,
+    id String NOT NULL,
     container_id String NOT NULL,
     database String NOT NULL,
     endpoint String NOT NULL,
@@ -35,12 +35,12 @@ CREATE TABLE OperationTypes (
 );
 
 CREATE TABLE Operations (
-    id UUID NOT NULL,
+    id String NOT NULL,
     type String NOT NULL,
     container_id String NOT NULL,
     database String NOT NULL,
     endpoint String NOT NULL,
-    backup_id UUID,
+    backup_id String,
 
     initiated String,
     created_at Timestamp NOT NULL,

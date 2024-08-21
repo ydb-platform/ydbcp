@@ -34,7 +34,7 @@ type BackupService struct {
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
 	xlog.Debug(ctx, "GetBackup", zap.String("request", request.String()))
-	requestId, err := types.ParseObjectId(request.GetId())
+	requestId, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
 	}
@@ -45,7 +45,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
-					Values: []table_types.Value{table_types.UUIDValue(requestId)},
+					Values: []table_types.Value{table_types.StringValueFromString(requestId)},
 				},
 			),
 		),
@@ -167,14 +167,16 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		return nil, err
 	}
 
-	op.Id = operationID
+	op.ID = operationID
 	return op.Proto(), nil
 }
 
 func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
 	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
 
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupRestore, req.ContainerId, "") // TODO: check access to backup as resource
+	subject, err := auth.CheckAuth(
+		ctx, s.auth, auth.PermissionBackupRestore, req.ContainerId, "",
+	) // TODO: check access to backup as resource
 	if err != nil {
 		return nil, err
 	}
@@ -228,7 +230,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	op := &types.RestoreBackupOperation{
 		ContainerID: req.GetContainerId(),
-		BackupId:    types.MustObjectIDFromString(req.GetBackupId()),
+		BackupId:    req.GetBackupId(),
 		State:       types.OperationStatePending,
 		YdbConnectionParams: types.YdbConnectionParams{
 			Endpoint:     req.GetDatabaseEndpoint(),
@@ -244,11 +246,13 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, err
 	}
 
-	op.Id = operationID
+	op.ID = operationID
 	return op.Proto(), nil
 }
 
-func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (*pb.ListBackupsResponse, error) {
+func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (
+	*pb.ListBackupsResponse, error,
+) {
 	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
 	if _, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, ""); err != nil {
 		return nil, err

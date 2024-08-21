@@ -16,46 +16,23 @@ import (
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
-type ObjectID uuid.UUID
-
-func MustObjectIDFromBytes(b [16]byte) ObjectID {
-	return ObjectID(uuid.Must(uuid.FromBytes(b[:])))
+func GenerateObjectID() string {
+	return uuid.New().String()
 }
 
-func MustObjectIDFromString(s string) ObjectID {
-	return ObjectID(uuid.Must(uuid.Parse(s)))
-}
-
-func (bid ObjectID) Bytes() [16]byte {
-	return bid
-}
-
-func (bid ObjectID) String() string {
-	return (uuid.UUID)(bid).String()
-}
-
-// MarshalText makes marshalling in log prettier.
-func (bid ObjectID) MarshalText() ([]byte, error) {
-	return (uuid.UUID)(bid).MarshalText()
-}
-
-func GenerateObjectID() ObjectID {
-	return ObjectID(uuid.New())
-}
-
-func ParseObjectId(objectId string) (ObjectID, error) {
-	parsed, err := uuid.Parse(objectId)
+func ParseObjectID(string string) (string, error) {
+	parsed, err := uuid.Parse(string)
 	if err != nil {
-		return ObjectID{}, fmt.Errorf("invalid uuid: %w", err)
+		return "", fmt.Errorf("invalid uuid: %w", err)
 	}
 	if parsed.Variant() != uuid.RFC4122 && parsed.Version() != 4 {
-		return ObjectID{}, fmt.Errorf("ObjectId is not UUID4: %w", err)
+		return "", fmt.Errorf("string is not UUID4: %w", err)
 	}
-	return ObjectID(parsed), nil
+	return parsed.String(), nil
 }
 
 type Backup struct {
-	ID               ObjectID
+	ID               string
 	ContainerID      string
 	DatabaseName     string
 	DatabaseEndpoint string
@@ -80,7 +57,7 @@ func (o *Backup) String() string {
 
 func (o *Backup) Proto() *pb.Backup {
 	return &pb.Backup{
-		Id:               o.ID.String(),
+		Id:               o.ID,
 		ContainerId:      o.ContainerID,
 		DatabaseName:     o.DatabaseName,
 		DatabaseEndpoint: o.DatabaseEndpoint,
@@ -102,9 +79,9 @@ type OperationType string
 type OperationState string
 
 type Operation interface {
-	GetId() ObjectID
-	SetId(id ObjectID)
-	GetContainerId() string
+	GetID() string
+	SetID(id string)
+	GetContainerID() string
 	GetType() OperationType
 	SetType(t OperationType)
 	GetState() OperationState
@@ -115,9 +92,9 @@ type Operation interface {
 }
 
 type TakeBackupOperation struct {
-	Id                  ObjectID
+	ID                  string
 	ContainerID         string
-	BackupId            ObjectID
+	BackupId            string
 	State               OperationState
 	Message             string
 	YdbConnectionParams YdbConnectionParams
@@ -127,13 +104,13 @@ type TakeBackupOperation struct {
 	CreatedAt           time.Time
 }
 
-func (o *TakeBackupOperation) GetId() ObjectID {
-	return o.Id
+func (o *TakeBackupOperation) GetID() string {
+	return o.ID
 }
-func (o *TakeBackupOperation) SetId(id ObjectID) {
-	o.Id = id
+func (o *TakeBackupOperation) SetID(id string) {
+	o.ID = id
 }
-func (o *TakeBackupOperation) GetContainerId() string {
+func (o *TakeBackupOperation) GetContainerID() string {
 	return o.ContainerID
 }
 func (o *TakeBackupOperation) GetType() OperationType {
@@ -156,13 +133,13 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 
 func (o *TakeBackupOperation) Proto() *pb.Operation {
 	return &pb.Operation{
-		Id:                   o.Id.String(),
+		Id:                   o.ID,
 		ContainerId:          o.ContainerID,
 		Type:                 string(OperationTypeTB),
 		DatabaseName:         o.YdbConnectionParams.DatabaseName,
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
-		BackupId:             o.BackupId.String(),
+		BackupId:             o.BackupId,
 		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: o.SourcePathToExclude,
 		RestorePaths:         nil,
@@ -173,9 +150,9 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 }
 
 type RestoreBackupOperation struct {
-	Id                  ObjectID
+	ID                  string
 	ContainerID         string
-	BackupId            ObjectID
+	BackupId            string
 	State               OperationState
 	Message             string
 	YdbConnectionParams YdbConnectionParams
@@ -184,13 +161,13 @@ type RestoreBackupOperation struct {
 	CreatedAt           time.Time
 }
 
-func (o *RestoreBackupOperation) GetId() ObjectID {
-	return o.Id
+func (o *RestoreBackupOperation) GetID() string {
+	return o.ID
 }
-func (o *RestoreBackupOperation) SetId(id ObjectID) {
-	o.Id = id
+func (o *RestoreBackupOperation) SetID(id string) {
+	o.ID = id
 }
-func (o *RestoreBackupOperation) GetContainerId() string {
+func (o *RestoreBackupOperation) GetContainerID() string {
 	return o.ContainerID
 }
 func (o *RestoreBackupOperation) GetType() OperationType {
@@ -213,13 +190,13 @@ func (o *RestoreBackupOperation) SetMessage(m string) {
 
 func (o *RestoreBackupOperation) Proto() *pb.Operation {
 	return &pb.Operation{
-		Id:                   o.Id.String(),
+		Id:                   o.ID,
 		ContainerId:          o.ContainerID,
-		Type:                 string(OperationTypeTB),
+		Type:                 string(OperationTypeRB),
 		DatabaseName:         o.YdbConnectionParams.DatabaseName,
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
-		BackupId:             o.BackupId.String(),
+		BackupId:             o.BackupId,
 		SourcePaths:          nil,
 		SourcePathsToExclude: nil,
 		RestorePaths:         o.DestinationPaths,
@@ -234,20 +211,20 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 }
 
 type GenericOperation struct {
-	Id          ObjectID
+	ID          string
 	ContainerID string
 	Type        OperationType
 	State       OperationState
 	Message     string
 }
 
-func (o *GenericOperation) GetId() ObjectID {
-	return o.Id
+func (o *GenericOperation) GetID() string {
+	return o.ID
 }
-func (o *GenericOperation) SetId(id ObjectID) {
-	o.Id = id
+func (o *GenericOperation) SetID(id string) {
+	o.ID = id
 }
-func (o *GenericOperation) GetContainerId() string {
+func (o *GenericOperation) GetContainerID() string {
 	return o.ContainerID
 }
 func (o *GenericOperation) GetType() OperationType {
@@ -269,7 +246,7 @@ func (o *GenericOperation) SetMessage(m string) {
 	o.Message = m
 }
 func (o *GenericOperation) Proto() *pb.Operation {
-	log.Fatalf("Converting GenericOperation to Proto: %s", o.Id)
+	log.Fatalf("Converting GenericOperation to Proto: %s", o.ID)
 	return nil
 }
 
@@ -299,7 +276,7 @@ const (
 func OperationToString(o Operation) string {
 	return fmt.Sprintf(
 		"Operation, id %s, type %s, state %s",
-		o.GetId().String(),
+		o.GetID(),
 		o.GetType(),
 		o.GetState(),
 	)
@@ -357,7 +334,7 @@ type ExportSettings struct {
 	SourcePaths         []string
 	SourcePathToExclude []string
 	DestinationPrefix   string
-	BackupID            ObjectID
+	BackupID            string
 }
 
 type ImportSettings struct {

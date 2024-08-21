@@ -48,9 +48,9 @@ type DBConnector interface {
 	SelectBackupsByStatus(ctx context.Context, backupStatus string) ([]*types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
 	UpdateOperation(context.Context, types.Operation) error
-	CreateOperation(context.Context, types.Operation) (types.ObjectID, error)
-	CreateBackup(context.Context, types.Backup) (types.ObjectID, error)
-	UpdateBackup(context context.Context, id types.ObjectID, backupState string) error
+	CreateOperation(context.Context, types.Operation) (string, error)
+	CreateBackup(context.Context, types.Backup) (string, error)
+	UpdateBackup(context context.Context, id string, backupState string) error
 	ExecuteUpsert(ctx context.Context, queryBuilder queries.WriteTableQuery) error
 	Close(context.Context)
 }
@@ -307,29 +307,29 @@ func (d *YdbConnector) UpdateOperation(
 
 func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
-) (types.ObjectID, error) {
-	operation.SetId(types.GenerateObjectID())
+) (string, error) {
+	operation.SetID(types.GenerateObjectID())
 	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateOperation(operation))
 	if err != nil {
-		return types.ObjectID{}, err
+		return "", err
 	}
-	return operation.GetId(), nil
+	return operation.GetID(), nil
 }
 
 func (d *YdbConnector) CreateBackup(
 	ctx context.Context, backup types.Backup,
-) (types.ObjectID, error) {
+) (string, error) {
 	id := types.GenerateObjectID()
 	backup.ID = id
 	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackup(backup))
 	if err != nil {
-		return types.ObjectID{}, err
+		return "", err
 	}
 	return id, nil
 }
 
 func (d *YdbConnector) UpdateBackup(
-	ctx context.Context, id types.ObjectID, backupStatus string,
+	ctx context.Context, id string, backupStatus string,
 ) error {
 	backup := types.Backup{
 		ID:     id,

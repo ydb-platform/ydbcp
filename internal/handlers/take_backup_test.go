@@ -21,7 +21,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -33,8 +33,8 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		Status: types.BackupStatePending,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	dbConnector := db.NewMockDBConnector(
@@ -47,7 +47,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
 
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
@@ -59,7 +59,7 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -78,8 +78,8 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -102,7 +102,7 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be cancelled because of deadline exceeded)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelling, op.GetState())
@@ -125,7 +125,7 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -145,8 +145,8 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -169,7 +169,7 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be pending)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStatePending, op.GetState())
@@ -193,7 +193,7 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -213,8 +213,8 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -237,7 +237,7 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
@@ -259,7 +259,7 @@ func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -279,8 +279,8 @@ func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -303,7 +303,7 @@ func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be error)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
@@ -325,7 +325,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
@@ -345,8 +345,8 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -369,7 +369,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	assert.Empty(t, err)
 
 	// check operation status (should be failed because of deadline exceeded)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
@@ -393,7 +393,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
@@ -413,8 +413,8 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -437,7 +437,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelling, op.GetState())
@@ -460,7 +460,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
@@ -480,8 +480,8 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -503,7 +503,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
 	// check operation status (should be done)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
@@ -526,7 +526,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
@@ -546,8 +546,8 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -570,7 +570,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be cancelled)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelled, op.GetState())
@@ -593,7 +593,7 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
-		Id:                  opId,
+		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStatePending,
 		Message:             "",
@@ -613,8 +613,8 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 		Issues: nil,
 	}
 
-	opMap := make(map[types.ObjectID]types.Operation)
-	backupMap := make(map[types.ObjectID]types.Backup)
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
 	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
@@ -637,7 +637,7 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)
-	op, err := dbConnector.GetOperation(ctx, tbOp.Id)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStatePending, op.GetState())

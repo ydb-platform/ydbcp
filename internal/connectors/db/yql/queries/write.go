@@ -61,7 +61,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		index:     index,
 		tableName: "Operations",
 	}
-	d.AddValueParam("$id", table_types.UUIDValue(operation.GetId()))
+	d.AddValueParam("$id", table_types.StringValueFromString(operation.GetID()))
 	d.AddValueParam("$type", table_types.StringValueFromString(string(operation.GetType())))
 	d.AddValueParam("$status", table_types.StringValueFromString(operation.GetState().String()))
 
@@ -78,7 +78,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 	)
 	d.AddValueParam(
 		"$backup_id",
-		table_types.UUIDValue(tb.BackupId),
+		table_types.StringValueFromString(tb.BackupId),
 	)
 	d.AddValueParam(
 		"$initiated",
@@ -102,7 +102,7 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 		index:     index,
 		tableName: "Operations",
 	}
-	d.AddUpdateId(table_types.UUIDValue(operation.GetId()))
+	d.AddUpdateId(table_types.StringValueFromString(operation.GetID()))
 	d.AddValueParam(
 		"$status", table_types.StringValueFromString(operation.GetState().String()),
 	)
@@ -118,7 +118,7 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 		index:     index,
 		tableName: "Backups",
 	}
-	d.AddUpdateId(table_types.UUIDValue(backup.ID))
+	d.AddUpdateId(table_types.StringValueFromString(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
 	return d
 }
@@ -128,7 +128,7 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 		index:     index,
 		tableName: "Backups",
 	}
-	d.AddValueParam("$id", table_types.UUIDValue(b.ID))
+	d.AddValueParam("$id", table_types.StringValueFromString(b.ID))
 	d.AddValueParam("$container_id", table_types.StringValueFromString(b.ContainerID))
 	d.AddValueParam("$database", table_types.StringValueFromString(b.DatabaseName))
 	d.AddValueParam("$endpoint", table_types.StringValueFromString(b.DatabaseEndpoint))
