@@ -2,8 +2,6 @@ package backup
 
 import (
 	"context"
-	"errors"
-	"fmt"
 	"path"
 	"strings"
 	"time"
@@ -11,6 +9,8 @@ import (
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
@@ -36,7 +36,8 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	xlog.Debug(ctx, "GetBackup", zap.String("request", request.String()))
 	requestId, err := types.ParseObjectID(request.GetId())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
+		xlog.Error(ctx, "failed to parse ObjectID", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse ObjectID %s: %v", request.GetId(), err)
 	}
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
@@ -52,10 +53,10 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "can't select backups: %v", err)
 	}
 	if len(backups) == 0 {
-		return nil, errors.New("no backup with such Id") // TODO: Permission denied?
+		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	// TODO: Need to check access to backup resource by backupID
 	if _, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backups[0].ContainerID, ""); err != nil {
@@ -81,8 +82,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
 	client, err := s.clientConn.Open(ctx, dsn)
 	if err != nil {
-		// xlog.Error(ctx, "can't open client connection", zap.Error(err), zap.String("dsn", dsn))
-		return nil, fmt.Errorf("can't open client connection, dsn %s: %w", dsn, err)
+		xlog.Error(ctx, "can't open client connection", zap.Error(err), zap.String("dsn", dsn))
+		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s: %v", dsn, err)
 	}
 	defer func() {
 		if err := s.clientConn.Close(ctx, client); err != nil {
@@ -93,12 +94,12 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	accessKey, err := s.s3.AccessKey()
 	if err != nil {
 		xlog.Error(ctx, "can't get S3AccessKey", zap.Error(err))
-		return nil, fmt.Errorf("can't get S3AccessKey: %w", err)
+		return nil, status.Errorf(codes.Internal, "can't get S3AccessKey: %v", err)
 	}
 	secretKey, err := s.s3.SecretKey()
 	if err != nil {
 		xlog.Error(ctx, "can't get S3SecretKey", zap.Error(err))
-		return nil, fmt.Errorf("can't get S3SecretKey: %w", err)
+		return nil, status.Errorf(codes.Internal, "can't get S3SecretKey: %v", err)
 	}
 
 	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user input
@@ -122,7 +123,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	clientOperationID, err := s.clientConn.ExportToS3(ctx, client, s3Settings)
 	if err != nil {
 		xlog.Error(ctx, "can't start export operation", zap.Error(err), zap.String("dns", dsn))
-		return nil, fmt.Errorf("can't start export operation, dsn %s: %w", dsn, err)
+		return nil, status.Errorf(codes.Unknown, "can't start export operation, dsn %s: %v", dsn, err)
 	}
 	xlog.Debug(
 		ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn),
@@ -144,7 +145,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 			zap.String("backup", backup.String()),
 			zap.Error(err),
 		)
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "can't create backup: %v", err)
 	}
 
 	op := &types.TakeBackupOperation{
@@ -164,7 +165,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	operationID, err := s.driver.CreateOperation(ctx, op)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "can't create operation: %v", err)
 	}
 
 	op.ID = operationID
@@ -189,7 +190,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
 	client, err := s.clientConn.Open(ctx, dsn)
 	if err != nil {
-		return nil, fmt.Errorf("can't open client connection, dsn %s: %w", dsn, err)
+		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s: %v", dsn, err)
 	}
 	defer func() {
 		if err := s.clientConn.Close(ctx, client); err != nil {
@@ -199,11 +200,11 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	accessKey, err := s.s3.AccessKey()
 	if err != nil {
-		return nil, fmt.Errorf("can't get S3AccessKey: %w", err)
+		return nil, status.Errorf(codes.Internal, "can't get S3AccessKey: %v", err)
 	}
 	secretKey, err := s.s3.SecretKey()
 	if err != nil {
-		return nil, fmt.Errorf("can't get S3SecretKey: %w", err)
+		return nil, status.Errorf(codes.Internal, "can't get S3SecretKey: %v", err)
 	}
 
 	s3Settings := types.ImportSettings{
@@ -221,7 +222,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, client, s3Settings)
 	if err != nil {
-		return nil, fmt.Errorf("can't start import operation, dsn %s: %w", dsn, err)
+		return nil, status.Errorf(codes.Unknown, "can't start import operation, dsn %s: %v", dsn, err)
 	}
 
 	xlog.Debug(
@@ -243,7 +244,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	operationID, err := s.driver.CreateOperation(ctx, op)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "can't create operation: %v", err)
 	}
 
 	op.ID = operationID
@@ -290,15 +291,13 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error getting backups: %w", err)
+		return nil, status.Errorf(codes.Internal, "error getting backups: %v", err)
 	}
 	pbBackups := make([]*pb.Backup, 0, len(backups))
 	for _, backup := range backups {
 		pbBackups = append(pbBackups, backup.Proto())
 	}
-	return &pb.ListBackupsResponse{
-		Backups: pbBackups,
-	}, nil
+	return &pb.ListBackupsResponse{Backups: pbBackups}, nil
 }
 
 func (s *BackupService) Register(server server.Server) {

@@ -2,11 +2,11 @@ package operation
 
 import (
 	"context"
-	"errors"
-	"fmt"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
@@ -22,10 +22,6 @@ type OperationService struct {
 	pb.UnimplementedOperationServiceServer
 	driver db.DBConnector
 	auth   ap.AuthProvider
-}
-
-func (s *OperationService) Register(server server.Server) {
-	pb.RegisterOperationServiceServer(server.GRPCServer(), s)
 }
 
 func (s *OperationService) ListOperations(
@@ -69,29 +65,28 @@ func (s *OperationService) ListOperations(
 		),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("error getting operations: %w", err)
+		return nil, status.Errorf(codes.Internal, "error getting operations: %v", err)
 	}
 	pbOperations := make([]*pb.Operation, 0, len(operations))
 	for _, operation := range operations {
 		pbOperations = append(pbOperations, operation.Proto())
 	}
-	return &pb.ListOperationsResponse{
-		Operations: pbOperations,
-	}, nil
+	return &pb.ListOperationsResponse{Operations: pbOperations}, nil
 }
 
 func (s *OperationService) CancelOperation(ctx context.Context, request *pb.CancelOperationRequest) (
 	*pb.Operation, error,
 ) {
 	//TODO implement me
-	return nil, errors.New("not implemented")
+	return nil, status.Error(codes.Unimplemented, "method not implemented")
 }
 
 func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (*pb.Operation, error) {
 	xlog.Debug(ctx, "GetOperation", zap.String("request", request.String()))
 	requestId, err := types.ParseObjectID(request.GetId())
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse uuid %s: %w", request.GetId(), err)
+		xlog.Error(ctx, "failed to parse ObjectID", zap.String("ObjectID", request.GetId()), zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to parse ObjectID: %v", err)
 	}
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
@@ -107,10 +102,11 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't select operations", zap.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.Internal, "can't select operations: %v", err)
 	}
+
 	if len(operations) == 0 {
-		return nil, errors.New("no operation with such Id") // TODO: Permission denied?
+		return nil, status.Error(codes.NotFound, "operation not found") // TODO: permission denied?
 	}
 	// TODO: Need to check access to operation resource by operationID
 	if _, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operations[0].GetContainerID(), ""); err != nil {
@@ -119,6 +115,10 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 
 	xlog.Debug(ctx, "GetOperation", zap.String("operation", types.OperationToString(operations[0])))
 	return operations[0].Proto(), nil
+}
+
+func (s *OperationService) Register(server server.Server) {
+	pb.RegisterOperationServiceServer(server.GRPCServer(), s)
 }
 
 func NewOperationService(driver db.DBConnector, auth ap.AuthProvider) *OperationService {
