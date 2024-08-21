@@ -9,7 +9,7 @@ import (
 	"sync"
 	"syscall"
 
-	_ "go.uber.org/automaxprocs"
+	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
 
 	"ydbcp/internal/auth"
@@ -47,6 +47,11 @@ func main() {
 			fmt.Printf("Failed to sync logger: %s\n", err)
 		}
 	}()
+
+	_, err := maxprocs.Set(maxprocs.Logger(func(f string, p ...interface{}) { xlog.Info(ctx, fmt.Sprintf(f, p...)) }))
+	if err != nil {
+		xlog.Error(ctx, "Can't set maxprocs", zap.Error(err))
+	}
 
 	configInstance, err := config.InitConfig(ctx, confPath)
 

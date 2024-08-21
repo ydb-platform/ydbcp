@@ -11,7 +11,9 @@ import (
 	"ydbcp/pkg/plugins/auth"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -69,15 +71,15 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 	resp, subject, err := provider.Authorize(ctx, token, check)
 	if err != nil {
 		xlog.Error(ctx, "auth plugin authorize error", zap.Error(err))
-		return "", ErrPermissionDenied
+		return "", status.Error(codes.Internal, "authorize error")
 	}
 	if len(resp) != 1 {
 		xlog.Error(ctx, "incorrect auth plugin response length != 1")
-		return "", ErrPermissionDenied
+		return "", status.Error(codes.Internal, "authorize error")
 	}
 	if resp[0].Code != auth.AuthCodeSuccess {
-		xlog.Error(ctx, "auth plugin response", zap.Int("code", int(resp[0].Code)), zap.String("message", resp[0].Message))
-		return "", ErrPermissionDenied
+		xlog.Error(ctx, "auth plugin response", zap.String("code", resp[0].Code.String()), zap.String("message", resp[0].Message))
+		return "", status.Errorf(codes.PermissionDenied, "Code: %s, Message: %s", resp[0].Code.String(), resp[0].Message)
 	}
 	return subject, nil
 }
