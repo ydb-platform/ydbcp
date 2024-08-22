@@ -8,11 +8,18 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
+    outputs:
+      job-summary: ${{ steps.job-summary.outputs.job-summary }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Go
         uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Cache go modules
+        uses: magnetikonline/action-golang-cache@v5
         with:
           go-version-file: go.mod
 
@@ -34,16 +41,23 @@ jobs:
 
       - name: Test
         uses: robherley/go-test-action@v0.4.1
+        with:
+          testArguments: './... -race --timeout=10s'
 
-      - uses: austenstone/job-summary@v2.0
+      - name: Generate summary
+        uses: austenstone/job-summary@v2.0
         id: job-summary
         with:
           create-pdf: false
 
+  comment-pr:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v2
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           issue-number: ${{ github.event.pull_request.number }}
-          body: ${{ steps.job-summary.outputs.job-summary }}
+          body: ${{ needs.test.outputs.job-summary }}

@@ -22,7 +22,7 @@ var (
 	AllOperationFields = []string{
 		"id", "type", "container_id", "database", "endpoint", "backup_id",
 		"initiated", "created_at", "completed_at", "status", "message",
-		"paths", "operation_id",
+		"paths", "operation_id", "paths_to_exclude",
 	}
 )
 
