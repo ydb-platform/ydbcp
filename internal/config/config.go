@@ -20,6 +20,7 @@ type S3Config struct {
 	PathPrefix          string `yaml:"path_prefix"`
 	AccessKeyIDPath     string `yaml:"access_key_id_path"`
 	SecretAccessKeyPath string `yaml:"secret_access_key_path"`
+	S3ForcePathStyle    bool   `yaml:"s3_force_path_style"`
 }
 
 type YDBConnectionConfig struct {

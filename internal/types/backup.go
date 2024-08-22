@@ -339,7 +339,7 @@ type ExportSettings struct {
 	SourcePaths         []string
 	SourcePathToExclude []string
 	DestinationPrefix   string
-	BackupID            string
+	S3ForcePathStyle    bool
 }
 
 type ImportSettings struct {

@@ -151,7 +151,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		SourcePaths:         req.GetSourcePaths(),
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
 		DestinationPrefix:   s.s3.PathPrefix,
-		BackupID:            types.GenerateObjectID(), // TODO: do we need backup id?
+		S3ForcePathStyle:    s.s3.S3ForcePathStyle,
 	}
 
 	clientOperationID, err := s.clientConn.ExportToS3(ctx, client, s3Settings)
@@ -250,6 +250,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	s3Settings := types.ImportSettings{
 		Endpoint:          s.s3.Endpoint,
+		Region:            s.s3.Region,
 		Bucket:            s.s3.Bucket,
 		AccessKey:         accessKey,
 		SecretKey:         secretKey,
@@ -257,7 +258,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		NumberOfRetries:   10,              // TODO: get value from configuration
 		BackupID:          req.GetBackupId(),
 		SourcePaths:       req.GetSourcePaths(),
-		S3ForcePathStyle:  true,
+		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
 		DestinationPrefix: req.GetDestinationPrefix(),
 	}
 

@@ -1,7 +1,3 @@
-DROP TABLE Backups;
-DROP TABLE OperationTypes;
-DROP TABLE Operations;
-
 CREATE TABLE Backups (
     id String NOT NULL,
     container_id String NOT NULL,
