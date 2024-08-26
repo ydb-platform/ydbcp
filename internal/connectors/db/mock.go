@@ -113,7 +113,7 @@ func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 	operations := make([]types.Operation, 0, len(c.operations))
 	for _, op := range c.operations {
 		if types.IsActive(op) {
-			operations = append(operations, op)
+			operations = append(operations, op.Copy())
 		}
 	}
 	return operations, nil
@@ -126,11 +126,9 @@ func (c *MockDBConnector) UpdateOperation(
 	defer c.guard.Unlock()
 
 	if _, exist := c.operations[op.GetID()]; !exist {
-		return fmt.Errorf(
-			"update nonexistent operation %s", types.OperationToString(op),
-		)
+		return fmt.Errorf("update nonexistent operation %s", types.OperationToString(op))
 	}
-	c.operations[op.GetID()] = op
+	c.operations[op.GetID()] = op.Copy()
 	return nil
 }
 
@@ -148,7 +146,7 @@ func (c *MockDBConnector) CreateOperation(
 		}
 	}
 	op.SetID(id)
-	c.operations[id] = op
+	c.operations[id] = op.Copy()
 	return id, nil
 }
 
@@ -159,11 +157,9 @@ func (c *MockDBConnector) GetOperation(
 	defer c.guard.Unlock()
 
 	if op, exist := c.operations[operationID]; exist {
-		return op, nil
+		return op.Copy(), nil
 	}
-	return &types.GenericOperation{}, fmt.Errorf(
-		"operation not found, id %s", operationID,
-	)
+	return nil, fmt.Errorf("operation not found, id %s", operationID)
 }
 
 func (c *MockDBConnector) GetBackup(
@@ -175,9 +171,7 @@ func (c *MockDBConnector) GetBackup(
 	if backup, exist := c.backups[backupID]; exist {
 		return backup, nil
 	}
-	return types.Backup{}, fmt.Errorf(
-		"backup not found, id %s", backupID,
-	)
+	return types.Backup{}, fmt.Errorf("backup not found, id %s", backupID)
 }
 
 func (c *MockDBConnector) SelectOperations(
