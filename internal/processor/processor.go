@@ -15,7 +15,7 @@ import (
 
 type OperationProcessorImpl struct {
 	ctx                    context.Context
-	wg                     *sync.WaitGroup
+	workersWaitGroup       sync.WaitGroup
 	period                 time.Duration
 	handleOperationTimeout time.Duration
 
@@ -56,7 +56,6 @@ func NewOperationProcessor(
 		ctx:                    ctx,
 		period:                 time.Second * 10,
 		handleOperationTimeout: time.Second * 600,
-		wg:                     wg,
 		handlers:               handlers,
 		db:                     db,
 		tickerProvider:         ticker.NewRealTicker,
@@ -67,12 +66,12 @@ func NewOperationProcessor(
 		opt(op)
 	}
 	wg.Add(1)
-	go op.run()
+	go op.run(wg)
 	return op
 }
 
-func (o *OperationProcessorImpl) run() {
-	defer o.wg.Done()
+func (o *OperationProcessorImpl) run(wg *sync.WaitGroup) {
+	defer wg.Done()
 	xlog.Debug(
 		o.ctx, "Operation Processor started", zap.Duration("period", o.period),
 	)
@@ -80,10 +79,30 @@ func (o *OperationProcessorImpl) run() {
 	for {
 		select {
 		case <-o.ctx.Done():
+			xlog.Debug(o.ctx, "Operation Processor stopping. Waiting for running operations...")
+			ticker.Stop()
+			o.finishing()
 			xlog.Debug(o.ctx, "Operation Processor stopped")
 			return
 		case <-ticker.Chan():
 			o.processOperations()
+		case operationID := <-o.results:
+			o.handleOperationResult(operationID)
+		}
+	}
+}
+
+func (o *OperationProcessorImpl) finishing() {
+	waitCh := make(chan struct{})
+	go func() {
+		o.workersWaitGroup.Wait()
+		close(waitCh)
+	}()
+
+	for {
+		select {
+		case <-waitCh:
+			return
 		case operationID := <-o.results:
 			o.handleOperationResult(operationID)
 		}
@@ -112,9 +131,9 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		return
 	}
 	o.runningOperations[op.GetID()] = true
-	o.wg.Add(1)
+	o.workersWaitGroup.Add(1)
 	go func() {
-		defer o.wg.Done()
+		defer o.workersWaitGroup.Done()
 		ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationTimeout)
 		defer cancel()
 		xlog.Debug(

@@ -90,27 +90,10 @@ func TestProcessor(t *testing.T) {
 	case <-handlerCalled:
 	}
 
-	ticker := time.NewTicker(100 * time.Millisecond)
-	defer ticker.Stop()
-	timer := time.NewTimer(500 * time.Millisecond)
-	defer timer.Stop()
-
-loop:
-	for {
-		select {
-		case <-timer.C:
-		case <-ctx.Done():
-			t.Error("timeout waiting for operation completion")
-
-		case <-ticker.C:
-			op, err := db.GetOperation(ctx, opID)
-			assert.Empty(t, err)
-			if op.GetState() == types.OperationStateDone {
-				break loop
-			}
-		}
-	}
-
 	cancel()
 	wg.Wait()
+
+	op, err := db.GetOperation(ctx, opID)
+	assert.Empty(t, err)
+	assert.Equal(t, op.GetState(), types.OperationStateDone, "operation state should be Done")
 }
