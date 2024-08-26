@@ -270,12 +270,13 @@ func (o *GenericOperation) Proto() *pb.Operation {
 }
 
 var (
-	OperationStateUnknown    = OperationState(pb.Operation_STATUS_UNSPECIFIED.String())
-	OperationStatePending    = OperationState(pb.Operation_PENDING.String())
-	OperationStateDone       = OperationState(pb.Operation_DONE.String())
-	OperationStateError      = OperationState(pb.Operation_ERROR.String())
-	OperationStateCancelling = OperationState(pb.Operation_CANCELLING.String())
-	OperationStateCancelled  = OperationState(pb.Operation_CANCELED.String())
+	OperationStateUnknown         = OperationState(pb.Operation_STATUS_UNSPECIFIED.String())
+	OperationStatePending         = OperationState(pb.Operation_PENDING.String())
+	OperationStateDone            = OperationState(pb.Operation_DONE.String())
+	OperationStateError           = OperationState(pb.Operation_ERROR.String())
+	OperationStateCancelling      = OperationState(pb.Operation_CANCELLING.String())
+	OperationStateCancelled       = OperationState(pb.Operation_CANCELED.String())
+	OperationStateStartCancelling = OperationState(pb.Operation_START_CANCELLING.String())
 
 	BackupStateUnknown   = pb.Backup_STATUS_UNSPECIFIED.String()
 	BackupStatePending   = pb.Backup_PENDING.String()
@@ -319,7 +320,9 @@ func (o OperationState) String() string {
 }
 
 func IsActive(o Operation) bool {
-	return o.GetState() == OperationStatePending || o.GetState() == OperationStateCancelling
+	return o.GetState() == OperationStatePending ||
+		o.GetState() == OperationStateStartCancelling ||
+		o.GetState() == OperationStateCancelling
 }
 
 func IssuesToString(issues []*Ydb_Issue.IssueMessage) string {

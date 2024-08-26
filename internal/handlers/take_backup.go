@@ -81,15 +81,9 @@ func TBOperationHandler(
 		{
 			if !opResponse.GetOperation().Ready {
 				if deadlineExceeded(tb.Audit.CreatedAt, config) {
-					err = CancelYdbOperation(ctx, client, conn, operation, tb.YdbOperationId, "TTL")
-					if err != nil {
-						return err
-					}
-					backupToWrite.Status = types.BackupStateError
-					backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
-					return db.ExecuteUpsert(
-						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
-					)
+					operation.SetState(types.OperationStateStartCancelling)
+					operation.SetMessage("Operation deadline exceeded")
+					return db.UpdateOperation(ctx, operation)
 				} else {
 					return nil
 				}
@@ -106,6 +100,18 @@ func TBOperationHandler(
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
+		}
+	case types.OperationStateStartCancelling:
+		{
+			err = CancelYdbOperation(ctx, client, conn, operation, tb.YdbOperationId, operation.GetMessage())
+			if err != nil {
+				return err
+			}
+			backupToWrite.Status = types.BackupStateError
+			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
+			return db.ExecuteUpsert(
+				ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			)
 		}
 	case types.OperationStateCancelling:
 		{
@@ -126,11 +132,11 @@ func TBOperationHandler(
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				backupToWrite.Status = types.BackupStateAvailable
 				operation.SetState(types.OperationStateDone)
-				operation.SetMessage("Operation was completed despite cancellation")
+				operation.SetMessage("Operation was completed despite cancellation: " + tb.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 				backupToWrite.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
-				operation.SetMessage("Success")
+				operation.SetMessage(tb.Message)
 			} else {
 				backupToWrite.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)

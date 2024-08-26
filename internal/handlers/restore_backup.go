@@ -83,10 +83,8 @@ func RBOperationHandler(
 		{
 			if !opResponse.GetOperation().Ready {
 				if deadlineExceeded(mr.Audit.CreatedAt, config) {
-					err = CancelYdbOperation(ctx, client, conn, operation, mr.YdbOperationId, "TTL")
-					if err != nil {
-						return err
-					}
+					operation.SetState(types.OperationStateStartCancelling)
+					operation.SetMessage("Operation deadline exceeded")
 					return db.UpdateOperation(ctx, operation)
 				}
 				return nil
@@ -97,7 +95,19 @@ func RBOperationHandler(
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage("Pending operation was cancelled")
+			} else {
+				operation.SetState(types.OperationStateError)
+				operation.SetMessage(ydbOpResponse.IssueString())
 			}
+		}
+	case types.OperationStateStartCancelling:
+		{
+			err := CancelYdbOperation(ctx, client, conn, operation, mr.YdbOperationId, mr.Message)
+			if err != nil {
+				return err
+			}
+
+			return db.UpdateOperation(ctx, operation)
 		}
 	case types.OperationStateCancelling:
 		{
@@ -113,10 +123,13 @@ func RBOperationHandler(
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				operation.SetState(types.OperationStateDone)
-				operation.SetMessage("Operation was completed despite cancellation")
+				operation.SetMessage("Operation was completed despite cancellation: " + mr.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 				operation.SetState(types.OperationStateCancelled)
-				operation.SetMessage("Success")
+				operation.SetMessage(mr.Message)
+			} else {
+				operation.SetState(types.OperationStateError)
+				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 		}
 	}

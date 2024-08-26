@@ -291,6 +291,7 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 					Values: []table_types.Value{
 						table_types.StringValueFromString(types.OperationStatePending.String()),
 						table_types.StringValueFromString(types.OperationStateCancelling.String()),
+						table_types.StringValueFromString(types.OperationStateStartCancelling.String()),
 					},
 				},
 			),

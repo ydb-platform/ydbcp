@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -109,23 +110,23 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
 
-	// check operation status (should be cancelled because of deadline exceeded)
+	// check operation status (cancelling should be started because of deadline exceeded)
 	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
-	assert.Equal(t, types.OperationStateCancelling, op.GetState())
+	assert.Equal(t, types.OperationStateStartCancelling, op.GetState())
 	assert.Equal(t, "Operation deadline exceeded", op.GetMessage())
 
-	// check backup status (should be error)
+	// check backup status (should be the same as before because cancellation wasn't completed)
 	b, err := dbConnector.GetBackup(ctx, backupID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
-	assert.Equal(t, types.BackupStateError, b.Status)
+	assert.Equal(t, types.BackupStatePending, b.Status)
 
-	// check ydb operation status (should be cancelled)
+	// check ydb operation status (should be the same as before because cancellation wasn't completed)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
 	assert.Empty(t, err)
-	assert.Equal(t, Ydb.StatusIds_CANCELLED, ydbOpStatus.GetOperation().GetStatus())
+	assert.Equal(t, Ydb.StatusIds_SUCCESS, ydbOpStatus.GetOperation().GetStatus())
 }
 
 func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
@@ -481,7 +482,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		ID:                  opId,
 		BackupId:            backupID,
 		State:               types.OperationStateCancelling,
-		Message:             "",
+		Message:             "operation was cancelled by user",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
 		Audit: &pb.AuditInfo{
@@ -527,7 +528,8 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
-	assert.Equal(t, "Operation was completed despite cancellation", op.GetMessage())
+	fmt.Print(op.GetMessage())
+	assert.Equal(t, "Operation was completed despite cancellation: operation was cancelled by user", op.GetMessage())
 
 	// check backup status (should be available)
 	b, err := dbConnector.GetBackup(ctx, backupID)
