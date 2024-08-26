@@ -1,6 +1,6 @@
 services:
   ydb:
-    image: cr.ai.nebius.cloud/crnca8q7ti1i7vpqs28l/ydb-local:24.1.16-stream-nb-1.1-1
+    image: cr.yandex/yc/yandex-docker-local-ydb:24.1
     platform: linux/amd64
     hostname: local-ydb
     #volumes:

@@ -209,7 +209,7 @@ func prepareItemsForExport(
 	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(sources))
 
 	for i, source := range sources {
-		// Destination prefix format: s3_destination_prefix/database_name/timestamp_backup_id/rel_source_path
+		// Destination prefix format: s3_destination_prefix/database_name/timestamp/rel_source_path
 		destinationPrefix := path.Join(
 			s3Settings.DestinationPrefix,
 			clientDb.Scheme().Database(),
@@ -295,7 +295,8 @@ func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 		},
 	)
 
-	items := make([]*Ydb_Import.ImportFromS3Settings_Item, len(s3Settings.SourcePaths))
+	items := make([]*Ydb_Import.ImportFromS3Settings_Item, 0)
+	itemsPtr := &items
 
 	for _, sourcePath := range s3Settings.SourcePaths {
 		if sourcePath[len(sourcePath)-1] != '/' {
@@ -312,8 +313,8 @@ func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 
 					key, found := strings.CutSuffix(*object.Key, "scheme.pb")
 					if found {
-						items = append(
-							items,
+						*itemsPtr = append(
+							*itemsPtr,
 							&Ydb_Import.ImportFromS3Settings_Item{
 								SourcePrefix: key,
 								DestinationPath: path.Join(
@@ -335,7 +336,7 @@ func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 		}
 	}
 
-	return items, nil
+	return *itemsPtr, nil
 }
 
 func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
@@ -346,6 +347,10 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 	items, err := prepareItemsForImport(ctx, clientDb, s3Settings)
 	if err != nil {
 		return "", fmt.Errorf("error preparing list of items for import: %s", err.Error())
+	}
+
+	if len(items) == 0 {
+		return "", fmt.Errorf("empty list of items for import")
 	}
 
 	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))

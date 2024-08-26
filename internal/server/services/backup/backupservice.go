@@ -284,6 +284,8 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			CreatedAt: timestamppb.Now(),
 			Creator:   subject,
 		},
+		SourcePaths:       req.GetSourcePaths(),
+		DestinationPrefix: req.GetDestinationPrefix(),
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
