@@ -88,6 +88,7 @@ type Operation interface {
 	GetMessage() string
 	SetMessage(m string)
 	GetAudit() *pb.AuditInfo
+	Copy() Operation
 	Proto() *pb.Operation
 }
 
@@ -132,6 +133,10 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 }
 func (o *TakeBackupOperation) GetAudit() *pb.AuditInfo {
 	return o.Audit
+}
+func (o *TakeBackupOperation) Copy() Operation {
+	copy := *o
+	return &copy
 }
 
 func (o *TakeBackupOperation) Proto() *pb.Operation {
@@ -193,6 +198,10 @@ func (o *RestoreBackupOperation) SetMessage(m string) {
 func (o *RestoreBackupOperation) GetAudit() *pb.AuditInfo {
 	return o.Audit
 }
+func (o *RestoreBackupOperation) Copy() Operation {
+	copy := *o
+	return &copy
+}
 
 func (o *RestoreBackupOperation) Proto() *pb.Operation {
 	return &pb.Operation{
@@ -250,6 +259,11 @@ func (o *GenericOperation) SetMessage(m string) {
 func (o *GenericOperation) GetAudit() *pb.AuditInfo {
 	return nil
 }
+func (o *GenericOperation) Copy() Operation {
+	copy := *o
+	return &copy
+}
+
 func (o *GenericOperation) Proto() *pb.Operation {
 	log.Fatalf("Converting GenericOperation to Proto: %s", o.ID)
 	return nil
