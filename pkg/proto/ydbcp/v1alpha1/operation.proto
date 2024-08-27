@@ -13,6 +13,7 @@ message Operation {
         ERROR = 3;
         CANCELLING = 4;
         CANCELED = 5;
+        START_CANCELLING = 6;
     }
     string id = 1;
     string container_id = 2;

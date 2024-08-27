@@ -125,7 +125,7 @@ func CancelYdbOperation(
 	}
 
 	operation.SetState(types.OperationStateCancelling)
-	operation.SetMessage("Operation deadline exceeded")
+	operation.SetMessage(reason)
 	operation.GetAudit().CompletedAt = timestamppb.Now()
 	return nil
 }

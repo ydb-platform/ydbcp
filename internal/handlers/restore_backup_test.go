@@ -88,17 +88,17 @@ func TestRBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
 
-	// check operation status (should be cancelled because of deadline exceeded)
+	// check operation status (cancelling should be started because of deadline exceeded)
 	op, err := dbConnector.GetOperation(ctx, rbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
-	assert.Equal(t, types.OperationStateCancelling, op.GetState())
+	assert.Equal(t, types.OperationStateStartCancelling, op.GetState())
 	assert.Equal(t, "Operation deadline exceeded", op.GetMessage())
 
-	// check ydb operation status (should be cancelled)
+	// check ydb operation status (should be the same as before because cancellation wasn't completed)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, rbOp.YdbOperationId)
 	assert.Empty(t, err)
-	assert.Equal(t, Ydb.StatusIds_CANCELLED, ydbOpStatus.GetOperation().GetStatus())
+	assert.Equal(t, Ydb.StatusIds_SUCCESS, ydbOpStatus.GetOperation().GetStatus())
 }
 
 func TestRBOperationHandlerPendingOperationInProgress(t *testing.T) {
@@ -358,7 +358,7 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		ID:                  types.GenerateObjectID(),
 		BackupId:            types.GenerateObjectID(),
 		State:               types.OperationStateCancelling,
-		Message:             "",
+		Message:             "operation was cancelled by user",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      ydbOp.Id,
 		Audit: &pb.AuditInfo{
@@ -383,7 +383,7 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
-	assert.Equal(t, "Operation was completed despite cancellation", op.GetMessage())
+	assert.Equal(t, "Operation was completed despite cancellation: operation was cancelled by user", op.GetMessage())
 
 	// check ydb operation status (should be forgotten)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, rbOp.YdbOperationId)
