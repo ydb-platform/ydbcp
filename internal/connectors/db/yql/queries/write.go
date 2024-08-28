@@ -77,8 +77,13 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 			)
 		}
 	}
-	tb, ok := operation.(*types.TakeBackupOperation)
-	if ok {
+
+	if operation.GetType() == types.OperationTypeTB {
+		tb, ok := operation.(*types.TakeBackupOperation)
+		if !ok {
+			xlog.Error(ctx, "error cast operation to TakeBackupOperation", zap.String("operation_id", operation.GetID()))
+		}
+
 		d.AddValueParam(
 			"$container_id", table_types.StringValueFromString(tb.ContainerID),
 		)
@@ -108,8 +113,37 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 				table_types.StringValueFromString(strings.Join(tb.SourcePathToExclude, ",")),
 			)
 		}
+	} else if operation.GetType() == types.OperationTypeRB {
+		rb, ok := operation.(*types.RestoreBackupOperation)
+		if !ok {
+			xlog.Error(ctx, "error cast operation to RestoreBackupOperation", zap.String("operation_id", operation.GetID()))
+		}
+
+		d.AddValueParam(
+			"$container_id", table_types.StringValueFromString(rb.ContainerID),
+		)
+		d.AddValueParam(
+			"$database",
+			table_types.StringValueFromString(rb.YdbConnectionParams.DatabaseName),
+		)
+		d.AddValueParam(
+			"$endpoint",
+			table_types.StringValueFromString(rb.YdbConnectionParams.Endpoint),
+		)
+		d.AddValueParam(
+			"$backup_id",
+			table_types.StringValueFromString(rb.BackupId),
+		)
+		d.AddValueParam(
+			"$operation_id",
+			table_types.StringValueFromString(rb.YdbOperationId),
+		)
+		d.AddValueParam("$message", table_types.StringValueFromString(rb.Message))
+
+		if len(rb.SourcePaths) > 0 {
+			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(rb.SourcePaths, ",")))
+		}
 	} else {
-		//TODO: support RestoreBackup operation
 		xlog.Error(ctx, "unknown operation type write to db", zap.String("operation_type", string(operation.GetType())))
 	}
 

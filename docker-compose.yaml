@@ -1,0 +1,87 @@
+services:
+  ydb:
+    image: cr.yandex/yc/yandex-docker-local-ydb:24.1
+    platform: linux/amd64
+    hostname: local-ydb
+    #volumes:
+    #  - ./ydbd/ydb_certs:/ydb_certs
+    #  - ./ydbd/ydb_data:/ydb_data
+    environment:
+      - GRPC_TLS_PORT=2135
+      - GRPC_PORT=2136
+      - MON_PORT=8765
+      - YDB_ANONYMOUS_CREDENTIALS=true
+      - YDB_USE_IN_MEMORY_PDISKS=true
+      - YDB_FEATURE_FLAGS=enable_uuid_as_primary_key,enable_implicit_query_parameter_types
+    ports:
+      - "8765:8765"
+      #- "2135:2135"
+      #- "2136:2136"
+    networks:
+      - ydbcp-net
+
+  setup_ydb:
+    image: cr.ai.nebius.cloud/crnca8q7ti1i7vpqs28l/ydb-local:24.1.16-stream-nb-1.1-1
+    platform: linux/amd64
+    volumes:
+      - ./init_db:/init_db
+      - ./internal/connectors/db/yql/schema:/init_db/schema
+    depends_on:
+      ydb:
+        condition: service_healthy
+    restart: "no"
+    command: bash -c "chmod +x ./init_db/create_tables.sh && ./init_db/create_tables.sh"
+    networks:
+      - ydbcp-net
+
+  s3:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ydbcp
+      MINIO_ROOT_PASSWORD: password
+      ENABLE_VIRTUAL_STYLE: 0
+    ports:
+      #- "9000:9000"
+      - "9001:9001"
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 10s
+      timeout: 20s
+      retries: 3
+    networks:
+      - ydbcp-net
+
+  setup_s3:
+    image: amazon/aws-cli
+    environment:
+      - AWS_ACCESS_KEY_ID=ydbcp
+      - AWS_SECRET_ACCESS_KEY=password
+      - AWS_DEFAULT_REGION=us-east-1
+      - AWS_ENDPOINT_URL=http://ydbcp-s3-1.ydbcp-net:9000
+    depends_on:
+        s3:
+          condition: service_healthy
+    command: s3api create-bucket --bucket test-bucket
+    networks:
+      - ydbcp-net
+
+  ydbcp:
+    image: ydbcp:local
+    depends_on:
+      setup_ydb:
+        condition: service_completed_successfully
+      setup_s3:
+        condition: service_completed_successfully
+    build:
+      context: .
+      dockerfile: ./dockerfile
+    ports:
+      - "50051:50051"
+    networks:
+      - ydbcp-net
+
+networks:
+  ydbcp-net:
+    name: ydbcp-net
+    external: true

@@ -189,6 +189,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				DatabaseName: databaseName,
 			},
 			YdbOperationId: StringOrEmpty(ydbOperationId),
+			SourcePaths:    sourcePathsSlice,
 			Audit:          auditFromDb(creator, createdAt, completedAt),
 		}, nil
 	}

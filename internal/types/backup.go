@@ -165,8 +165,12 @@ type RestoreBackupOperation struct {
 	Message             string
 	YdbConnectionParams YdbConnectionParams
 	YdbOperationId      string
-	DestinationPaths    []string
-	Audit               *pb.AuditInfo
+	// TODO: this field is not used, because DestinationPaths
+	// will be constructed from SourcePaths and DestinationPrefix
+	DestinationPaths  []string
+	SourcePaths       []string
+	DestinationPrefix string
+	Audit             *pb.AuditInfo
 }
 
 func (o *RestoreBackupOperation) GetID() string {
@@ -212,7 +216,7 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
 		BackupId:             o.BackupId,
-		SourcePaths:          nil,
+		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: nil,
 		RestorePaths:         o.DestinationPaths,
 		Audit:                o.Audit,
@@ -356,7 +360,7 @@ type ExportSettings struct {
 	SourcePaths         []string
 	SourcePathToExclude []string
 	DestinationPrefix   string
-	BackupID            string
+	S3ForcePathStyle    bool
 }
 
 type ImportSettings struct {
