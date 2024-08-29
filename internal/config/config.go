@@ -82,6 +82,7 @@ func InitConfig(ctx context.Context, confPath string) (Config, error) {
 				zap.Error(err))
 			return Config{}, err
 		}
+		confTxt = []byte(os.ExpandEnv(string(confTxt)))
 		var config Config
 		err = yaml.Unmarshal(confTxt, &config)
 		if err != nil {

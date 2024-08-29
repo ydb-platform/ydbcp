@@ -1,7 +1,7 @@
 operation_ttl_seconds: 86400 # 24 hours
 
 db_connection:
-  connection_string: "grpcs://ydbcp-ydb-1.ydbcp-net:2135/local"
+  connection_string: "grpcs://${YDB_NAME}:2135/local"
   insecure: true
   discovery: false
 
@@ -9,17 +9,17 @@ client_connection:
   insecure: true
   discovery: false
   allowed_endpoint_domains:
-    - ydbcp-ydb-1.ydbcp-net
+    - ${YDB_NAME}
   allow_insecure_endpoint: false
 
 s3:
-  endpoint: "http://ydbcp-s3-1.ydbcp-net:9000"
-  region: "us-east-1"
-  bucket: "test-bucket"
+  endpoint: ${S3_ENDPOINT}
+  region: ${S3_REGION}
+  bucket: ${S3_BUCKET}
   path_prefix: "test-prefix"
   access_key_id_path: "access_key"
   secret_access_key_path: "secret_key"
-  s3_force_path_style: true
+  s3_force_path_style: false
 
 grpc_server:
   bind_port: 50051

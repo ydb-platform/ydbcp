@@ -2,7 +2,8 @@ services:
   ydb:
     image: cr.yandex/yc/yandex-docker-local-ydb:24.1
     platform: linux/amd64
-    hostname: local-ydb
+    hostname: ${YDB_NAME}
+    container_name: ${YDB_NAME}
     #volumes:
     #  - ./ydbd/ydb_certs:/ydb_certs
     #  - ./ydbd/ydb_data:/ydb_data
@@ -21,11 +22,14 @@ services:
       - ydbcp-net
 
   setup_ydb:
-    image: cr.ai.nebius.cloud/crnca8q7ti1i7vpqs28l/ydb-local:24.1.16-stream-nb-1.1-1
+    image: cr.yandex/yc/yandex-docker-local-ydb:24.1
     platform: linux/amd64
+    container_name: ${YDB_NAME}-setup
     volumes:
       - ./init_db:/init_db
       - ./internal/connectors/db/yql/schema:/init_db/schema
+    environment:
+      - YDB_ENDPOINT=grpc://${YDB_NAME}:2136
     depends_on:
       ydb:
         condition: service_healthy
@@ -36,11 +40,14 @@ services:
 
   s3:
     image: quay.io/minio/minio
+    hostname: ${S3_NAME}
+    container_name: ${S3_NAME}
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ydbcp
-      MINIO_ROOT_PASSWORD: password
-      ENABLE_VIRTUAL_STYLE: 0
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+      MINIO_DOMAIN: ${S3_NAME}
+      ENABLE_VIRTUAL_STYLE: 1
     ports:
       #- "9000:9000"
       - "9001:9001"
@@ -50,24 +57,37 @@ services:
       timeout: 20s
       retries: 3
     networks:
-      - ydbcp-net
+      ydbcp-net:
+        aliases:
+          - ${S3_BUCKET}.${S3_NAME}
 
   setup_s3:
     image: amazon/aws-cli
+    container_name: ${S3_NAME}-setup
     environment:
-      - AWS_ACCESS_KEY_ID=ydbcp
-      - AWS_SECRET_ACCESS_KEY=password
-      - AWS_DEFAULT_REGION=us-east-1
-      - AWS_ENDPOINT_URL=http://ydbcp-s3-1.ydbcp-net:9000
+      - AWS_ACCESS_KEY_ID=${S3_ACCESS_KEY}
+      - AWS_SECRET_ACCESS_KEY=${S3_SECRET_KEY}
+      - AWS_DEFAULT_REGION=${S3_REGION}
+      - AWS_ENDPOINT_URL=http://${S3_NAME}:9000
     depends_on:
         s3:
           condition: service_healthy
-    command: s3api create-bucket --bucket test-bucket
+    command: s3api create-bucket --bucket ${S3_BUCKET} --region ${S3_REGION}
     networks:
       - ydbcp-net
 
   ydbcp:
     image: ydbcp:local
+    hostname: local-ydbcp
+    container_name: local-ydbcp
+    environment:
+      S3_ENDPOINT: http://${S3_NAME}:9000
+      S3_REGION: ${S3_REGION}
+      S3_BUCKET: ${S3_BUCKET}
+      #S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      #S3_SECRET_KEY: ${S3_SECRET_KEY}
+      YDB_NAME: ${YDB_NAME}
+
     depends_on:
       setup_ydb:
         condition: service_completed_successfully
@@ -84,4 +104,3 @@ services:
 networks:
   ydbcp-net:
     name: ydbcp-net
-    external: true
