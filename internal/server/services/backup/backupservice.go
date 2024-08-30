@@ -5,6 +5,7 @@ import (
 	"path"
 	"regexp"
 	"strings"
+	"time"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	_ "go.uber.org/automaxprocs"
@@ -138,7 +139,12 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 
 	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user input
 	dbNamePath = strings.Trim(dbNamePath, "_")
-	dstPrefix := path.Join(s.s3.PathPrefix, dbNamePath)
+
+	destinationPrefix := path.Join(
+		s.s3.PathPrefix,
+		dbNamePath,
+		time.Now().Format(types.BackupTimestampFormat),
+	)
 
 	s3Settings := types.ExportSettings{
 		Endpoint:            s.s3.Endpoint,
@@ -150,7 +156,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		NumberOfRetries:     10,             // TODO: get it from configuration
 		SourcePaths:         req.GetSourcePaths(),
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
-		DestinationPrefix:   s.s3.PathPrefix,
+		DestinationPrefix:   destinationPrefix,
 		S3ForcePathStyle:    s.s3.S3ForcePathStyle,
 	}
 
@@ -169,7 +175,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		S3Endpoint:   s.s3.Endpoint,
 		S3Region:     s.s3.Region,
 		S3Bucket:     s.s3.Bucket,
-		S3PathPrefix: dstPrefix,
+		S3PathPrefix: destinationPrefix,
 		Status:       types.BackupStatePending,
 	}
 	backupID, err := s.driver.CreateBackup(ctx, backup)
@@ -224,6 +230,26 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Errorf(codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint)
 	}
 
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithSelectFields(queries.AllBackupFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(req.BackupId)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "can't select backups: %v", err)
+	}
+	if len(backups) == 0 {
+		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
+	}
+
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.DatabaseEndpoint,
 		DatabaseName: req.DatabaseName,
@@ -257,7 +283,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		Description:       "ydbcp restore", // TODO: write description
 		NumberOfRetries:   10,              // TODO: get value from configuration
 		BackupID:          req.GetBackupId(),
-		SourcePaths:       req.GetSourcePaths(),
+		SourcePaths:       []string{backups[0].S3PathPrefix},
 		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
 		DestinationPrefix: req.GetDestinationPrefix(),
 	}
