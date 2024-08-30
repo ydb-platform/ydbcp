@@ -209,11 +209,9 @@ func prepareItemsForExport(
 	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(sources))
 
 	for i, source := range sources {
-		// Destination prefix format: s3_destination_prefix/database_name/timestamp/rel_source_path
+		// Destination prefix format: s3_destination_prefix/rel_source_path
 		destinationPrefix := path.Join(
 			s3Settings.DestinationPrefix,
-			clientDb.Scheme().Database(),
-			time.Now().Format(types.BackupTimestampFormat),
 			strings.TrimPrefix(source, clientDb.Scheme().Database()+"/"),
 		)
 
@@ -299,7 +297,7 @@ func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 	itemsPtr := &items
 
 	for _, sourcePath := range s3Settings.SourcePaths {
-		if sourcePath[len(sourcePath)-1] != '/' {
+		if !strings.HasSuffix(sourcePath, "/") {
 			sourcePath = sourcePath + "/"
 		}
 
