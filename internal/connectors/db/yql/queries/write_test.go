@@ -54,7 +54,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 func TestQueryBuilder_CreateCreate(t *testing.T) {
 	const (
 		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message, size, initiated, created_at) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0, $size_0, $initiated_0, $created_at_0);
-UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1)`
+UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1)`
 	)
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
@@ -119,6 +119,7 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
 			),
+			table.ValueParam("$message_1", table_types.StringValueFromString("msg op")),
 			table.ValueParam(
 				"$initiated_1",
 				table_types.StringValueFromString("author"),
@@ -146,7 +147,6 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 				"$operation_id_1",
 				table_types.StringValueFromString(tbOp.YdbOperationId),
 			),
-			table.ValueParam("$message_1", table_types.StringValueFromString("msg op")),
 		)
 	)
 	query, err := builder.FormatQuery(context.Background())
@@ -161,7 +161,7 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
 		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
-UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, message, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $message_1, $paths_1, $paths_to_exclude_1)`
+UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $paths_1, $paths_to_exclude_1)`
 	)
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
@@ -200,6 +200,10 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
 			),
 			table.ValueParam(
+				"$message_1",
+				table_types.StringValueFromString(tbOp.Message),
+			),
+			table.ValueParam(
 				"$initiated_1",
 				table_types.StringValueFromString(""),
 			),
@@ -225,10 +229,6 @@ UPSERT INTO Operations (id, type, status, initiated, created_at, container_id, d
 			table.ValueParam(
 				"$operation_id_1",
 				table_types.StringValueFromString(tbOp.YdbOperationId),
-			),
-			table.ValueParam(
-				"$message_1",
-				table_types.StringValueFromString(tbOp.Message),
 			),
 			table.ValueParam(
 				"$paths_1",

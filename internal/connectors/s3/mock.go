@@ -30,7 +30,7 @@ func (m *MockS3Connector) ListObjects(pathPrefix string, _ string) ([]string, er
 	return nil, fmt.Errorf("objects not found, path: %s", pathPrefix)
 }
 
-func (m *MockS3Connector) GetSize(pathPrefix string, bucket string) (int64, error) {
+func (m *MockS3Connector) GetSize(pathPrefix string, _ string) (int64, error) {
 	if content, ok := m.storage[pathPrefix]; ok {
 		var size int64
 		for _, object := range content {
@@ -43,4 +43,14 @@ func (m *MockS3Connector) GetSize(pathPrefix string, bucket string) (int64, erro
 	}
 
 	return 0, fmt.Errorf("objects not found, path: %s", pathPrefix)
+}
+
+func (m *MockS3Connector) DeleteObjects(objects []string, _ string) error {
+	for _, object := range objects {
+		if _, ok := m.storage[object]; ok {
+			delete(m.storage, object)
+		}
+	}
+
+	return nil
 }

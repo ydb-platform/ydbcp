@@ -13,6 +13,7 @@ import (
 type S3Connector interface {
 	ListObjects(pathPrefix string, bucket string) ([]string, error)
 	GetSize(pathPrefix string, bucket string) (int64, error)
+	DeleteObjects(keys []string, bucket string) error
 }
 
 type ClientS3Connector struct {
@@ -103,4 +104,36 @@ func (c *ClientS3Connector) GetSize(pathPrefix string, bucket string) (int64, er
 	}
 
 	return size, nil
+}
+
+func (c *ClientS3Connector) DeleteObjects(keys []string, bucket string) error {
+	if len(keys) == 0 {
+		return nil
+	}
+
+	objectsPtr := make([]*s3.ObjectIdentifier, len(keys))
+	for i, object := range keys {
+		objectsPtr[i] = &s3.ObjectIdentifier{
+			Key: aws.String(object),
+		}
+	}
+
+	input := s3.DeleteObjectsInput{
+		Bucket: aws.String(bucket),
+		Delete: &s3.Delete{
+			Objects: objectsPtr,
+			Quiet:   aws.Bool(true),
+		},
+	}
+
+	delOut, err := c.s3.DeleteObjects(&input)
+	if err != nil {
+		return err
+	}
+
+	if len(delOut.Errors) > 0 {
+		return fmt.Errorf("can't delete objects: %v", delOut.Errors)
+	}
+
+	return nil
 }

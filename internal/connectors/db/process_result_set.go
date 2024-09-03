@@ -202,6 +202,29 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			SourcePaths:    sourcePathsSlice,
 			Audit:          auditFromDb(creator, createdAt, completedAt),
 		}, nil
+	} else if operationType == string(types.OperationTypeDB) {
+		if backupId == nil {
+			return nil, fmt.Errorf("failed to read backup_id for DB operation: %s", operationId)
+		}
+
+		var pathPrefix string
+		if len(sourcePathsSlice) > 0 {
+			pathPrefix = sourcePathsSlice[0]
+		}
+
+		return &types.DeleteBackupOperation{
+			ID:          operationId,
+			BackupID:    *backupId,
+			ContainerID: containerId,
+			YdbConnectionParams: types.YdbConnectionParams{
+				Endpoint:     databaseEndpoint,
+				DatabaseName: databaseName,
+			},
+			State:      operationState,
+			Message:    StringOrEmpty(message),
+			Audit:      auditFromDb(creator, createdAt, completedAt),
+			PathPrefix: pathPrefix,
+		}, nil
 	}
 
 	return &types.GenericOperation{ID: operationId}, nil
