@@ -194,7 +194,6 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$container_id", table_types.StringValueFromString(b.ContainerID))
 	d.AddValueParam("$database", table_types.StringValueFromString(b.DatabaseName))
 	d.AddValueParam("$endpoint", table_types.StringValueFromString(b.DatabaseEndpoint))
-	d.AddValueParam("$initiated", table_types.StringValueFromString("")) // TODO
 	d.AddValueParam("$s3_endpoint", table_types.StringValueFromString(b.S3Endpoint))
 	d.AddValueParam("$s3_region", table_types.StringValueFromString(b.S3Region))
 	d.AddValueParam("$s3_bucket", table_types.StringValueFromString(b.S3Bucket))
