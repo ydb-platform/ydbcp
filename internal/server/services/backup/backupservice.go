@@ -169,6 +169,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		ctx, "export operation started", zap.String("clientOperationID", clientOperationID), zap.String("dsn", dsn),
 	)
 
+	now := timestamppb.Now()
 	backup := types.Backup{
 		ContainerID:  req.GetContainerId(),
 		DatabaseName: req.GetDatabaseName(),
@@ -177,6 +178,10 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		S3Bucket:     s.s3.Bucket,
 		S3PathPrefix: destinationPrefix,
 		Status:       types.BackupStatePending,
+		AuditInfo: &pb.AuditInfo{
+			CreatedAt: now,
+			Creator:   subject,
+		},
 	}
 	backupID, err := s.driver.CreateBackup(ctx, backup)
 	if err != nil {
@@ -199,7 +204,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		SourcePaths:         req.GetSourcePaths(),
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
 		Audit: &pb.AuditInfo{
-			CreatedAt: timestamppb.Now(),
+			CreatedAt: now,
 			Creator:   subject,
 		},
 		YdbOperationId: clientOperationID,
