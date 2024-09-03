@@ -8,6 +8,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"ydbcp/internal/connectors/s3"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
@@ -79,6 +80,11 @@ func main() {
 	}
 	defer dbConnector.Close(ctx)
 	clientConnector := client.NewClientYdbConnector(configInstance.ClientConnection)
+	s3Connector, err := s3.NewS3Connector(configInstance.S3)
+	if err != nil {
+		xlog.Error(ctx, "Error init S3Connector", zap.Error(err))
+		os.Exit(1)
+	}
 	var authProvider ap.AuthProvider
 	if len(configInstance.Auth.PluginPath) == 0 {
 		authProvider, err = auth.NewDummyAuthProvider(ctx)
@@ -113,7 +119,7 @@ func main() {
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
-		handlers.NewTBOperationHandler(dbConnector, clientConnector, configInstance, queries.NewWriteTableQuery),
+		handlers.NewTBOperationHandler(dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
 		os.Exit(1)

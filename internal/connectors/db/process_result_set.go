@@ -27,6 +27,13 @@ func StringOrEmpty(str *string) string {
 	return StringOrDefault(str, "")
 }
 
+func Int64OrZero(number *int64) int64 {
+	if number == nil {
+		return 0
+	}
+	return *number
+}
+
 func auditFromDb(initiated *string, createdAt *time.Time, completedAt *time.Time) *pb.AuditInfo {
 	var createdTs *timestamppb.Timestamp
 	var completedTs *timestamppb.Timestamp
@@ -63,6 +70,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		s3pathprefix     *string
 		status           *string
 		message          *string
+		size             *int64
 
 		creator     *string
 		completedAt *time.Time
@@ -80,6 +88,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		named.Optional("s3_path_prefix", &s3pathprefix),
 		named.Optional("status", &status),
 		named.Optional("message", &message),
+		named.Optional("size", &size),
 
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
@@ -101,6 +110,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		Status:           StringOrDefault(status, types.BackupStateUnknown),
 		Message:          StringOrEmpty(message),
 		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
+		Size:             Int64OrZero(size),
 	}, nil
 }
 

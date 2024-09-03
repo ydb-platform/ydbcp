@@ -15,6 +15,7 @@ CREATE TABLE Backups (
 
     status String,
     message String,
+    size Int64,
 
     paths String,
 
