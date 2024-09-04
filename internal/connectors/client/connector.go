@@ -198,7 +198,7 @@ func prepareItemsForExport(
 		}
 	} else {
 		// List root directory
-		list, err := listDirectory(ctx, clientDb, "/", exclusions)
+		list, err := listDirectory(ctx, clientDb, clientDb.Name(), exclusions)
 		if err != nil {
 			return nil, err
 		}
@@ -212,7 +212,7 @@ func prepareItemsForExport(
 		// Destination prefix format: s3_destination_prefix/rel_source_path
 		destinationPrefix := path.Join(
 			s3Settings.DestinationPrefix,
-			strings.TrimPrefix(source, clientDb.Scheme().Database()+"/"),
+			strings.TrimPrefix(source, clientDb.Name()+"/"),
 		)
 
 		items[i] = &Ydb_Export.ExportToS3Settings_Item{
