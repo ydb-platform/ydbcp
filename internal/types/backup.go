@@ -41,6 +41,7 @@ type Backup struct {
 	Status           string
 	Message          string
 	AuditInfo        *pb.AuditInfo
+	Size             int64
 }
 
 func (o *Backup) String() string {
@@ -67,7 +68,7 @@ func (o *Backup) Proto() *pb.Backup {
 			PathPrefix: o.S3PathPrefix,
 		},
 		Audit:    o.AuditInfo,
-		Size:     0,
+		Size:     o.Size,
 		Status:   pb.Backup_Status(pb.Backup_Status_value[o.Status]),
 		Message:  o.Message,
 		ExpireAt: nil,

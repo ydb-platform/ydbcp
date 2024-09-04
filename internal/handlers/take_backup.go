@@ -3,10 +3,12 @@ package handlers
 import (
 	"context"
 	"fmt"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -16,11 +18,11 @@ import (
 )
 
 func NewTBOperationHandler(
-	db db.DBConnector, client client.ClientConnector, config config.Config,
+	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
 	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client, config, getQueryBuilder)
+		return TBOperationHandler(ctx, op, db, client, s3, config, getQueryBuilder)
 	}
 }
 
@@ -29,6 +31,7 @@ func TBOperationHandler(
 	operation types.Operation,
 	db db.DBConnector,
 	client client.ClientConnector,
+	s3 s3.S3Connector,
 	config config.Config,
 	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
 ) error {
@@ -76,6 +79,36 @@ func TBOperationHandler(
 	}
 	opResponse := ydbOpResponse.opResponse
 
+	getBackupSize := func(backupID string) (int64, error) {
+		backups, err := db.SelectBackups(
+			ctx, queries.NewReadTableQuery(
+				queries.WithTableName("Backups"),
+				queries.WithSelectFields(queries.AllBackupFields...),
+				queries.WithQueryFilters(
+					queries.QueryFilter{
+						Field:  "id",
+						Values: []table_types.Value{table_types.StringValueFromString(backupID)},
+					},
+				),
+			),
+		)
+
+		if err != nil {
+			return 0, fmt.Errorf("can't select backups: %v", err)
+		}
+
+		if len(backups) == 0 {
+			return 0, fmt.Errorf("backup not found: %s", backupID)
+		}
+
+		size, err := s3.GetSize(backups[0].S3PathPrefix, backups[0].S3Bucket)
+		if err != nil {
+			return 0, fmt.Errorf("can't get size of objects by path: %s", backups[0].S3PathPrefix)
+		}
+
+		return size, nil
+	}
+
 	switch tb.State {
 	case types.OperationStatePending:
 		{
@@ -88,7 +121,13 @@ func TBOperationHandler(
 					return nil
 				}
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
+				size, err := getBackupSize(tb.BackupId)
+				if err != nil {
+					return err
+				}
+
 				backupToWrite.Status = types.BackupStateAvailable
+				backupToWrite.Size = size
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Success")
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
@@ -130,7 +169,13 @@ func TBOperationHandler(
 				}
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
+				size, err := getBackupSize(tb.BackupId)
+				if err != nil {
+					return err
+				}
+
 				backupToWrite.Status = types.BackupStateAvailable
+				backupToWrite.Size = size
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Operation was completed despite cancellation: " + tb.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {

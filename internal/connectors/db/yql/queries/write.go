@@ -179,6 +179,10 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 	}
 	d.AddUpdateId(table_types.StringValueFromString(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
+	if backup.Size != 0 {
+		d.AddValueParam("$size", table_types.Int64Value(backup.Size))
+
+	}
 	if backup.AuditInfo != nil && backup.AuditInfo.CompletedAt != nil {
 		d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(backup.AuditInfo.CompletedAt.AsTime()))
 	}
@@ -200,6 +204,7 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$s3_path_prefix", table_types.StringValueFromString(b.S3PathPrefix))
 	d.AddValueParam("$status", table_types.StringValueFromString(b.Status))
 	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
+	d.AddValueParam("$size", table_types.Int64Value(b.Size))
 	if b.AuditInfo != nil {
 		d.AddValueParam("$initiated", table_types.StringValueFromString(b.AuditInfo.Creator))
 		if b.AuditInfo.CreatedAt != nil {

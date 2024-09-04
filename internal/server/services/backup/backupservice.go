@@ -255,6 +255,10 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 
+	if backups[0].Status != types.BackupStateAvailable {
+		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backups[0].Status)
+	}
+
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.DatabaseEndpoint,
 		DatabaseName: req.DatabaseName,
