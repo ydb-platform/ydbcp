@@ -277,6 +277,7 @@ func (o *GenericOperation) Proto() *pb.Operation {
 var (
 	OperationStateUnknown         = OperationState(pb.Operation_STATUS_UNSPECIFIED.String())
 	OperationStatePending         = OperationState(pb.Operation_PENDING.String())
+	OperationStateRunning         = OperationState(pb.Operation_RUNNING.String())
 	OperationStateDone            = OperationState(pb.Operation_DONE.String())
 	OperationStateError           = OperationState(pb.Operation_ERROR.String())
 	OperationStateCancelling      = OperationState(pb.Operation_CANCELLING.String())
@@ -285,6 +286,7 @@ var (
 
 	BackupStateUnknown   = pb.Backup_STATUS_UNSPECIFIED.String()
 	BackupStatePending   = pb.Backup_PENDING.String()
+	BackupStateRunning   = pb.Backup_RUNNING.String()
 	BackupStateAvailable = pb.Backup_AVAILABLE.String()
 	BackupStateError     = pb.Backup_ERROR.String()
 	BackupStateCancelled = pb.Backup_CANCELLED.String()
@@ -326,6 +328,7 @@ func (o OperationState) String() string {
 
 func IsActive(o Operation) bool {
 	return o.GetState() == OperationStatePending ||
+		o.GetState() == OperationStateRunning ||
 		o.GetState() == OperationStateStartCancelling ||
 		o.GetState() == OperationStateCancelling
 }

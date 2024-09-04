@@ -29,7 +29,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -39,7 +39,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -71,14 +71,14 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	assert.Equal(t, "Error status: NOT_FOUND, issues: message:\"operation not found\"", op.GetMessage())
 }
 
-func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
+func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -88,7 +88,7 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -135,7 +135,7 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	b, err := dbConnector.GetBackup(ctx, backupID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
-	assert.Equal(t, types.BackupStatePending, b.Status)
+	assert.Equal(t, types.BackupStateRunning, b.Status)
 
 	// check ydb operation status (should be the same as before because cancellation wasn't completed)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
@@ -143,14 +143,14 @@ func TestTBOperationHandlerDeadlineExceededForPendingOperation(t *testing.T) {
 	assert.Equal(t, Ydb.StatusIds_SUCCESS, ydbOpStatus.GetOperation().GetStatus())
 }
 
-func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
+func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -160,7 +160,7 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -200,14 +200,14 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
-	assert.Equal(t, types.OperationStatePending, op.GetState())
+	assert.Equal(t, types.OperationStateRunning, op.GetState())
 	assert.Equal(t, "", op.GetMessage())
 
 	// check backup status (should be in pending)
 	b, err := dbConnector.GetBackup(ctx, backupID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
-	assert.Equal(t, types.BackupStatePending, b.Status)
+	assert.Equal(t, types.BackupStateRunning, b.Status)
 
 	// check ydb operation status (should be in progress)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
@@ -216,14 +216,14 @@ func TestTBOperationHandlerPendingOperationInProgress(t *testing.T) {
 	assert.Equal(t, false, ydbOpStatus.GetOperation().GetReady())
 }
 
-func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
+func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -233,7 +233,7 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:           backupID,
-		Status:       types.BackupStatePending,
+		Status:       types.BackupStateRunning,
 		S3PathPrefix: "pathPrefix",
 	}
 
@@ -303,14 +303,14 @@ func TestTBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
 }
 
-func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
+func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -320,7 +320,7 @@ func TestTBOperationHandlerPendingOperationCancelled(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -391,7 +391,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -464,7 +464,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -510,7 +510,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	b, err := dbConnector.GetBackup(ctx, backupID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
-	assert.Equal(t, types.BackupStatePending, b.Status)
+	assert.Equal(t, types.BackupStateRunning, b.Status)
 
 	// check ydb operation status (should be in progress)
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
@@ -536,7 +536,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	}
 	backup := types.Backup{
 		ID:           backupID,
-		Status:       types.BackupStatePending,
+		Status:       types.BackupStateRunning,
 		S3PathPrefix: "pathPrefix",
 	}
 
@@ -623,7 +623,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -678,14 +678,14 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 
 }
 
-func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
+func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
 		BackupId:            backupID,
-		State:               types.OperationStatePending,
+		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
 		YdbOperationId:      "1",
@@ -695,7 +695,7 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStatePending,
+		Status: types.BackupStateRunning,
 	}
 
 	ydbOp := &Ydb_Operations.Operation{
@@ -735,13 +735,13 @@ func TestTBOperationHandlerRetriableErrorForPendingOperation(t *testing.T) {
 	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
-	assert.Equal(t, types.OperationStatePending, op.GetState())
+	assert.Equal(t, types.OperationStateRunning, op.GetState())
 
 	// check backup status (should be pending)
 	b, err := dbConnector.GetBackup(ctx, backupID)
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
-	assert.Equal(t, types.BackupStatePending, b.Status)
+	assert.Equal(t, types.BackupStateRunning, b.Status)
 
 	// check ydb operation status
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)

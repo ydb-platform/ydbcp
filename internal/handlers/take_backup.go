@@ -110,7 +110,7 @@ func TBOperationHandler(
 	}
 
 	switch tb.State {
-	case types.OperationStatePending:
+	case types.OperationStateRunning:
 		{
 			if !opResponse.GetOperation().Ready {
 				if deadlineExceeded(tb.Audit.CreatedAt, config) {
@@ -133,7 +133,11 @@ func TBOperationHandler(
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 				backupToWrite.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
-				operation.SetMessage("got CANCELLED status for PENDING operation")
+				if opResponse.GetOperation().Issues != nil {
+					operation.SetMessage(ydbOpResponse.IssueString())
+				} else {
+					operation.SetMessage("got CANCELLED status for running operation")
+				}
 			} else {
 				backupToWrite.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
@@ -188,6 +192,8 @@ func TBOperationHandler(
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 		}
+	default:
+		return fmt.Errorf("unexpected operation state %s", tb.State)
 	}
 	response, err := client.ForgetOperation(ctx, conn, tb.YdbOperationId)
 	if err != nil {
