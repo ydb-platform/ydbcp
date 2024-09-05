@@ -79,7 +79,7 @@ func RBOperationHandler(
 	opResponse := ydbOpResponse.opResponse
 
 	switch mr.State {
-	case types.OperationStatePending:
+	case types.OperationStateRunning:
 		{
 			if !opResponse.GetOperation().Ready {
 				if deadlineExceeded(mr.Audit.CreatedAt, config) {
@@ -94,7 +94,11 @@ func RBOperationHandler(
 				operation.SetMessage("Success")
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
 				operation.SetState(types.OperationStateError)
-				operation.SetMessage("Pending operation was cancelled")
+				if opResponse.GetOperation().Issues != nil {
+					operation.SetMessage(ydbOpResponse.IssueString())
+				} else {
+					operation.SetMessage("Running operation was cancelled")
+				}
 			} else {
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
@@ -132,6 +136,8 @@ func RBOperationHandler(
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 		}
+	default:
+		return fmt.Errorf("unexpected operation state %s", mr.State)
 	}
 
 	xlog.Info(

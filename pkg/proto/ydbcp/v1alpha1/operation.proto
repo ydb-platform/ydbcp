@@ -14,6 +14,7 @@ message Operation {
         CANCELLING = 4;
         CANCELED = 5;
         START_CANCELLING = 6;
+        RUNNING = 7;
     }
     string id = 1;
     string container_id = 2;

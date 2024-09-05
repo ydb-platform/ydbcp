@@ -177,7 +177,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		S3Region:     s.s3.Region,
 		S3Bucket:     s.s3.Bucket,
 		S3PathPrefix: destinationPrefix,
-		Status:       types.BackupStatePending,
+		Status:       types.BackupStateRunning,
 		AuditInfo: &pb.AuditInfo{
 			CreatedAt: now,
 			Creator:   subject,
@@ -196,7 +196,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	op := &types.TakeBackupOperation{
 		BackupId:    backupID,
 		ContainerID: req.ContainerId,
-		State:       types.OperationStatePending,
+		State:       types.OperationStateRunning,
 		YdbConnectionParams: types.YdbConnectionParams{
 			Endpoint:     req.GetDatabaseEndpoint(),
 			DatabaseName: req.GetDatabaseName(),
@@ -309,7 +309,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	op := &types.RestoreBackupOperation{
 		ContainerID: req.GetContainerId(),
 		BackupId:    req.GetBackupId(),
-		State:       types.OperationStatePending,
+		State:       types.OperationStateRunning,
 		YdbConnectionParams: types.YdbConnectionParams{
 			Endpoint:     req.GetDatabaseEndpoint(),
 			DatabaseName: req.GetDatabaseName(),
