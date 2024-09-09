@@ -171,13 +171,14 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 
 	now := timestamppb.Now()
 	backup := types.Backup{
-		ContainerID:  req.GetContainerId(),
-		DatabaseName: req.GetDatabaseName(),
-		S3Endpoint:   s.s3.Endpoint,
-		S3Region:     s.s3.Region,
-		S3Bucket:     s.s3.Bucket,
-		S3PathPrefix: destinationPrefix,
-		Status:       types.BackupStateRunning,
+		ContainerID:      req.GetContainerId(),
+		DatabaseName:     req.GetDatabaseName(),
+		DatabaseEndpoint: req.GetDatabaseEndpoint(),
+		S3Endpoint:       s.s3.Endpoint,
+		S3Region:         s.s3.Region,
+		S3Bucket:         s.s3.Bucket,
+		S3PathPrefix:     destinationPrefix,
+		Status:           types.BackupStateRunning,
 		AuditInfo: &pb.AuditInfo{
 			CreatedAt: now,
 			Creator:   subject,
@@ -217,6 +218,76 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	}
 
 	op.ID = operationID
+	return op.Proto(), nil
+}
+
+func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (*pb.Operation, error) {
+	xlog.Info(ctx, "DeleteBackup", zap.String("request", req.String()))
+
+	backupID, err := types.ParseObjectID(req.BackupId)
+	if err != nil {
+		xlog.Error(ctx, "failed to parse BackupId", zap.Error(err))
+		return nil, status.Errorf(codes.InvalidArgument, "failed to parse BackupId %s: %v", req.BackupId, err)
+	}
+
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithSelectFields(queries.AllBackupFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
+				},
+			),
+		),
+	)
+
+	if err != nil {
+		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "can't select backups: %v", err)
+	}
+
+	if len(backups) == 0 {
+		return nil, status.Error(codes.NotFound, "backup not found")
+	}
+
+	backup := backups[0]
+
+	subject, err := auth.CheckAuth(
+		ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "",
+	)
+
+	if err != nil {
+		return nil, err
+	}
+
+	if !backup.CanBeDeleted() {
+		return nil, status.Errorf(codes.FailedPrecondition, "backup can't be deleted, status %s", backup.Status)
+	}
+
+	op := &types.DeleteBackupOperation{
+		ContainerID: backup.ContainerID,
+		BackupID:    req.GetBackupId(),
+		State:       types.OperationStatePending,
+		YdbConnectionParams: types.YdbConnectionParams{
+			DatabaseName: backup.DatabaseName,
+			Endpoint:     backup.DatabaseEndpoint,
+		},
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+			Creator:   subject,
+		},
+		PathPrefix: backup.S3PathPrefix,
+	}
+
+	operationID, err := s.driver.CreateOperation(ctx, op)
+	if err != nil {
+		return nil, status.Errorf(codes.Internal, "can't create operation: %v", err)
+	}
+
+	op.ID = operationID
+	xlog.Debug(ctx, "DeleteBackup was started successfully", zap.String("operation", types.OperationToString(op)))
 	return op.Proto(), nil
 }
 

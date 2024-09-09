@@ -133,6 +133,14 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := handlersRegistry.Add(
+		types.OperationTypeDB,
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery(ctx)),
+	); err != nil {
+		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
+		os.Exit(1)
+	}
+
 	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
 
 	wg.Add(1)

@@ -75,6 +75,10 @@ func (o *Backup) Proto() *pb.Backup {
 	}
 }
 
+func (o *Backup) CanBeDeleted() bool {
+	return o.Status == BackupStateAvailable || o.Status == BackupStateError || o.Status == BackupStateCancelled
+}
+
 type OperationType string
 type OperationState string
 
@@ -226,6 +230,69 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 	}
 }
 
+type DeleteBackupOperation struct {
+	ID                  string
+	ContainerID         string
+	YdbConnectionParams YdbConnectionParams
+	BackupID            string
+	State               OperationState
+	Message             string
+	PathPrefix          string
+	Audit               *pb.AuditInfo
+}
+
+func (o *DeleteBackupOperation) GetID() string {
+	return o.ID
+}
+func (o *DeleteBackupOperation) SetID(id string) {
+	o.ID = id
+}
+func (o *DeleteBackupOperation) GetContainerID() string {
+	return o.ContainerID
+}
+func (o *DeleteBackupOperation) GetType() OperationType {
+	return OperationTypeDB
+}
+func (o *DeleteBackupOperation) SetType(_ OperationType) {
+}
+func (o *DeleteBackupOperation) GetState() OperationState {
+	return o.State
+}
+func (o *DeleteBackupOperation) SetState(s OperationState) {
+	o.State = s
+}
+func (o *DeleteBackupOperation) GetMessage() string {
+	return o.Message
+}
+func (o *DeleteBackupOperation) SetMessage(m string) {
+	o.Message = m
+}
+func (o *DeleteBackupOperation) GetAudit() *pb.AuditInfo {
+	return o.Audit
+}
+func (o *DeleteBackupOperation) Copy() Operation {
+	copy := *o
+	return &copy
+}
+
+func (o *DeleteBackupOperation) Proto() *pb.Operation {
+	return &pb.Operation{
+		Id:                   o.ID,
+		ContainerId:          o.ContainerID,
+		Type:                 string(OperationTypeDB),
+		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
+		YdbServerOperationId: "",
+		BackupId:             o.BackupID,
+		SourcePaths:          []string{o.PathPrefix},
+		SourcePathsToExclude: nil,
+		RestorePaths:         nil,
+		Audit:                o.Audit,
+		Status:               o.State.Enum(),
+		Message:              o.Message,
+	}
+}
+
 type GenericOperation struct {
 	ID          string
 	ContainerID string
@@ -290,12 +357,14 @@ var (
 	BackupStateAvailable = pb.Backup_AVAILABLE.String()
 	BackupStateError     = pb.Backup_ERROR.String()
 	BackupStateCancelled = pb.Backup_CANCELLED.String()
+	BackupStateDeleting  = pb.Backup_DELETING.String()
 	BackupStateDeleted   = pb.Backup_DELETED.String()
 )
 
 const (
 	OperationTypeTB       = OperationType("TB")
 	OperationTypeRB       = OperationType("RB")
+	OperationTypeDB       = OperationType("DB")
 	BackupTimestampFormat = "20060102_150405"
 	S3ForcePathStyle      = true
 )

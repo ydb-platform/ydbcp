@@ -61,6 +61,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 	d.AddValueParam("$id", table_types.StringValueFromString(operation.GetID()))
 	d.AddValueParam("$type", table_types.StringValueFromString(string(operation.GetType())))
 	d.AddValueParam("$status", table_types.StringValueFromString(operation.GetState().String()))
+	d.AddValueParam("$message", table_types.StringValueFromString(operation.GetMessage()))
 	if operation.GetAudit() != nil {
 		d.AddValueParam(
 			"$initiated",
@@ -82,6 +83,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		tb, ok := operation.(*types.TakeBackupOperation)
 		if !ok {
 			xlog.Error(ctx, "error cast operation to TakeBackupOperation", zap.String("operation_id", operation.GetID()))
+			return d
 		}
 
 		d.AddValueParam(
@@ -103,7 +105,6 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 			"$operation_id",
 			table_types.StringValueFromString(tb.YdbOperationId),
 		)
-		d.AddValueParam("$message", table_types.StringValueFromString(tb.Message))
 		if len(tb.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tb.SourcePaths, ",")))
 		}
@@ -117,6 +118,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		rb, ok := operation.(*types.RestoreBackupOperation)
 		if !ok {
 			xlog.Error(ctx, "error cast operation to RestoreBackupOperation", zap.String("operation_id", operation.GetID()))
+			return d
 		}
 
 		d.AddValueParam(
@@ -138,11 +140,38 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 			"$operation_id",
 			table_types.StringValueFromString(rb.YdbOperationId),
 		)
-		d.AddValueParam("$message", table_types.StringValueFromString(rb.Message))
 
 		if len(rb.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(rb.SourcePaths, ",")))
 		}
+	} else if operation.GetType() == types.OperationTypeDB {
+		db, ok := operation.(*types.DeleteBackupOperation)
+		if !ok {
+			xlog.Error(ctx, "error cast operation to DeleteBackupOperation", zap.String("operation_id", operation.GetID()))
+			return d
+		}
+
+		d.AddValueParam(
+			"$container_id", table_types.StringValueFromString(db.ContainerID),
+		)
+
+		d.AddValueParam(
+			"$database",
+			table_types.StringValueFromString(db.YdbConnectionParams.DatabaseName),
+		)
+
+		d.AddValueParam(
+			"$endpoint",
+			table_types.StringValueFromString(db.YdbConnectionParams.Endpoint),
+		)
+
+		d.AddValueParam(
+			"$backup_id",
+			table_types.StringValueFromString(db.BackupID),
+		)
+
+		d.AddValueParam("$paths", table_types.StringValueFromString(db.PathPrefix))
+
 	} else {
 		xlog.Error(ctx, "unknown operation type write to db", zap.String("operation_type", string(operation.GetType())))
 	}
