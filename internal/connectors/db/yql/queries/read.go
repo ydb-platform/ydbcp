@@ -24,7 +24,7 @@ var (
 	AllOperationFields = []string{
 		"id", "type", "container_id", "database", "endpoint", "backup_id",
 		"initiated", "created_at", "completed_at", "status", "message",
-		"paths", "operation_id", "paths_to_exclude",
+		"paths", "operation_id", "paths_to_exclude", "updated_at",
 	}
 	AllBackupScheduleFields = []string{
 		"id", "container_id", "database", "endpoint", "name", "active", "crontab", "ttl", "paths", "paths_to_exclude",

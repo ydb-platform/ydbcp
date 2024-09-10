@@ -79,9 +79,9 @@ func RBOperationHandler(
 				if deadlineExceeded(mr.Audit.CreatedAt, config) {
 					operation.SetState(types.OperationStateStartCancelling)
 					operation.SetMessage("Operation deadline exceeded")
-					return db.UpdateOperation(ctx, operation)
 				}
-				return nil
+
+				return db.UpdateOperation(ctx, operation)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				operation.SetState(types.OperationStateDone)
@@ -114,10 +114,9 @@ func RBOperationHandler(
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
 					operation.GetAudit().CompletedAt = timestamppb.Now()
-					return db.UpdateOperation(ctx, operation)
 				}
 
-				return nil
+				return db.UpdateOperation(ctx, operation)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				operation.SetState(types.OperationStateDone)

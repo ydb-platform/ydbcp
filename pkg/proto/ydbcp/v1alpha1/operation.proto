@@ -4,6 +4,7 @@ package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup.proto";
+import "google/protobuf/timestamp.proto";
 
 message Operation {
     enum Status {
@@ -29,4 +30,5 @@ message Operation {
     AuditInfo audit = 11;
     Status status = 12;
     string message = 13;
+    google.protobuf.Timestamp updated_at = 14;
 }

@@ -80,6 +80,12 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 			)
 		}
 	}
+	if operation.GetUpdatedAt() != nil {
+		d.AddValueParam(
+			"$updated_at",
+			table_types.TimestampValueFromTime(operation.GetUpdatedAt().AsTime()),
+		)
+	}
 
 	if operation.GetType() == types.OperationTypeTB {
 		tb, ok := operation.(*types.TakeBackupOperation)
@@ -198,6 +204,12 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 		d.AddValueParam(
 			"$completed_at",
 			table_types.TimestampValueFromTime(operation.GetAudit().GetCompletedAt().AsTime()),
+		)
+	}
+	if operation.GetUpdatedAt() != nil {
+		d.AddValueParam(
+			"$updated_at",
+			table_types.TimestampValueFromTime(operation.GetUpdatedAt().AsTime()),
 		)
 	}
 	return d
