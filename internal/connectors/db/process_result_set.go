@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"strings"
 	"time"
 	"ydbcp/internal/types"
@@ -171,7 +172,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		}
 		return &types.TakeBackupOperation{
 			ID:          operationId,
-			BackupId:    *backupId,
+			BackupID:    *backupId,
 			ContainerID: containerId,
 			State:       operationState,
 			Message:     StringOrEmpty(message),
@@ -179,10 +180,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				Endpoint:     databaseEndpoint,
 				DatabaseName: databaseName,
 			},
-			SourcePaths:         sourcePathsSlice,
-			SourcePathToExclude: sourcePathsToExcludeSlice,
-			YdbOperationId:      StringOrEmpty(ydbOperationId),
-			Audit:               auditFromDb(creator, createdAt, completedAt),
+			SourcePaths:          sourcePathsSlice,
+			SourcePathsToExclude: sourcePathsToExcludeSlice,
+			YdbOperationId:       StringOrEmpty(ydbOperationId),
+			Audit:                auditFromDb(creator, createdAt, completedAt),
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
@@ -228,4 +229,93 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	}
 
 	return &types.GenericOperation{ID: operationId}, nil
+}
+
+func ReadBackupScheduleFromResultSet(res result.Result) (*types.BackupSchedule, error) {
+	var (
+		ID               string
+		containerID      string
+		databaseName     string
+		databaseEndpoint string
+		active           bool
+
+		crontab string
+
+		initiated              *string
+		createdAt              *time.Time
+		name                   *string
+		ttl                    *time.Duration
+		sourcePaths            *string
+		sourcePathsToExclude   *string
+		recoveryPointObjective *time.Duration
+		lastBackupID           *string
+		lastSuccessfulBackupID *string
+		recoveryPoint          *time.Time
+		nextLaunch             *time.Time
+	)
+	err := res.ScanNamed(
+		named.Required("id", &ID),
+		named.Required("container_id", &containerID),
+		named.Required("database", &databaseName),
+		named.Required("endpoint", &databaseEndpoint),
+		named.Required("active", &active),
+		named.Required("crontab", &crontab),
+
+		named.Optional("initiated", &initiated),
+		named.Optional("created_at", &createdAt),
+		named.Optional("name", &name),
+		named.Optional("ttl", &ttl),
+		named.Optional("paths", &sourcePaths),
+		named.Optional("paths_to_exclude", &sourcePathsToExclude),
+		named.Optional("recovery_point_objective", &recoveryPointObjective),
+		named.Optional("last_backup_id", &lastBackupID),
+		named.Optional("last_successful_backup_id", &lastSuccessfulBackupID),
+		named.Optional("recovery_point", &recoveryPoint),
+		named.Optional("next_launch", &nextLaunch),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	sourcePathsSlice := make([]string, 0)
+	sourcePathsToExcludeSlice := make([]string, 0)
+	if sourcePaths != nil {
+		sourcePathsSlice = strings.Split(*sourcePaths, ",")
+	}
+	if sourcePathsToExclude != nil {
+		sourcePathsToExcludeSlice = strings.Split(*sourcePathsToExclude, ",")
+	}
+
+	var ttlDuration *durationpb.Duration
+	var rpoDuration *durationpb.Duration
+
+	ttlDuration = nil
+	rpoDuration = nil
+	if ttl != nil {
+		ttlDuration = durationpb.New(*ttl)
+	}
+	if recoveryPointObjective != nil {
+		rpoDuration = durationpb.New(*recoveryPointObjective)
+	}
+
+	return &types.BackupSchedule{
+		ID:                   ID,
+		ContainerID:          containerID,
+		DatabaseName:         databaseName,
+		DatabaseEndpoint:     databaseEndpoint,
+		SourcePaths:          sourcePathsSlice,
+		SourcePathsToExclude: sourcePathsToExcludeSlice,
+		Audit:                auditFromDb(initiated, createdAt, nil),
+		Name:                 StringOrEmpty(name),
+		Active:               active,
+		ScheduleSettings: &pb.BackupScheduleSettings{
+			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: crontab},
+			Ttl:                    ttlDuration,
+			RecoveryPointObjective: rpoDuration,
+		},
+		NextLaunch:             nextLaunch,
+		LastBackupID:           lastBackupID,
+		LastSuccessfulBackupID: lastSuccessfulBackupID,
+		RecoveryPoint:          recoveryPoint,
+	}, nil
 }

@@ -12,6 +12,7 @@ import (
 	"go.uber.org/zap"
 )
 
+// TODO: do not do this and always select all fields
 var (
 	AllBackupFields = []string{
 		"id", "container_id", "database", "endpoint",
@@ -24,6 +25,12 @@ var (
 		"id", "type", "container_id", "database", "endpoint", "backup_id",
 		"initiated", "created_at", "completed_at", "status", "message",
 		"paths", "operation_id", "paths_to_exclude",
+	}
+	AllBackupScheduleFields = []string{
+		"id", "container_id", "database", "endpoint", "name", "active", "crontab", "ttl", "paths", "paths_to_exclude",
+		"initiated",
+		"created_at", "recovery_point_objective", "last_backup_id", "last_successful_backup_id", "recovery_point",
+		"next_launch",
 	}
 )
 

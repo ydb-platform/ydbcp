@@ -17,8 +17,10 @@ type WriteTableQuery interface {
 	FormatQuery(ctx context.Context) (*FormatQueryResult, error)
 	WithCreateBackup(backup types.Backup) WriteTableQuery
 	WithCreateOperation(operation types.Operation) WriteTableQuery
+	WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
 	WithUpdateBackup(backup types.Backup) WriteTableQuery
 	WithUpdateOperation(operation types.Operation) WriteTableQuery
+	WithUpdateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
 }
 
 type WriteTableQueryImpl struct {
@@ -99,7 +101,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		)
 		d.AddValueParam(
 			"$backup_id",
-			table_types.StringValueFromString(tb.BackupId),
+			table_types.StringValueFromString(tb.BackupID),
 		)
 		d.AddValueParam(
 			"$operation_id",
@@ -108,10 +110,10 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		if len(tb.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tb.SourcePaths, ",")))
 		}
-		if len(tb.SourcePathToExclude) > 0 {
+		if len(tb.SourcePathsToExclude) > 0 {
 			d.AddValueParam(
 				"$paths_to_exclude",
-				table_types.StringValueFromString(strings.Join(tb.SourcePathToExclude, ",")),
+				table_types.StringValueFromString(strings.Join(tb.SourcePathsToExclude, ",")),
 			)
 		}
 	} else if operation.GetType() == types.OperationTypeRB {
@@ -239,6 +241,105 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 		if b.AuditInfo.CreatedAt != nil {
 			d.AddValueParam("$created_at", table_types.TimestampValueFromTime(b.AuditInfo.CreatedAt.AsTime()))
 		}
+		if b.AuditInfo.CompletedAt != nil {
+			d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(b.AuditInfo.CompletedAt.AsTime()))
+		}
+	}
+	return d
+}
+
+func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) WriteSingleTableQueryImpl {
+	d := WriteSingleTableQueryImpl{
+		index:     index,
+		tableName: "BackupSchedules",
+	}
+	d.AddValueParam("$id", table_types.StringValueFromString(schedule.ID))
+	d.AddValueParam("$container_id", table_types.StringValueFromString(schedule.ContainerID))
+	d.AddValueParam(
+		"$database",
+		table_types.StringValueFromString(schedule.DatabaseName),
+	)
+	d.AddValueParam(
+		"$endpoint",
+		table_types.StringValueFromString(schedule.DatabaseEndpoint),
+	)
+	d.AddValueParam("$name", table_types.StringValueFromString(schedule.Name))
+	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
+	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
+	d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+	if len(schedule.SourcePaths) > 0 {
+		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+	}
+	if len(schedule.SourcePathsToExclude) > 0 {
+		d.AddValueParam(
+			"$paths_to_exclude",
+			table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+		)
+	}
+	if schedule.Audit != nil {
+		d.AddValueParam("$initiated", table_types.StringValueFromString(schedule.Audit.Creator))
+		if schedule.Audit.CreatedAt != nil {
+			d.AddValueParam("$created_at", table_types.TimestampValueFromTime(schedule.Audit.CreatedAt.AsTime()))
+		}
+		if schedule.Audit.CompletedAt != nil {
+			d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(schedule.Audit.CompletedAt.AsTime()))
+		}
+	}
+	d.AddValueParam(
+		"$recovery_point_objective",
+		table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
+	)
+	if schedule.LastBackupID != nil {
+		d.AddValueParam("$last_backup_id", table_types.StringValueFromString(*schedule.LastBackupID))
+	}
+	if schedule.LastSuccessfulBackupID != nil {
+		d.AddValueParam(
+			"$last_successful_backup_id", table_types.StringValueFromString(*schedule.LastSuccessfulBackupID),
+		)
+	}
+	if schedule.RecoveryPoint != nil {
+		d.AddValueParam("$recovery_point", table_types.TimestampValueFromTime(*schedule.RecoveryPoint))
+	}
+	if schedule.NextLaunch != nil {
+		d.AddValueParam("$next_launch", table_types.TimestampValueFromTime(*schedule.NextLaunch))
+	}
+	return d
+}
+
+func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) WriteSingleTableQueryImpl {
+	d := WriteSingleTableQueryImpl{
+		index:     index,
+		tableName: "BackupSchedules",
+	}
+	d.AddUpdateId(table_types.StringValueFromString(schedule.ID))
+
+	d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+	d.AddValueParam(
+		"$paths_to_exclude",
+		table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+	)
+	d.AddValueParam("$name", table_types.StringValueFromString(schedule.Name))
+	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
+	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
+	d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+
+	d.AddValueParam(
+		"$recovery_point_objective",
+		table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
+	)
+	if schedule.LastBackupID != nil {
+		d.AddValueParam("$last_backup_id", table_types.StringValueFromString(*schedule.LastBackupID))
+	}
+	if schedule.LastSuccessfulBackupID != nil {
+		d.AddValueParam(
+			"$last_successful_backup_id", table_types.StringValueFromString(*schedule.LastSuccessfulBackupID),
+		)
+	}
+	if schedule.RecoveryPoint != nil {
+		d.AddValueParam("$recovery_point", table_types.TimestampValueFromTime(*schedule.RecoveryPoint))
+	}
+	if schedule.NextLaunch != nil {
+		d.AddValueParam("$next_launch", table_types.TimestampValueFromTime(*schedule.NextLaunch))
 	}
 	return d
 }
@@ -272,6 +373,18 @@ func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) Wri
 func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
 	index := len(d.tableQueries)
 	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(d.ctx, operation, index))
+	return d
+}
+
+func (d *WriteTableQueryImpl) WithUpdateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildUpdateBackupScheduleQuery(schedule, index))
+	return d
+}
+
+func (d *WriteTableQueryImpl) WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery {
+	index := len(d.tableQueries)
+	d.tableQueries = append(d.tableQueries, BuildCreateBackupScheduleQuery(schedule, index))
 	return d
 }
 

@@ -19,6 +19,8 @@ CREATE TABLE Backups (
 
     paths String,
 
+    schedule_id String,
+
     INDEX idx_container_id GLOBAL ON (container_id),
     INDEX idx_created_at GLOBAL ON (created_at),
     PRIMARY KEY (id)
@@ -55,3 +57,29 @@ CREATE TABLE Operations (
     INDEX idx_cdc GLOBAL ON (container_id, database, created_at, id),
     PRIMARY KEY (id)
 );
+
+CREATE TABLE BackupSchedules (
+    id String NOT NULL,
+    container_id String NOT NULL,
+    database String NOT NULL,
+    endpoint String NOT NULL,
+    name String,
+    active Bool NOT NULL,
+
+    crontab String NOT NULL,
+    ttl Interval,
+    paths String,
+    paths_to_exclude String,
+
+    initiated String,
+    created_at Timestamp,
+
+    recovery_point_objective Interval,
+
+    last_backup_id String,
+    last_successful_backup_id String,
+    recovery_point Timestamp,
+
+    next_launch Timestamp,
+    PRIMARY KEY (id)
+)

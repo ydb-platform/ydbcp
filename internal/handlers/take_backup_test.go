@@ -28,7 +28,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -77,7 +77,7 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -149,7 +149,7 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -222,7 +222,7 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -309,7 +309,7 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -380,7 +380,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -453,7 +453,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -525,7 +525,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "operation was cancelled by user",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -612,7 +612,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateCancelling,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},
@@ -684,7 +684,7 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	backupID := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:                  opId,
-		BackupId:            backupID,
+		BackupID:            backupID,
 		State:               types.OperationStateRunning,
 		Message:             "",
 		YdbConnectionParams: types.YdbConnectionParams{},

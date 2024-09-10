@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ydbcp;
+package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup_schedule.proto";

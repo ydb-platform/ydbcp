@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package ydbcp;
+package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup.proto";
@@ -22,7 +22,7 @@ message ScheduledBackupInfo {
     string backup_id = 1;
     google.protobuf.Timestamp recovery_point = 2;
     google.protobuf.Duration last_backup_rpo_margin_interval = 3;
-    float last_backup_rpo_margin_percent = 4;
+    double last_backup_rpo_margin_percent = 4;
 }
 
 message BackupSchedule {
