@@ -6,7 +6,7 @@ on:
     types: [opened, synchronize, reopened]
 
 jobs:
-  test:
+  unittest:
     runs-on: ubuntu-latest
     outputs:
       job-summary: ${{ steps.job-summary.outputs.job-summary }}
@@ -52,7 +52,7 @@ jobs:
 
   comment-pr:
     runs-on: ubuntu-latest
-    needs: test
+    needs: unittest
     steps:
       - name: Comment on PR
         uses: peter-evans/create-or-update-comment@v2
@@ -60,4 +60,21 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           repository: ${{ github.repository }}
           issue-number: ${{ github.event.pull_request.number }}
-          body: ${{ needs.test.outputs.job-summary }}
+          body: ${{ needs.unittest.outputs.job-summary }}
+
+  integration-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: supply with s3 access keys
+        run: |
+          echo "ydbcp" > access_key
+          echo "password" > secret_key
+      - name: docker compose up
+        run: |
+          docker compose up --build -d
+      - name: run integration tests
+        run: docker exec local-ydbcp sh -c './integration'
+      - name: docker compose down
+        run: |
+          docker compose down

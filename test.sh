@@ -9,7 +9,7 @@ fi
 
 if [[ "docker" == "$2" ]]; then
   YDBCP_ENDPOINT="localhost:50051"
-  YDB_ENDPOINT="grpcs://local-ydb:2136"
+  YDB_ENDPOINT="grpcs://local-ydb:2135"
   YDB_DBNAME="/local"
 fi
 
@@ -59,10 +59,10 @@ if [[ "ListOperations" == "$1" ]]; then
 fi
 if [[ "MakeBackup" == "$1" ]]; then
   doneflag=1
-  $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "database_endpoint": "'"${YDB_ENDPOINT}"'", "source_paths": ["'"${YDB_DBNAME}"'"], "containerId": "'"$CONTAINER_ID"'"}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupService.MakeBackup
+  $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "database_endpoint": "'"${YDB_ENDPOINT}"'", "containerId": "'"$CONTAINER_ID"'"}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupService.MakeBackup
 fi
 if [[ "CreateBackupSchedule" == "$1" ]]; then
-  $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "endpoint": "'"${YDB_ENDPOINT}"'", "source_paths": ["'"${YDB_DBNAME}"'"], "containerId": "'"$CONTAINER_ID"'", "schedule_settings": {"schedule_pattern": {"crontab": "* * * * * *"}}}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupScheduleService.CreateBackupSchedule
+  $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "endpoint": "'"${YDB_ENDPOINT}"'", "containerId": "'"$CONTAINER_ID"'", "schedule_settings": {"schedule_pattern": {"crontab": "* * * * * *"}}}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupScheduleService.CreateBackupSchedule
   doneflag=1
 fi
 

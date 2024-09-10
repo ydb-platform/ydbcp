@@ -16,5 +16,8 @@ RUN go mod download
 # Build the Go app
 RUN go build -o . ./cmd/ydbcp/main.go
 
+# Build integration test app
+RUN go build -o ./integration ./cmd/integration/main.go
+
 # Command to run the executable
 CMD ["./main", "--config=local_config.yaml"]
