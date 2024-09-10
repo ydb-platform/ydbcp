@@ -63,6 +63,15 @@ func (s *BackupService) isAllowedEndpoint(e string) bool {
 	return false
 }
 
+func safePathJoin(base string, relPath ...string) (fullPath string, ok bool) {
+	paths := append([]string{base}, relPath...)
+	fullPath = path.Join(paths...)
+	if strings.HasPrefix(fullPath, base+"/") {
+		return fullPath, true
+	}
+	return "", false // Possible Path Traversal
+}
+
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
 	xlog.Debug(ctx, "GetBackup", zap.String("request", request.String()))
 	requestId, err := types.ParseObjectID(request.GetId())
@@ -146,6 +155,15 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		time.Now().Format(types.BackupTimestampFormat),
 	)
 
+	sourcePaths := make([]string, 0, len(req.SourcePaths))
+	for _, p := range req.SourcePaths {
+		fullPath, ok := safePathJoin(req.DatabaseName, p)
+		if !ok {
+			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
+		}
+		sourcePaths = append(sourcePaths, fullPath)
+	}
+
 	s3Settings := types.ExportSettings{
 		Endpoint:            s.s3.Endpoint,
 		Region:              s.s3.Region,
@@ -154,7 +172,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		SecretKey:           secretKey,
 		Description:         "ydbcp backup", // TODO: the description shoud be better
 		NumberOfRetries:     10,             // TODO: get it from configuration
-		SourcePaths:         req.GetSourcePaths(),
+		SourcePaths:         sourcePaths,
 		SourcePathToExclude: req.GetSourcePathsToExclude(),
 		DestinationPrefix:   destinationPrefix,
 		S3ForcePathStyle:    s.s3.S3ForcePathStyle,
@@ -249,15 +267,12 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	}
 
 	if len(backups) == 0 {
-		return nil, status.Error(codes.NotFound, "backup not found")
+		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission Denied?
 	}
 
 	backup := backups[0]
 
-	subject, err := auth.CheckAuth(
-		ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "",
-	)
-
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -294,9 +309,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
 	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
 
-	subject, err := auth.CheckAuth(
-		ctx, s.auth, auth.PermissionBackupRestore, req.ContainerId, "",
-	) // TODO: check access to backup as resource
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupRestore, req.ContainerId, "") // TODO: check access to backup as resource
 	if err != nil {
 		return nil, err
 	}
@@ -325,9 +338,10 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	if len(backups) == 0 {
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
+	backup := backups[0]
 
-	if backups[0].Status != types.BackupStateAvailable {
-		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backups[0].Status)
+	if backup.Status != types.BackupStateAvailable {
+		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
 	}
 
 	clientConnectionParams := types.YdbConnectionParams{
@@ -354,6 +368,20 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Errorf(codes.Internal, "can't get S3SecretKey: %v", err)
 	}
 
+	var sourcePaths []string
+	if len(req.SourcePaths) == 0 {
+		sourcePaths = []string{backup.S3PathPrefix}
+	} else {
+		sourcePaths = make([]string, 0, len(req.SourcePaths))
+		for _, p := range req.SourcePaths {
+			fullPath, ok := safePathJoin(backup.S3PathPrefix, p)
+			if !ok {
+				return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
+			}
+			sourcePaths = append(sourcePaths, fullPath)
+		}
+	}
+
 	s3Settings := types.ImportSettings{
 		Endpoint:          s.s3.Endpoint,
 		Region:            s.s3.Region,
@@ -363,7 +391,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		Description:       "ydbcp restore", // TODO: write description
 		NumberOfRetries:   10,              // TODO: get value from configuration
 		BackupID:          req.GetBackupId(),
-		SourcePaths:       []string{backups[0].S3PathPrefix},
+		SourcePaths:       sourcePaths,
 		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
 		DestinationPrefix: req.GetDestinationPrefix(),
 	}

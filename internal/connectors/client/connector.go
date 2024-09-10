@@ -113,9 +113,20 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 	[]string, error,
 ) {
 	var dir scheme.Directory
-	var err error
 
-	err = retry.Retry(
+	excluded := func(p string) bool {
+		relPath := strings.TrimPrefix(p, clientDb.Name())
+		for _, exclusion := range exclusions {
+			if exclusion.MatchString(relPath) {
+				xlog.Debug(ctx, "Excluded path", zap.String("path", p))
+				return true
+			}
+		}
+
+		return false
+	}
+
+	err := retry.Retry(
 		ctx, func(ctx context.Context) (err error) {
 			dir, err = clientDb.Scheme().ListDirectory(ctx, initialPath)
 			return err
@@ -126,30 +137,21 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 		return nil, fmt.Errorf("list directory %s was failed: %v", initialPath, err)
 	}
 
-	excluded := func(path string) bool {
-		for _, exclusion := range exclusions {
-			if exclusion.MatchString(path) {
-				xlog.Info(ctx, "Excluded path", zap.String("path", path))
-				return true
-			}
-		}
-
-		return false
-	}
-
 	result := make([]string, 0)
 	if dir.Entry.IsTable() {
 		if !excluded(initialPath) {
-			xlog.Info(ctx, "Included path", zap.String("path", initialPath))
+			xlog.Debug(ctx, "Included path", zap.String("path", initialPath))
 			result = append(result, initialPath)
 		}
+		return result, nil
 	}
 
 	for _, child := range dir.Children {
 		childPath := path.Join(initialPath, child.Name)
 
 		if child.IsDirectory() {
-			if isSystemDirectory(child.Name) || isExportDirectory(childPath, clientDb.Scheme().Database()) {
+			if isSystemDirectory(child.Name) || isExportDirectory(childPath, clientDb.Name()) {
+				xlog.Debug(ctx, "System or export directory is skipped", zap.String("path", childPath))
 				continue
 			}
 
@@ -163,7 +165,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 			result = append(result, list...)
 		} else if child.IsTable() {
 			if !excluded(childPath) {
-				xlog.Info(ctx, "Included path", zap.String("path", childPath))
+				xlog.Debug(ctx, "Included path", zap.String("path", childPath))
 				result = append(result, childPath)
 			}
 		}
@@ -277,7 +279,7 @@ func (d *ClientYdbConnector) ExportToS3(
 	return response.GetOperation().GetId(), nil
 }
 
-func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) ([]*Ydb_Import.ImportFromS3Settings_Item, error) {
+func prepareItemsForImport(clientDb *ydb.Driver, s3Settings types.ImportSettings) ([]*Ydb_Import.ImportFromS3Settings_Item, error) {
 	if len(s3Settings.SourcePaths) == 0 {
 		return nil, fmt.Errorf("empty list of source paths for import")
 	}
@@ -316,7 +318,7 @@ func prepareItemsForImport(ctx context.Context, clientDb *ydb.Driver, s3Settings
 							&Ydb_Import.ImportFromS3Settings_Item{
 								SourcePrefix: key,
 								DestinationPath: path.Join(
-									clientDb.Scheme().Database(),
+									clientDb.Name(),
 									s3Settings.DestinationPrefix,
 									key[len(sourcePath):],
 								),
@@ -342,7 +344,7 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 		return "", fmt.Errorf("unititialized client db driver")
 	}
 
-	items, err := prepareItemsForImport(ctx, clientDb, s3Settings)
+	items, err := prepareItemsForImport(clientDb, s3Settings)
 	if err != nil {
 		return "", fmt.Errorf("error preparing list of items for import: %s", err.Error())
 	}
