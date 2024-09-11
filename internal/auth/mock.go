@@ -152,8 +152,8 @@ func (p *MockAuthProvider) Authorize(
 	xlog.Info(
 		ctx,
 		"MockAuthProvider Authorize",
-		zap.String("token", auth.MaskToken(token)),
-		zap.String("checks", fmt.Sprintf("%v", checks)),
+		zap.String("Token", auth.MaskToken(token)),
+		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
 	)
 	if len(checks) == 0 {
 		xlog.Error(ctx, "MockAuthProvider AuthorizeCheck list is empty")
@@ -178,8 +178,8 @@ func (p *MockAuthProvider) Authorize(
 		results = append(results, p.checkSubjectPermission(subject, c))
 	}
 	xlog.Info(ctx, "MockAuthProvider Authorize result",
-		zap.String("results", fmt.Sprintf("%v", results)),
-		zap.String("subject", anonymousSubject),
+		zap.String("AuthResults", fmt.Sprintf("%v", results)),
+		zap.String("SubjectID", anonymousSubject),
 	)
 	return results, subject, nil
 }

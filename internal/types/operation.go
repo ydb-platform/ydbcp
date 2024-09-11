@@ -3,12 +3,13 @@ package types
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
-	"go.uber.org/zap"
 	"log"
 	"strings"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
+	"go.uber.org/zap"
 )
 
 type OperationType string
@@ -324,6 +325,10 @@ func (o OperationState) Enum() pb.Operation_Status {
 }
 
 func (o OperationState) String() string {
+	return string(o)
+}
+
+func (o OperationType) String() string {
 	return string(o)
 }
 

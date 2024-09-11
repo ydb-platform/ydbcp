@@ -8,8 +8,8 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"ydbcp/internal/server/services/backup_schedule"
 	"ydbcp/internal/connectors/s3"
+	"ydbcp/internal/server/services/backup_schedule"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
@@ -64,7 +64,7 @@ func main() {
 	if confStr, err := configInstance.ToString(); err == nil {
 		xlog.Debug(
 			ctx, "Use configuration file",
-			zap.String("config_path", confPath),
+			zap.String("ConfigPath", confPath),
 			zap.String("config", confStr),
 		)
 	}

@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
 
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -72,9 +73,7 @@ func NewOperationProcessor(
 
 func (o *OperationProcessorImpl) run(wg *sync.WaitGroup) {
 	defer wg.Done()
-	xlog.Debug(
-		o.ctx, "Operation Processor started", zap.Duration("period", o.period),
-	)
+	xlog.Debug(o.ctx, "Operation Processor started", zap.Duration("period", o.period))
 	ticker := o.tickerProvider(o.period)
 	for {
 		select {
@@ -123,9 +122,18 @@ func (o *OperationProcessorImpl) processOperations() {
 }
 
 func (o *OperationProcessorImpl) processOperation(op types.Operation) {
+	runID := uuid.New().String()
+	ctx := xlog.With(
+		o.ctx,
+		zap.String("RunID", runID),
+		zap.String("OperationID", op.GetID()),
+		zap.String("OperationType", op.GetType().String()),
+		zap.String("OperationState", op.GetState().String()),
+	)
 	if _, exist := o.runningOperations[op.GetID()]; exist {
 		xlog.Debug(
-			o.ctx, "operation already running",
+			ctx,
+			"operation already running",
 			zap.String("operation", types.OperationToString(op)),
 		)
 		return
@@ -134,7 +142,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 	o.workersWaitGroup.Add(1)
 	go func() {
 		defer o.workersWaitGroup.Done()
-		ctx, cancel := context.WithTimeout(o.ctx, o.handleOperationTimeout)
+		ctx, cancel := context.WithTimeout(ctx, o.handleOperationTimeout)
 		defer cancel()
 		xlog.Debug(
 			ctx, "start operation handler",
@@ -147,19 +155,23 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 				zap.String("operation", types.OperationToString(op)),
 				zap.Error(err),
 			)
+		} else {
+			xlog.Debug(
+				ctx,
+				"operation handler finished successfully",
+				zap.String("operation", types.OperationToString(op)),
+			)
 		}
 		o.results <- op.GetID()
 	}()
 }
 
 func (o *OperationProcessorImpl) handleOperationResult(operationID string) {
-	xlog.Debug(o.ctx, "operation handler is finished", zap.String("operationID", operationID))
+	ctx := xlog.With(o.ctx, zap.String("OperationID", operationID))
 	if _, exist := o.runningOperations[operationID]; !exist {
-		xlog.Error(
-			o.ctx, "got result from not running operation",
-			zap.String("operationID", operationID),
-		)
+		xlog.Error(ctx, "got result from not running operation")
 		return
 	}
+	xlog.Debug(ctx, "operation handler is marked as finished")
 	delete(o.runningOperations, operationID)
 }

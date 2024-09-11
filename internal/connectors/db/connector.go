@@ -145,9 +145,7 @@ func DoStructSelect[T any](
 		},
 	)
 	if err != nil {
-		xlog.Error(
-			ctx, "Error executing query", zap.String("message", err.Error()),
-		)
+		xlog.Error(ctx, "Error executing query", zap.Error(err))
 		return nil, err
 	}
 	return entities, nil
@@ -201,9 +199,7 @@ func DoInterfaceSelect[T any](
 		},
 	)
 	if err != nil {
-		xlog.Error(
-			ctx, "Error executing query", zap.String("message", err.Error()),
-		)
+		xlog.Error(ctx, "Error executing query", zap.Error(err))
 		return nil, err
 	}
 	return entities, nil
@@ -229,9 +225,7 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 		},
 	)
 	if err != nil {
-		xlog.Error(
-			ctx, "Error executing query", zap.String("message", err.Error()),
-		)
+		xlog.Error(ctx, "Error executing query", zap.Error(err))
 		return err
 	}
 	return nil
