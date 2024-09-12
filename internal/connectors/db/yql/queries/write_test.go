@@ -19,7 +19,7 @@ import (
 
 func TestQueryBuilder_UpdateUpdate(t *testing.T) {
 	const (
-		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
+		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
 UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	)
 	opId := types.GenerateObjectID()
@@ -30,8 +30,9 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		Message: "Abcde",
 	}
 	backup := types.Backup{
-		ID:     backupId,
-		Status: "Available",
+		ID:      backupId,
+		Status:  "Available",
+		Message: "Message",
 	}
 	builder := NewWriteTableQuery(context.Background()).
 		WithUpdateBackup(backup).
@@ -40,6 +41,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
+			table.ValueParam("$message_0", table_types.StringValueFromString("Message")),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$status_1", table_types.StringValueFromString("Done")),
 			table.ValueParam("$message_1", table_types.StringValueFromString("Abcde")),
@@ -163,7 +165,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
-		queryString = `UPDATE Backups SET status = $status_0 WHERE id = $id_0;
+		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
 UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $paths_1, $paths_to_exclude_1)`
 	)
 	ctx := context.Background()
@@ -187,8 +189,9 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 		},
 	}
 	backup := types.Backup{
-		ID:     backupId,
-		Status: "Available",
+		ID:      backupId,
+		Status:  "Available",
+		Message: "Success",
 	}
 	builder := NewWriteTableQuery(ctx).
 		WithUpdateBackup(backup).
@@ -197,6 +200,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
+			table.ValueParam("$message_0", table_types.StringValueFromString("Success")),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
 			table.ValueParam(
