@@ -28,7 +28,7 @@ var (
 )
 
 func NewAuthProvider(ctx context.Context, cfg config.AuthConfig) (auth.AuthProvider, error) {
-	xlog.Info(ctx, "Loading auth provider plugin", zap.String("path", cfg.PluginPath))
+	xlog.Info(ctx, "Loading auth provider plugin", zap.String("PluginPath", cfg.PluginPath))
 
 	plug, err := plugin.Open(cfg.PluginPath)
 	if err != nil {
@@ -77,7 +77,7 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 		return "", status.Error(codes.Internal, "authorize error")
 	}
 	if resp[0].Code != auth.AuthCodeSuccess {
-		xlog.Error(ctx, "auth plugin response", zap.String("code", resp[0].Code.String()), zap.String("message", resp[0].Message))
+		xlog.Error(ctx, "auth plugin response", zap.String("AuthCode", resp[0].Code.String()), zap.String("AuthMessage", resp[0].Message))
 		return "", status.Errorf(codes.PermissionDenied, "Code: %s, Message: %s", resp[0].Code.String(), resp[0].Message)
 	}
 	return subject, nil

@@ -241,10 +241,10 @@ func (d *ClientYdbConnector) ExportToS3(
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Exporting data to s3",
-		zap.String("endpoint", s3Settings.Endpoint),
-		zap.String("region", s3Settings.Region),
-		zap.String("bucket", s3Settings.Bucket),
-		zap.String("description", s3Settings.Description),
+		zap.String("S3Endpoint", s3Settings.Endpoint),
+		zap.String("S3Region", s3Settings.Region),
+		zap.String("S3Bucket", s3Settings.Bucket),
+		zap.String("S3Description", s3Settings.Description),
 	)
 
 	response, err := exportClient.ExportToS3(
@@ -356,10 +356,10 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Importing data from s3",
-		zap.String("endpoint", s3Settings.Endpoint),
-		zap.String("region", s3Settings.Region),
-		zap.String("bucket", s3Settings.Bucket),
-		zap.String("description", s3Settings.Description),
+		zap.String("S3Endpoint", s3Settings.Endpoint),
+		zap.String("S3Region", s3Settings.Region),
+		zap.String("S3Bucket", s3Settings.Bucket),
+		zap.String("S3Description", s3Settings.Description),
 	)
 
 	response, err := importClient.ImportFromS3(
@@ -407,7 +407,7 @@ func (d *ClientYdbConnector) GetOperationStatus(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Requesting operation status",
-		zap.String("id", operationId),
+		zap.String("ClientOperationID", operationId),
 	)
 
 	response, err := client.GetOperation(
@@ -434,7 +434,7 @@ func (d *ClientYdbConnector) ForgetOperation(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Forgetting operation",
-		zap.String("id", operationId),
+		zap.String("ClientOperationID", operationId),
 	)
 
 	response, err := client.ForgetOperation(
@@ -461,7 +461,7 @@ func (d *ClientYdbConnector) CancelOperation(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Cancelling operation",
-		zap.String("id", operationId),
+		zap.String("ClientOperationID", operationId),
 	)
 
 	response, err := client.CancelOperation(

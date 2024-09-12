@@ -2,6 +2,7 @@ package s3
 
 import (
 	"fmt"
+
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
@@ -47,9 +48,7 @@ func (m *MockS3Connector) GetSize(pathPrefix string, _ string) (int64, error) {
 
 func (m *MockS3Connector) DeleteObjects(objects []string, _ string) error {
 	for _, object := range objects {
-		if _, ok := m.storage[object]; ok {
-			delete(m.storage, object)
-		}
+		delete(m.storage, object)
 	}
 
 	return nil

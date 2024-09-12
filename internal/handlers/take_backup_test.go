@@ -3,12 +3,13 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
 	"testing"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
 	s3Client "ydbcp/internal/connectors/s3"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/aws/aws-sdk-go/aws"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 

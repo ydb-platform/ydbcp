@@ -2,12 +2,13 @@ package queries
 
 import (
 	"context"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"strings"
 	"testing"
 	"time"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 

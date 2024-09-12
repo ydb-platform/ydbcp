@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -11,6 +10,8 @@ import (
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 

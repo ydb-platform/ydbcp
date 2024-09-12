@@ -3,15 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewDBOperationHandler(
@@ -34,10 +35,9 @@ func DBOperationHandler(
 	queryBuilder queries.WriteTableQuery,
 ) error {
 	xlog.Info(
-		ctx, "received operation",
-		zap.String("id", operation.GetID()),
-		zap.String("type", string(operation.GetType())),
-		zap.String("state", string(operation.GetState())),
+		ctx, "DBOperationHandler",
+		zap.String("OperationType", operation.GetType().String()),
+		zap.String("OperationState", operation.GetState().String()),
 		zap.String("message", operation.GetMessage()),
 	)
 

@@ -35,8 +35,8 @@ func (p *authProviderDummy) Authorize(
 	xlog.Info(
 		ctx,
 		"AuthProviderDummy Authorize",
-		zap.String("token", auth.MaskToken(token)),
-		zap.String("checks", fmt.Sprintf("%v", checks)),
+		zap.String("Token", auth.MaskToken(token)),
+		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
 	)
 	if len(checks) == 0 {
 		xlog.Error(ctx, "AuthProviderDummy AuthorizeCheck list is empty")
@@ -48,8 +48,8 @@ func (p *authProviderDummy) Authorize(
 		results = append(results, auth.AuthorizeResult{Code: auth.AuthCodeSuccess})
 	}
 	xlog.Info(ctx, "AuthProviderDummy Authorize result",
-		zap.String("results", fmt.Sprintf("%v", results)),
-		zap.String("subject", anonymousSubject),
+		zap.String("AuthResults", fmt.Sprintf("%v", results)),
+		zap.String("SubjectID", anonymousSubject),
 	)
 	return results, subject, nil
 }
