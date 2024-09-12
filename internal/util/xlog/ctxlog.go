@@ -23,7 +23,9 @@ func from(ctx context.Context) *zap.Logger {
 		return l
 	}
 	// Fallback, so we don't need to manually init logger in every test.
-	SetInternalLogger(zap.Must(zap.NewDevelopmentConfig().Build()))
+	cfg := zap.NewDevelopmentConfig()
+	cfg.EncoderConfig.MessageKey = "message"
+	SetInternalLogger(zap.Must(cfg.Build()))
 	return from(ctx)
 }
 
