@@ -30,13 +30,7 @@ func RBOperationHandler(
 	client client.ClientConnector,
 	config config.Config,
 ) error {
-	xlog.Info(
-		ctx, "received operation",
-		zap.String("id", operation.GetID()),
-		zap.String("type", string(operation.GetType())),
-		zap.String("state", string(operation.GetState())),
-		zap.String("message", operation.GetMessage()),
-	)
+	xlog.Info(ctx, "RBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
 	if operation.GetType() != types.OperationTypeRB {
 		return fmt.Errorf(

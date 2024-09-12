@@ -9,9 +9,11 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -36,6 +38,8 @@ func TBOperationHandler(
 	config config.Config,
 	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
 ) error {
+	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
+
 	if operation.GetType() != types.OperationTypeTB {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTB)
 	}

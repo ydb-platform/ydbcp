@@ -34,12 +34,7 @@ func DBOperationHandler(
 	config config.Config,
 	queryBuilder queries.WriteTableQuery,
 ) error {
-	xlog.Info(
-		ctx, "DBOperationHandler",
-		zap.String("OperationType", operation.GetType().String()),
-		zap.String("OperationState", operation.GetState().String()),
-		zap.String("message", operation.GetMessage()),
-	)
+	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
 	if operation.GetType() != types.OperationTypeDB {
 		return fmt.Errorf(

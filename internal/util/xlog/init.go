@@ -14,6 +14,7 @@ func SetupLogging(verbose bool) *zap.Logger {
 	}
 	cfg := zap.NewProductionConfig()
 	cfg.Level.SetLevel(level)
+	cfg.EncoderConfig.MessageKey = "message"
 
 	l, err := cfg.Build()
 	if err != nil {
