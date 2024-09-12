@@ -74,6 +74,7 @@ func TBOperationHandler(
 		operation.SetMessage(ydbOpResponse.opMessage)
 		operation.GetAudit().CompletedAt = now
 		backupToWrite.Status = types.BackupStateError
+		backupToWrite.Message = operation.GetMessage()
 		backupToWrite.AuditInfo.CompletedAt = now
 		return db.ExecuteUpsert(
 			ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
@@ -148,6 +149,7 @@ func TBOperationHandler(
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
+			backupToWrite.Message = operation.GetMessage()
 		}
 	case types.OperationStateStartCancelling:
 		{
@@ -156,6 +158,7 @@ func TBOperationHandler(
 				return err
 			}
 			backupToWrite.Status = types.BackupStateError
+			backupToWrite.Message = operation.GetMessage()
 			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
 			return db.ExecuteUpsert(
 				ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
@@ -170,6 +173,7 @@ func TBOperationHandler(
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
 					operation.GetAudit().CompletedAt = now
+					backupToWrite.Message = operation.GetMessage()
 					return db.ExecuteUpsert(
 						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
@@ -196,6 +200,7 @@ func TBOperationHandler(
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
+			backupToWrite.Message = operation.GetMessage()
 		}
 	default:
 		return fmt.Errorf("unexpected operation state %s", tb.State)

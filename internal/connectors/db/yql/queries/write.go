@@ -210,6 +210,7 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 	}
 	d.AddUpdateId(table_types.StringValueFromString(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
+	d.AddValueParam("$message", table_types.StringValueFromString(backup.Message))
 	if backup.Size != 0 {
 		d.AddValueParam("$size", table_types.Int64Value(backup.Size))
 
