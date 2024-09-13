@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"path"
-	"ydbcp/internal/types"
 
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
+	"ydbcp/internal/types"
 
 	"github.com/google/uuid"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 )

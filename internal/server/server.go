@@ -6,13 +6,13 @@ import (
 	"net"
 	"sync"
 
+	"ydbcp/internal/config"
+	"ydbcp/internal/util/xlog"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/reflection"
-
-	"ydbcp/internal/config"
-	"ydbcp/internal/util/xlog"
 )
 
 type Server interface {

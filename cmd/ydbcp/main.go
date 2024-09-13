@@ -8,25 +8,25 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-	"ydbcp/internal/connectors/s3"
-	"ydbcp/internal/server/services/backup_schedule"
-
-	"go.uber.org/automaxprocs/maxprocs"
-	"go.uber.org/zap"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/processor"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/services/backup"
+	"ydbcp/internal/server/services/backup_schedule"
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
+
+	"go.uber.org/automaxprocs/maxprocs"
+	"go.uber.org/zap"
 )
 
 func main() {
@@ -136,7 +136,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeDB,
-		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery(ctx)),
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
 	); err != nil {
 		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
 		os.Exit(1)

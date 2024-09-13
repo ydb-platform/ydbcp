@@ -3,16 +3,16 @@ package handlers
 import (
 	"context"
 	"fmt"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewRBOperationHandler(

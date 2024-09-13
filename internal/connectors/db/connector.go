@@ -4,21 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
-
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-
-	"ydbcp/internal/util/xlog"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -35,8 +34,6 @@ var (
 		table.CommitTx(),
 	)
 )
-
-var ErrUnimplemented = errors.New("unimplemented")
 
 type DBConnector interface {
 	GetTableClient() table.Client
@@ -319,14 +316,14 @@ func (d *YdbConnector) UpdateOperation(
 		operation.SetUpdatedAt(timestamppb.Now())
 	}
 
-	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithUpdateOperation(operation))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(operation))
 }
 
 func (d *YdbConnector) CreateOperation(
 	ctx context.Context, operation types.Operation,
 ) (string, error) {
 	operation.SetID(types.GenerateObjectID())
-	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithCreateOperation(operation))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateOperation(operation))
 	if err != nil {
 		return "", err
 	}
@@ -338,7 +335,7 @@ func (d *YdbConnector) CreateBackup(
 ) (string, error) {
 	id := types.GenerateObjectID()
 	backup.ID = id
-	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithCreateBackup(backup))
+	err := d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackup(backup))
 	if err != nil {
 		return "", err
 	}
@@ -352,5 +349,5 @@ func (d *YdbConnector) UpdateBackup(
 		ID:     id,
 		Status: backupStatus,
 	}
-	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithUpdateBackup(backup))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackup(backup))
 }

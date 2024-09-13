@@ -3,14 +3,15 @@ package types
 import (
 	"context"
 	"fmt"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"strings"
+
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type OperationType string

@@ -3,6 +3,7 @@ package backup_schedule
 import (
 	"context"
 	"time"
+
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -62,7 +63,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		NextLaunch:       &now,
 	}
 
-	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithCreateBackupSchedule(schedule))
+	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackupSchedule(schedule))
 	if err != nil {
 		xlog.Error(
 			ctx, "can't create backup schedule", zap.String("backup schedule", schedule.Proto().String()),

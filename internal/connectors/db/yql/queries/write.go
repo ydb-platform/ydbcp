@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"strings"
+
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -24,7 +26,6 @@ type WriteTableQuery interface {
 }
 
 type WriteTableQueryImpl struct {
-	ctx          context.Context
 	tableQueries []WriteSingleTableQueryImpl
 }
 
@@ -35,6 +36,9 @@ type WriteSingleTableQueryImpl struct {
 	tableQueryParams []table.ParameterOption
 	updateParam      *table.ParameterOption
 }
+
+type WriteTableQueryImplOption func(*WriteTableQueryImpl)
+type WriteQueryBulderFactory func() WriteTableQuery
 
 func (d *WriteSingleTableQueryImpl) AddValueParam(name string, value table_types.Value) {
 	d.upsertFields = append(d.upsertFields, name[1:])
@@ -55,7 +59,7 @@ func (d *WriteSingleTableQueryImpl) GetParamNames() []string {
 	return res
 }
 
-func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, index int) WriteSingleTableQueryImpl {
+func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingleTableQueryImpl {
 	d := WriteSingleTableQueryImpl{
 		index:     index,
 		tableName: "Operations",
@@ -90,8 +94,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 	if operation.GetType() == types.OperationTypeTB {
 		tb, ok := operation.(*types.TakeBackupOperation)
 		if !ok {
-			xlog.Error(ctx, "error cast operation to TakeBackupOperation", zap.String("operation_id", operation.GetID()))
-			return d
+			log.Fatalf("error cast operation to TakeBackupOperation operation_id %s", operation.GetID())
 		}
 
 		d.AddValueParam(
@@ -125,8 +128,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 	} else if operation.GetType() == types.OperationTypeRB {
 		rb, ok := operation.(*types.RestoreBackupOperation)
 		if !ok {
-			xlog.Error(ctx, "error cast operation to RestoreBackupOperation", zap.String("operation_id", operation.GetID()))
-			return d
+			log.Fatalf("error cast operation to RestoreBackupOperation operation_id %s", operation.GetID())
 		}
 
 		d.AddValueParam(
@@ -155,8 +157,7 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 	} else if operation.GetType() == types.OperationTypeDB {
 		db, ok := operation.(*types.DeleteBackupOperation)
 		if !ok {
-			xlog.Error(ctx, "error cast operation to DeleteBackupOperation", zap.String("operation_id", operation.GetID()))
-			return d
+			log.Fatalf("error cast operation to DeleteBackupOperation operation_id %s", operation.GetID())
 		}
 
 		d.AddValueParam(
@@ -181,7 +182,11 @@ func BuildCreateOperationQuery(ctx context.Context, operation types.Operation, i
 		d.AddValueParam("$paths", table_types.StringValueFromString(db.PathPrefix))
 
 	} else {
-		xlog.Error(ctx, "unknown operation type write to db", zap.String("operation_type", string(operation.GetType())))
+		log.Fatalf(
+			"unknown operation type write to db operation_id %s, operation_type %s",
+			operation.GetID(),
+			operation.GetType().String(),
+		)
 	}
 
 	return d
@@ -357,12 +362,8 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	return d
 }
 
-type WriteTableQueryImplOption func(*WriteTableQueryImpl)
-
-type WriteTableQueryMockOption func(*WriteTableQueryMock)
-
-func NewWriteTableQuery(ctx context.Context) WriteTableQuery {
-	return &WriteTableQueryImpl{ctx: ctx}
+func NewWriteTableQuery() WriteTableQuery {
+	return &WriteTableQueryImpl{}
 }
 
 func (d *WriteTableQueryImpl) WithCreateBackup(backup types.Backup) WriteTableQuery {
@@ -385,7 +386,7 @@ func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) Wri
 
 func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
 	index := len(d.tableQueries)
-	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(d.ctx, operation, index))
+	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
 	return d
 }
 
