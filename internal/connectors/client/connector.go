@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
@@ -15,10 +16,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
-
-	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
-	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
-
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Export_V1"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Import_V1"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Operation_V1"
@@ -28,6 +25,8 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
+	"github.com/ydb-platform/ydb-go-sdk/v3/retry"
+	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
 )

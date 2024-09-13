@@ -3,17 +3,17 @@ package handlers
 import (
 	"context"
 	"testing"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestRBOperationHandlerInvalidOperationResponse(t *testing.T) {

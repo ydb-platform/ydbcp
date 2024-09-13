@@ -4,23 +4,21 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
 	"ydbcp/internal/config"
+	"ydbcp/internal/connectors/client"
+	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	s3Client "ydbcp/internal/connectors/s3"
+	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
-
-	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/types"
-
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {

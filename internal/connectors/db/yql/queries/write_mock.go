@@ -2,6 +2,7 @@ package queries
 
 import (
 	"context"
+
 	"ydbcp/internal/types"
 )
 
@@ -11,7 +12,9 @@ type WriteTableQueryMock struct {
 	BackupSchedule types.BackupSchedule
 }
 
-func NewWriteTableQueryMock(_ context.Context) WriteTableQuery {
+type WriteTableQueryMockOption func(*WriteTableQueryMock)
+
+func NewWriteTableQueryMock() WriteTableQuery {
 	return &WriteTableQueryMock{}
 }
 

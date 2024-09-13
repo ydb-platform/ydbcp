@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -12,20 +13,18 @@ import (
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-
 	"google.golang.org/protobuf/types/known/timestamppb"
-
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 )
 
 func NewTBOperationHandler(
 	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
-	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
+	queryBulderFactory queries.WriteQueryBulderFactory,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client, s3, config, getQueryBuilder)
+		return TBOperationHandler(ctx, op, db, client, s3, config, queryBulderFactory)
 	}
 }
 
@@ -36,7 +35,7 @@ func TBOperationHandler(
 	client client.ClientConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	getQueryBuilder func(ctx context.Context) queries.WriteTableQuery,
+	queryBulderFactory queries.WriteQueryBulderFactory,
 ) error {
 	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -77,7 +76,7 @@ func TBOperationHandler(
 		backupToWrite.Message = operation.GetMessage()
 		backupToWrite.AuditInfo.CompletedAt = now
 		return db.ExecuteUpsert(
-			ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
 	if ydbOpResponse.opResponse == nil {
@@ -159,7 +158,7 @@ func TBOperationHandler(
 			backupToWrite.Message = operation.GetMessage()
 			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
 			return db.ExecuteUpsert(
-				ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+				ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 			)
 		}
 	case types.OperationStateCancelling:
@@ -173,7 +172,7 @@ func TBOperationHandler(
 					operation.GetAudit().CompletedAt = now
 					backupToWrite.Message = operation.GetMessage()
 					return db.ExecuteUpsert(
-						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+						ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
 				}
 
@@ -224,6 +223,6 @@ func TBOperationHandler(
 	backupToWrite.AuditInfo.CompletedAt = now
 	operation.GetAudit().CompletedAt = now
 	return db.ExecuteUpsert(
-		ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 	)
 }

@@ -4,17 +4,17 @@ import (
 	"context"
 	"fmt"
 	"time"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func deadlineExceeded(createdAt *timestamppb.Timestamp, config config.Config) bool {

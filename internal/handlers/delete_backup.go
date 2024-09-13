@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -19,10 +20,10 @@ func NewDBOperationHandler(
 	db db.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilder queries.WriteTableQuery,
+	queryBulderFactory queries.WriteQueryBulderFactory,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return DBOperationHandler(ctx, op, db, s3, config, queryBuilder)
+		return DBOperationHandler(ctx, op, db, s3, config, queryBulderFactory)
 	}
 }
 
@@ -32,7 +33,7 @@ func DBOperationHandler(
 	db db.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilder queries.WriteTableQuery,
+	queryBulderFactory queries.WriteQueryBulderFactory,
 ) error {
 	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -59,7 +60,7 @@ func DBOperationHandler(
 		operation.SetMessage("Operation deadline exceeded")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return db.ExecuteUpsert(
-			ctx, queryBuilder.WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
 
@@ -110,7 +111,7 @@ func DBOperationHandler(
 			backupToWrite.Status = types.BackupStateDeleting
 			operation.SetState(types.OperationStateRunning)
 			err := db.ExecuteUpsert(
-				ctx, queryBuilder.WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+				ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 			)
 			if err != nil {
 				return fmt.Errorf("can't update operation: %v", err)
@@ -133,6 +134,6 @@ func DBOperationHandler(
 	}
 
 	return db.ExecuteUpsert(
-		ctx, queryBuilder.WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 	)
 }

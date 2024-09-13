@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"testing"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -50,7 +51,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 0,
-		}, queries.NewWriteTableQueryMock(ctx),
+		}, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -120,7 +121,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
-		}, queries.NewWriteTableQueryMock(ctx),
+		}, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -195,7 +196,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
-		}, queries.NewWriteTableQueryMock(ctx),
+		}, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &dbOp)

@@ -5,16 +5,15 @@ import (
 	"strings"
 	"testing"
 	"time"
+
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
-
-	"google.golang.org/protobuf/types/known/durationpb"
-
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestQueryBuilder_UpdateUpdate(t *testing.T) {
@@ -34,7 +33,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		Status:  "Available",
 		Message: "Message",
 	}
-	builder := NewWriteTableQuery(context.Background()).
+	builder := NewWriteTableQuery().
 		WithUpdateBackup(backup).
 		WithUpdateOperation(&op)
 	var (
@@ -97,7 +96,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			CreatedAt: timestamppb.Now(),
 		},
 	}
-	builder := NewWriteTableQuery(context.Background()).
+	builder := NewWriteTableQuery().
 		WithCreateBackup(backup).
 		WithCreateOperation(&tbOp)
 	var (
@@ -168,7 +167,6 @@ func TestQueryBuilder_UpdateCreate(t *testing.T) {
 		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
 UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $paths_1, $paths_to_exclude_1)`
 	)
-	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
@@ -193,7 +191,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 		Status:  "Available",
 		Message: "Success",
 	}
-	builder := NewWriteTableQuery(ctx).
+	builder := NewWriteTableQuery().
 		WithUpdateBackup(backup).
 		WithCreateOperation(&tbOp)
 	var (
@@ -260,7 +258,6 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 	const (
 		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, name, active, crontab, ttl, paths, initiated, created_at, recovery_point_objective, last_backup_id, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $name_0, $active_0, $crontab_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $last_backup_id_0, $next_launch_0)`
 	)
-	ctx := context.Background()
 	scID := types.GenerateObjectID()
 	bID := types.GenerateObjectID()
 	now := time.Now()
@@ -284,7 +281,7 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 		LastSuccessfulBackupID: nil,
 		RecoveryPoint:          nil,
 	}
-	builder := NewWriteTableQuery(ctx).WithCreateBackupSchedule(schedule)
+	builder := NewWriteTableQuery().WithCreateBackupSchedule(schedule)
 	var (
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(scID)),
