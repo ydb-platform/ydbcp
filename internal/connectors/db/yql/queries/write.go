@@ -128,7 +128,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 	} else if operation.GetType() == types.OperationTypeRB {
 		rb, ok := operation.(*types.RestoreBackupOperation)
 		if !ok {
-			log.Fatalf("error cast operation to TakeBackupOperation operation_id %s", operation.GetID())
+			log.Fatalf("error cast operation to RestoreBackupOperation operation_id %s", operation.GetID())
 		}
 
 		d.AddValueParam(
@@ -157,7 +157,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 	} else if operation.GetType() == types.OperationTypeDB {
 		db, ok := operation.(*types.DeleteBackupOperation)
 		if !ok {
-			log.Fatalf("error cast operation to TakeBackupOperation operation_id %s", operation.GetID())
+			log.Fatalf("error cast operation to DeleteBackupOperation operation_id %s", operation.GetID())
 		}
 
 		d.AddValueParam(
