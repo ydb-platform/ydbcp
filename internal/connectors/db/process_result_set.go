@@ -133,6 +133,8 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		creator              *string
 		createdAt            *time.Time
 		completedAt          *time.Time
+		updatedAt            *time.Time
+		updatedTs            *timestamppb.Timestamp
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
@@ -151,6 +153,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
 		named.Optional("initiated", &creator),
+		named.Optional("updated_at", &updatedAt),
 	)
 	if err != nil {
 		return nil, err
@@ -167,6 +170,11 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	if sourcePathsToExclude != nil {
 		sourcePathsToExcludeSlice = strings.Split(*sourcePathsToExclude, ",")
 	}
+
+	if updatedAt != nil {
+		updatedTs = timestamppb.New(*updatedAt)
+	}
+
 	if operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
 			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
@@ -185,6 +193,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			SourcePathsToExclude: sourcePathsToExcludeSlice,
 			YdbOperationId:       StringOrEmpty(ydbOperationId),
 			Audit:                auditFromDb(creator, createdAt, completedAt),
+			UpdatedAt:            updatedTs,
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
@@ -203,6 +212,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			YdbOperationId: StringOrEmpty(ydbOperationId),
 			SourcePaths:    sourcePathsSlice,
 			Audit:          auditFromDb(creator, createdAt, completedAt),
+			UpdatedAt:      updatedTs,
 		}, nil
 	} else if operationType == string(types.OperationTypeDB) {
 		if backupId == nil {
@@ -226,6 +236,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			Message:    StringOrEmpty(message),
 			Audit:      auditFromDb(creator, createdAt, completedAt),
 			PathPrefix: pathPrefix,
+			UpdatedAt:  updatedTs,
 		}, nil
 	}
 

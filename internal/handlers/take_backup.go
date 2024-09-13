@@ -122,10 +122,8 @@ func TBOperationHandler(
 				if deadlineExceeded(tb.Audit.CreatedAt, config) {
 					operation.SetState(types.OperationStateStartCancelling)
 					operation.SetMessage("Operation deadline exceeded")
-					return db.UpdateOperation(ctx, operation)
-				} else {
-					return nil
 				}
+				return db.UpdateOperation(ctx, operation)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				size, err := getBackupSize(tb.BackupID)
 				if err != nil {
@@ -177,9 +175,9 @@ func TBOperationHandler(
 					return db.ExecuteUpsert(
 						ctx, getQueryBuilder(ctx).WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
-				} else {
-					return nil
 				}
+
+				return db.UpdateOperation(ctx, operation)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				size, err := getBackupSize(tb.BackupID)

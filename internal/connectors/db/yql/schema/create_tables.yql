@@ -44,6 +44,7 @@ CREATE TABLE Operations (
     initiated String,
     created_at Timestamp,
     completed_at Timestamp,
+    updated_at Timestamp,
 
     status String,
     message String,

@@ -3,6 +3,7 @@ package types
 import (
 	"context"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"strings"
 	"ydbcp/internal/util/xlog"
@@ -26,6 +27,8 @@ type Operation interface {
 	GetMessage() string
 	SetMessage(m string)
 	GetAudit() *pb.AuditInfo
+	GetUpdatedAt() *timestamppb.Timestamp
+	SetUpdatedAt(t *timestamppb.Timestamp)
 	Copy() Operation
 	Proto() *pb.Operation
 }
@@ -41,6 +44,7 @@ type TakeBackupOperation struct {
 	SourcePaths          []string
 	SourcePathsToExclude []string
 	Audit                *pb.AuditInfo
+	UpdatedAt            *timestamppb.Timestamp
 }
 
 func (o *TakeBackupOperation) GetID() string {
@@ -72,6 +76,12 @@ func (o *TakeBackupOperation) SetMessage(m string) {
 func (o *TakeBackupOperation) GetAudit() *pb.AuditInfo {
 	return o.Audit
 }
+func (o *TakeBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
+	return o.UpdatedAt
+}
+func (o *TakeBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
+	o.UpdatedAt = t
+}
 func (o *TakeBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -92,6 +102,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		Audit:                o.Audit,
 		Status:               o.State.Enum(),
 		Message:              o.Message,
+		UpdatedAt:            o.UpdatedAt,
 	}
 }
 
@@ -109,6 +120,7 @@ type RestoreBackupOperation struct {
 	SourcePaths       []string
 	DestinationPrefix string
 	Audit             *pb.AuditInfo
+	UpdatedAt         *timestamppb.Timestamp
 }
 
 func (o *RestoreBackupOperation) GetID() string {
@@ -140,6 +152,12 @@ func (o *RestoreBackupOperation) SetMessage(m string) {
 func (o *RestoreBackupOperation) GetAudit() *pb.AuditInfo {
 	return o.Audit
 }
+func (o *RestoreBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
+	return o.UpdatedAt
+}
+func (o *RestoreBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
+	o.UpdatedAt = t
+}
 func (o *RestoreBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -160,6 +178,7 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		Audit:                o.Audit,
 		Status:               o.State.Enum(),
 		Message:              o.Message,
+		UpdatedAt:            o.UpdatedAt,
 	}
 }
 
@@ -172,6 +191,7 @@ type DeleteBackupOperation struct {
 	Message             string
 	PathPrefix          string
 	Audit               *pb.AuditInfo
+	UpdatedAt           *timestamppb.Timestamp
 }
 
 func (o *DeleteBackupOperation) GetID() string {
@@ -203,6 +223,12 @@ func (o *DeleteBackupOperation) SetMessage(m string) {
 func (o *DeleteBackupOperation) GetAudit() *pb.AuditInfo {
 	return o.Audit
 }
+func (o *DeleteBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
+	return o.UpdatedAt
+}
+func (o *DeleteBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
+	o.UpdatedAt = t
+}
 func (o *DeleteBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -223,6 +249,7 @@ func (o *DeleteBackupOperation) Proto() *pb.Operation {
 		Audit:                o.Audit,
 		Status:               o.State.Enum(),
 		Message:              o.Message,
+		UpdatedAt:            o.UpdatedAt,
 	}
 }
 
@@ -232,6 +259,7 @@ type GenericOperation struct {
 	Type        OperationType
 	State       OperationState
 	Message     string
+	UpdatedAt   *timestamppb.Timestamp
 }
 
 func (o *GenericOperation) GetID() string {
@@ -263,6 +291,12 @@ func (o *GenericOperation) SetMessage(m string) {
 }
 func (o *GenericOperation) GetAudit() *pb.AuditInfo {
 	return nil
+}
+func (o *GenericOperation) GetUpdatedAt() *timestamppb.Timestamp {
+	return nil
+}
+func (o *GenericOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
+	o.UpdatedAt = t
 }
 func (o *GenericOperation) Copy() Operation {
 	copy := *o

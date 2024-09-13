@@ -247,6 +247,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 			Creator:   subject,
 		},
 		YdbOperationId: clientOperationID,
+		UpdatedAt:      now,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
@@ -309,6 +310,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		return nil, status.Errorf(codes.FailedPrecondition, "backup can't be deleted, status %s", backup.Status)
 	}
 
+	now := timestamppb.Now()
 	op := &types.DeleteBackupOperation{
 		ContainerID: backup.ContainerID,
 		BackupID:    req.GetBackupId(),
@@ -318,10 +320,11 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 			Endpoint:     backup.DatabaseEndpoint,
 		},
 		Audit: &pb.AuditInfo{
-			CreatedAt: timestamppb.Now(),
+			CreatedAt: now,
 			Creator:   subject,
 		},
 		PathPrefix: backup.S3PathPrefix,
+		UpdatedAt:  now,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
@@ -453,6 +456,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	ctx = xlog.With(ctx, zap.String("ClientOperationID", clientOperationID))
 	xlog.Debug(ctx, "import operation started")
 
+	now := timestamppb.Now()
 	op := &types.RestoreBackupOperation{
 		ContainerID: backup.ContainerID,
 		BackupId:    backupID,
@@ -463,11 +467,12 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		},
 		YdbOperationId: clientOperationID,
 		Audit: &pb.AuditInfo{
-			CreatedAt: timestamppb.Now(),
+			CreatedAt: now,
 			Creator:   subject,
 		},
 		SourcePaths:       req.GetSourcePaths(),
 		DestinationPrefix: req.GetDestinationPrefix(),
+		UpdatedAt:         now,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)

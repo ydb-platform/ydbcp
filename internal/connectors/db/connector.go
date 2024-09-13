@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -312,6 +313,12 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 func (d *YdbConnector) UpdateOperation(
 	ctx context.Context, operation types.Operation,
 ) error {
+	if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
+		operation.SetUpdatedAt(operation.GetAudit().CompletedAt)
+	} else {
+		operation.SetUpdatedAt(timestamppb.Now())
+	}
+
 	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery(ctx).WithUpdateOperation(operation))
 }
 
