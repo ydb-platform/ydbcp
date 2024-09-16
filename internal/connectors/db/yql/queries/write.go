@@ -205,7 +205,7 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 		"$message",
 		table_types.StringValueFromString(operation.GetMessage()),
 	)
-	if operation.GetAudit() != nil {
+	if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
 		d.AddValueParam(
 			"$completed_at",
 			table_types.TimestampValueFromTime(operation.GetAudit().GetCompletedAt().AsTime()),
@@ -265,6 +265,10 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 		if b.AuditInfo.CompletedAt != nil {
 			d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(b.AuditInfo.CompletedAt.AsTime()))
 		}
+	}
+
+	if b.ExpireAt != nil {
+		d.AddValueParam("$expire_at", table_types.TimestampValueFromTime(*b.ExpireAt))
 	}
 	return d
 }

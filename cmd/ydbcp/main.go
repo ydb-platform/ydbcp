@@ -22,6 +22,7 @@ import (
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	"ydbcp/internal/watchers/ttl_watcher"
 	ap "ydbcp/pkg/plugins/auth"
 
 	"go.uber.org/automaxprocs/maxprocs"
@@ -144,6 +145,7 @@ func main() {
 	}
 
 	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
+	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 
 	wg.Add(1)
 	go func() {

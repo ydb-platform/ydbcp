@@ -78,6 +78,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		creator     *string
 		completedAt *time.Time
 		createdAt   *time.Time
+		expireAt    *time.Time
 	)
 
 	err := res.ScanNamed(
@@ -93,6 +94,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		named.Optional("message", &message),
 		named.Optional("size", &size),
 		named.Optional("schedule_id", &scheduleId),
+		named.Optional("expire_at", &expireAt),
 
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
@@ -116,6 +118,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
 		Size:             Int64OrZero(size),
 		ScheduleID:       scheduleId,
+		ExpireAt:         expireAt,
 	}, nil
 }
 
