@@ -36,6 +36,7 @@ type Backup struct {
 	Message          string
 	AuditInfo        *pb.AuditInfo
 	Size             int64
+	ScheduleID       *string
 }
 
 func (o *Backup) String() string {

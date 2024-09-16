@@ -6,8 +6,8 @@ toolchain go1.22.1
 
 require (
 	github.com/aws/aws-sdk-go v1.55.5
-	github.com/golang/protobuf v1.5.4
 	github.com/google/uuid v1.6.0
+	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/stretchr/testify v1.8.1
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240821162910-6cb364b2ccc8

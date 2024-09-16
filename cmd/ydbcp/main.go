@@ -8,7 +8,6 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
-
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -120,7 +119,9 @@ func main() {
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
-		handlers.NewTBOperationHandler(dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
+		handlers.NewTBOperationHandler(
+			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery,
+		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
 		os.Exit(1)

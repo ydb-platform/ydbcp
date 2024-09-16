@@ -22,6 +22,7 @@ type S3Config struct {
 	AccessKeyIDPath     string `yaml:"access_key_id_path"`
 	SecretAccessKeyPath string `yaml:"secret_access_key_path"`
 	S3ForcePathStyle    bool   `yaml:"s3_force_path_style"`
+	IsMock              bool
 }
 
 type YDBConnectionConfig struct {
@@ -112,10 +113,16 @@ func readSecret(filename string) (string, error) {
 }
 
 func (c *S3Config) AccessKey() (string, error) {
+	if c.IsMock {
+		return "", nil
+	}
 	return readSecret(c.AccessKeyIDPath)
 }
 
 func (c *S3Config) SecretKey() (string, error) {
+	if c.IsMock {
+		return "", nil
+	}
 	return readSecret(c.SecretAccessKeyPath)
 
 }

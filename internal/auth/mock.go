@@ -74,6 +74,9 @@ type Option func(*MockAuthProvider)
 
 func WithToken(token string, subject string, authCode auth.AuthCode) Option {
 	return func(p *MockAuthProvider) {
+		if p.tokens == nil {
+			p.tokens = make(map[string]*MockTokenInfo)
+		}
 		p.tokens[token] = &MockTokenInfo{
 			subject:  MockSubjectID(subject),
 			authCode: authCode,
@@ -83,12 +86,18 @@ func WithToken(token string, subject string, authCode auth.AuthCode) Option {
 
 func WithContainer(id MockContainerID, container *MockContainer) Option {
 	return func(p *MockAuthProvider) {
+		if p.containers == nil {
+			p.containers = make(map[MockContainerID]*MockContainer)
+		}
 		p.containers[id] = container
 	}
 }
 
 func WithResource(id MockResourceID, res *MockResource) Option {
 	return func(p *MockAuthProvider) {
+		if p.resources == nil {
+			p.resources = make(map[MockResourceID]*MockResource)
+		}
 		p.resources[id] = res
 	}
 }
@@ -178,7 +187,8 @@ func (p *MockAuthProvider) Authorize(
 	for _, c := range checks {
 		results = append(results, p.checkSubjectPermission(subject, c))
 	}
-	xlog.Info(ctx, "MockAuthProvider Authorize result",
+	xlog.Info(
+		ctx, "MockAuthProvider Authorize result",
 		zap.String("AuthResults", fmt.Sprintf("%v", results)),
 		zap.String("SubjectID", anonymousSubject),
 	)
