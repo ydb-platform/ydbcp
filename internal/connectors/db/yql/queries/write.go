@@ -254,6 +254,9 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$status", table_types.StringValueFromString(b.Status))
 	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
 	d.AddValueParam("$size", table_types.Int64Value(b.Size))
+	if b.ScheduleID != nil {
+		d.AddValueParam("$schedule_id", table_types.StringValueFromString(*b.ScheduleID))
+	}
 	if b.AuditInfo != nil {
 		d.AddValueParam("$initiated", table_types.StringValueFromString(b.AuditInfo.Creator))
 		if b.AuditInfo.CreatedAt != nil {

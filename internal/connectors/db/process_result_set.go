@@ -73,6 +73,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		status           *string
 		message          *string
 		size             *int64
+		scheduleId       *string
 
 		creator     *string
 		completedAt *time.Time
@@ -91,6 +92,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		named.Optional("status", &status),
 		named.Optional("message", &message),
 		named.Optional("size", &size),
+		named.Optional("schedule_id", &scheduleId),
 
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
@@ -113,6 +115,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		Message:          StringOrEmpty(message),
 		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
 		Size:             Int64OrZero(size),
+		ScheduleID:       scheduleId,
 	}, nil
 }
 

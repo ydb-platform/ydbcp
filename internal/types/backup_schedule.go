@@ -1,7 +1,9 @@
 package types
 
 import (
+	"context"
 	"fmt"
+	"github.com/gorhill/cronexpr"
 	"time"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -69,3 +71,15 @@ func (b *BackupSchedule) String() string {
 		b.DatabaseName,
 	)
 }
+
+func (b *BackupSchedule) UpdateNextLaunch(now time.Time) error {
+	expr, err := cronexpr.Parse(b.ScheduleSettings.SchedulePattern.Crontab)
+	if err != nil {
+		return fmt.Errorf("failed to parse crontab: %v", err)
+	}
+	nextTime := expr.Next(now)
+	b.NextLaunch = &nextTime
+	return nil
+}
+
+type BackupScheduleHandler func(context.Context, BackupSchedule) error

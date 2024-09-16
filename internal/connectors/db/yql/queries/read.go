@@ -20,7 +20,7 @@ var (
 		"initiated", "created_at", "completed_at",
 		"s3_endpoint", "s3_region", "s3_bucket",
 		"s3_path_prefix", "status", "paths", "message",
-		"size",
+		"size", "schedule_id",
 	}
 	AllOperationFields = []string{
 		"id", "type", "container_id", "database", "endpoint", "backup_id",

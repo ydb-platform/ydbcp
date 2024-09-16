@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"sync"
 
@@ -23,8 +22,9 @@ type Option func(*MockDBConnector)
 
 func NewMockDBConnector(options ...Option) *MockDBConnector {
 	connector := &MockDBConnector{
-		operations: make(map[string]types.Operation),
-		backups:    make(map[string]types.Backup),
+		operations:      make(map[string]types.Operation),
+		backups:         make(map[string]types.Backup),
+		backupSchedules: make(map[string]types.BackupSchedule),
 	}
 	for _, opt := range options {
 		opt(connector)
@@ -198,7 +198,11 @@ func (c *MockDBConnector) GetBackup(
 func (c *MockDBConnector) SelectOperations(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]types.Operation, error) {
-	return nil, errors.New("do not call this method")
+	res := make([]types.Operation, 0, len(c.operations))
+	for _, v := range c.operations {
+		res = append(res, v.Copy())
+	}
+	return res, nil
 }
 
 func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.WriteTableQuery) error {
@@ -208,5 +212,6 @@ func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.
 	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
 	c.operations[queryBuilderMock.Operation.GetID()] = queryBuilderMock.Operation
 	c.backups[queryBuilderMock.Backup.ID] = queryBuilderMock.Backup
+	c.backupSchedules[queryBuilderMock.BackupSchedule.ID] = queryBuilderMock.BackupSchedule
 	return nil
 }
