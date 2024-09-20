@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -56,4 +57,15 @@ func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 		NextLaunch:               nextLaunchTs,
 		LastSuccessfulBackupInfo: backupInfo,
 	}
+}
+
+func (b *BackupSchedule) String() string {
+	return fmt.Sprintf(
+		"ID: %s, Name: %s, ContainerID: %s, DatabaseEndpoint: %s, DatabaseName: %s",
+		b.ID,
+		b.Name,
+		b.ContainerID,
+		b.DatabaseEndpoint,
+		b.DatabaseName,
+	)
 }
