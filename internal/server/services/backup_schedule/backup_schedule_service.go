@@ -114,7 +114,7 @@ func (s *BackupScheduleService) GetBackupSchedule(
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
 	if len(schedules) == 0 {
-		xlog.Error(ctx, "backup not found")
+		xlog.Error(ctx, "backup schedule not found")
 		return nil, status.Error(codes.NotFound, "backup schedule not found") // TODO: Permission denied?
 	}
 
