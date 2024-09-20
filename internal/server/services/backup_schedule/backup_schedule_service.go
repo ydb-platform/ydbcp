@@ -86,13 +86,49 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 }
 
 func (s *BackupScheduleService) GetBackupSchedule(
-	ctx context.Context, in *pb.GetBackupScheduleRequest,
+	ctx context.Context, request *pb.GetBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	ctx = xlog.With(ctx, zap.String("BackupScheduleID", in.GetId()))
-	xlog.Error(ctx, "GetBackupSchedule not implemented")
-	//TODO implement me
-	return nil, status.Error(codes.Internal, "not implemented")
+
+	scheduleID := request.GetId()
+	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
+
+	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("request", request))
+
+	schedules, err := s.driver.SelectBackupSchedules(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("BackupSchedules"),
+			queries.WithSelectFields(queries.AllBackupScheduleFields...),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field: "id",
+					Values: []table_types.Value{
+						table_types.StringValueFromString(scheduleID),
+					},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		return nil, status.Error(codes.Internal, "error getting backup schedule")
+	}
+	if len(schedules) == 0 {
+		xlog.Error(ctx, "backup not found")
+		return nil, status.Error(codes.NotFound, "backup schedule not found") // TODO: Permission denied?
+	}
+
+	schedule := schedules[0]
+	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	// TODO: Need to check access to backup schedule not by container id?
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
+	if err != nil {
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+
+	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("schedule", schedule))
+	return schedule.Proto(), nil
 }
 
 func (s *BackupScheduleService) ListBackupSchedules(
