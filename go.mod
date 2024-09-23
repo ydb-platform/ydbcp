@@ -10,6 +10,7 @@ require (
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/stretchr/testify v1.8.1
+	github.com/undefinedlabs/go-mpatch v1.0.7
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240821162910-6cb364b2ccc8
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.75.2
 	go.uber.org/automaxprocs v1.5.3

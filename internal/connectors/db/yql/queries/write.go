@@ -306,20 +306,11 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 			d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(schedule.Audit.CompletedAt.AsTime()))
 		}
 	}
-	d.AddValueParam(
-		"$recovery_point_objective",
-		table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
-	)
-	if schedule.LastBackupID != nil {
-		d.AddValueParam("$last_backup_id", table_types.StringValueFromString(*schedule.LastBackupID))
-	}
-	if schedule.LastSuccessfulBackupID != nil {
+	if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 		d.AddValueParam(
-			"$last_successful_backup_id", table_types.StringValueFromString(*schedule.LastSuccessfulBackupID),
+			"$recovery_point_objective",
+			table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
 		)
-	}
-	if schedule.RecoveryPoint != nil {
-		d.AddValueParam("$recovery_point", table_types.TimestampValueFromTime(*schedule.RecoveryPoint))
 	}
 	if schedule.NextLaunch != nil {
 		d.AddValueParam("$next_launch", table_types.TimestampValueFromTime(*schedule.NextLaunch))
@@ -344,21 +335,13 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 	d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
 
-	d.AddValueParam(
-		"$recovery_point_objective",
-		table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
-	)
-	if schedule.LastBackupID != nil {
-		d.AddValueParam("$last_backup_id", table_types.StringValueFromString(*schedule.LastBackupID))
-	}
-	if schedule.LastSuccessfulBackupID != nil {
+	if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 		d.AddValueParam(
-			"$last_successful_backup_id", table_types.StringValueFromString(*schedule.LastSuccessfulBackupID),
+			"$recovery_point_objective",
+			table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
 		)
 	}
-	if schedule.RecoveryPoint != nil {
-		d.AddValueParam("$recovery_point", table_types.TimestampValueFromTime(*schedule.RecoveryPoint))
-	}
+
 	if schedule.NextLaunch != nil {
 		d.AddValueParam("$next_launch", table_types.TimestampValueFromTime(*schedule.NextLaunch))
 	}

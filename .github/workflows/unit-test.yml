@@ -50,18 +50,6 @@ jobs:
         with:
           create-pdf: false
 
-  comment-pr:
-    runs-on: ubuntu-latest
-    needs: unittest
-    steps:
-      - name: Comment on PR
-        uses: peter-evans/create-or-update-comment@v2
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          issue-number: ${{ github.event.pull_request.number }}
-          body: ${{ needs.unittest.outputs.job-summary }}
-
   integration-test:
     runs-on: ubuntu-latest
     steps:
@@ -73,8 +61,16 @@ jobs:
       - name: docker compose up
         run: |
           docker compose up --build -d
-      - name: run integration tests
-        run: docker exec local-ydbcp sh -c './integration'
+      - name: run make_backup tests
+        run: docker exec local-ydbcp sh -c './make_backup'
+      - name: docker compose down
+        run: |
+          docker compose down
+      - name: docker compose up
+        run: |
+          docker compose up -d
+      - name: run list_schedules test
+        run: docker exec local-ydbcp sh -c './list_schedules'
       - name: docker compose down
         run: |
           docker compose down

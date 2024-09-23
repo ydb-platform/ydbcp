@@ -29,9 +29,7 @@ var (
 	}
 	AllBackupScheduleFields = []string{
 		"id", "container_id", "database", "endpoint", "name", "active", "crontab", "ttl", "paths", "paths_to_exclude",
-		"initiated",
-		"created_at", "recovery_point_objective", "last_backup_id", "last_successful_backup_id", "recovery_point",
-		"next_launch",
+		"initiated", "created_at", "recovery_point_objective", "next_launch",
 	}
 )
 
@@ -52,6 +50,7 @@ type ReadTableQuery interface {
 }
 
 type ReadTableQueryImpl struct {
+	rawQuery         *string
 	tableName        string
 	selectFields     []string
 	filters          [][]table_types.Value
@@ -71,6 +70,12 @@ func NewReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
 		opt(d)
 	}
 	return d
+}
+
+func WithRawQuery(rawQuery string) ReadTableQueryOption {
+	return func(d *ReadTableQueryImpl) {
+		d.rawQuery = &rawQuery
+	}
 }
 
 func WithTableName(tableName string) ReadTableQueryOption {
@@ -128,19 +133,24 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 }
 
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
-	if len(d.selectFields) == 0 {
-		return nil, errors.New("no fields to select")
-	}
-	if len(d.tableName) == 0 {
-		return nil, errors.New("no table")
-	}
+	var res string
 	filter := d.MakeFilterString()
-	res := fmt.Sprintf(
-		"SELECT %s FROM %s%s",
-		strings.Join(d.selectFields, ", "),
-		d.tableName,
-		filter,
-	)
+	if d.rawQuery == nil {
+		if len(d.selectFields) == 0 {
+			return nil, errors.New("no fields to select")
+		}
+		if len(d.tableName) == 0 {
+			return nil, errors.New("no table")
+		}
+		res = fmt.Sprintf(
+			"SELECT %s FROM %s%s",
+			strings.Join(d.selectFields, ", "),
+			d.tableName,
+			filter,
+		)
+	} else {
+		res = fmt.Sprintf("%s%s", *d.rawQuery, filter)
+	}
 	xlog.Debug(ctx, "read query", zap.String("yql", res))
 	return &FormatQueryResult{
 		QueryText:   res,

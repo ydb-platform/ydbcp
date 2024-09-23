@@ -71,6 +71,12 @@ if [[ "ListBackupSchedules" == "$1" ]]; then
   doneflag=1
 fi
 
+if [[ "GetBackupSchedule" == "$1" ]]; then
+  $GRPCURL "${ARGS[@]}" -d '{"id": "'"${SCHEDULE_ID}"'"}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupScheduleService.GetBackupSchedule
+  doneflag=1
+fi
+
+
 if [[ 0 == $doneflag ]]; then
   echo "Failed to parse command; nothing done"
 fi

@@ -26,9 +26,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 		},
-		NextLaunch:             &now,
-		LastBackupID:           nil,
-		LastSuccessfulBackupID: nil,
+		NextLaunch: &now,
 	}
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
@@ -72,11 +70,10 @@ func TestBackupScheduleHandler(t *testing.T) {
 	assert.Equal(t, len(backups), 1)
 	assert.Equal(t, types.BackupStateRunning, backups[0].Status)
 
-	// check schedule
+	// check schedule next launch
 	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
-	assert.Equal(t, *schedules[0].LastBackupID, backups[0].ID)
 	assert.Greater(t, *schedules[0].NextLaunch, now)
 }
