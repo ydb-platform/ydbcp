@@ -30,7 +30,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	}
 	backup := types.Backup{
 		ID:      backupId,
-		Status:  "Available",
+		Status:  types.BackupStateAvailable,
 		Message: "Message",
 	}
 	builder := NewWriteTableQuery().
@@ -39,7 +39,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	var (
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
-			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
+			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("Message")),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$status_1", table_types.StringValueFromString("Done")),
@@ -89,7 +89,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 		S3Region:         "d",
 		S3Bucket:         "e",
 		S3PathPrefix:     "f",
-		Status:           "Available",
+		Status:           types.BackupStateAvailable,
 		Message:          "msg backup",
 		AuditInfo: &pb.AuditInfo{
 			Creator:   "author",
@@ -109,7 +109,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam("$s3_region_0", table_types.StringValueFromString("d")),
 			table.ValueParam("$s3_bucket_0", table_types.StringValueFromString("e")),
 			table.ValueParam("$s3_path_prefix_0", table_types.StringValueFromString("f")),
-			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
+			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("msg backup")),
 			table.ValueParam("$size_0", table_types.Int64Value(0)),
 			table.ValueParam("$initiated_0", table_types.StringValueFromString("author")),
@@ -188,7 +188,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 	}
 	backup := types.Backup{
 		ID:      backupId,
-		Status:  "Available",
+		Status:  types.BackupStateAvailable,
 		Message: "Success",
 	}
 	builder := NewWriteTableQuery().
@@ -197,7 +197,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 	var (
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
-			table.ValueParam("$status_0", table_types.StringValueFromString("Available")),
+			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("Success")),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
@@ -256,7 +256,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 
 func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 	const (
-		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, name, active, crontab, ttl, paths, initiated, created_at, recovery_point_objective, last_backup_id, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $name_0, $active_0, $crontab_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $last_backup_id_0, $next_launch_0)`
+		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, name, active, crontab, ttl, paths, initiated, created_at, recovery_point_objective, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $name_0, $active_0, $crontab_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $next_launch_0)`
 	)
 	scID := types.GenerateObjectID()
 	bID := types.GenerateObjectID()
@@ -303,7 +303,6 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 				"$recovery_point_objective_0",
 				table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
 			),
-			table.ValueParam("$last_backup_id_0", table_types.StringValueFromString(*schedule.LastBackupID)),
 			table.ValueParam("$next_launch_0", table_types.TimestampValueFromTime(*schedule.NextLaunch)),
 		)
 	)

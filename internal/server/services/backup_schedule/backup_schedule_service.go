@@ -2,6 +2,8 @@ package backup_schedule
 
 import (
 	"context"
+	"fmt"
+	"github.com/gorhill/cronexpr"
 	"time"
 
 	"ydbcp/internal/auth"
@@ -19,6 +21,18 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+var (
+	ListSchedulesQuery = fmt.Sprintf(
+		`$last_successful_backup_id = SELECT schedule_id, MAX(b.completed_at) as recovery_point, MAX_BY(b.id, b.completed_at) AS last_successful_backup_id from Backups as b WHERE b.status = '%s' GROUP BY schedule_id;
+$last_backup_id = SELECT schedule_id as schedule_id_2, MAX_BY(b.id, b.completed_at) AS last_backup_id from Backups as b GROUP BY schedule_id;
+
+select * from BackupSchedules as schedules 
+left join $last_successful_backup_id as b1 on schedules.id = b1.schedule_id
+left join $last_backup_id as b2 on schedules.id = b2.schedule_id_2
+`, types.BackupStateAvailable,
+	)
 )
 
 type BackupScheduleService struct {
@@ -43,7 +57,13 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String("request", request.String()),
 		)
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
-
+	}
+	_, err = cronexpr.Parse(request.ScheduleSettings.SchedulePattern.Crontab)
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, "failed to parse crontab")
+	}
+	if request.ScheduleSettings.RecoveryPointObjective != nil && (request.ScheduleSettings.RecoveryPointObjective.Seconds == 0) {
+		return nil, status.Error(codes.FailedPrecondition, "recovery point objective shoulde be greater than 0")
 	}
 	now := time.Now()
 	schedule := types.BackupSchedule{
@@ -170,8 +190,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 
 	schedules, err := s.driver.SelectBackupSchedules(
 		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("BackupSchedules"),
-			queries.WithSelectFields(queries.AllBackupScheduleFields...),
+			queries.WithRawQuery(ListSchedulesQuery),
 			queries.WithQueryFilters(queryFilters...),
 		),
 	)

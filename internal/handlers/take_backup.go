@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -35,7 +34,7 @@ func TBOperationHandler(
 	client client.ClientConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBulderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) error {
 	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -76,7 +75,7 @@ func TBOperationHandler(
 		backupToWrite.Message = operation.GetMessage()
 		backupToWrite.AuditInfo.CompletedAt = now
 		return db.ExecuteUpsert(
-			ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
 	if ydbOpResponse.opResponse == nil {
@@ -158,7 +157,7 @@ func TBOperationHandler(
 			backupToWrite.Message = operation.GetMessage()
 			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
 			return db.ExecuteUpsert(
-				ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 			)
 		}
 	case types.OperationStateCancelling:
@@ -172,7 +171,7 @@ func TBOperationHandler(
 					operation.GetAudit().CompletedAt = now
 					backupToWrite.Message = operation.GetMessage()
 					return db.ExecuteUpsert(
-						ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+						ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 					)
 				}
 
@@ -223,6 +222,6 @@ func TBOperationHandler(
 	backupToWrite.AuditInfo.CompletedAt = now
 	operation.GetAudit().CompletedAt = now
 	return db.ExecuteUpsert(
-		ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 	)
 }

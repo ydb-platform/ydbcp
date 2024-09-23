@@ -77,10 +77,6 @@ CREATE TABLE BackupSchedules (
 
     recovery_point_objective Interval,
 
-    last_backup_id String,
-    last_successful_backup_id String,
-    recovery_point Timestamp,
-
     next_launch Timestamp,
     PRIMARY KEY (id)
 )

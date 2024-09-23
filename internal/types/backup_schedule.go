@@ -32,12 +32,17 @@ type BackupSchedule struct {
 func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 	var backupInfo *pb.ScheduledBackupInfo
 	if b.LastSuccessfulBackupID != nil {
-		rpoMargin := time.Since(*b.RecoveryPoint)
 		backupInfo = &pb.ScheduledBackupInfo{
-			BackupId:                    *b.LastSuccessfulBackupID,
-			RecoveryPoint:               timestamppb.New(*b.RecoveryPoint),
-			LastBackupRpoMarginInterval: durationpb.New(rpoMargin),
-			LastBackupRpoMarginPercent:  rpoMargin.Seconds() / float64(b.ScheduleSettings.RecoveryPointObjective.Seconds),
+			BackupId: *b.LastSuccessfulBackupID,
+		}
+		if b.RecoveryPoint != nil {
+			backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
+			if b.ScheduleSettings.RecoveryPointObjective != nil {
+				rpoMargin := time.Since(*b.RecoveryPoint)
+				backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
+				backupInfo.LastBackupRpoMarginInterval = durationpb.New(rpoMargin)
+				backupInfo.LastBackupRpoMarginRatio = rpoMargin.Seconds() / float64(b.ScheduleSettings.RecoveryPointObjective.Seconds)
+			}
 		}
 	}
 	var nextLaunchTs *timestamppb.Timestamp

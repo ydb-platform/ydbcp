@@ -51,7 +51,7 @@ func (o *Backup) String() string {
 }
 
 func (o *Backup) Proto() *pb.Backup {
-	return &pb.Backup{
+	backup := &pb.Backup{
 		Id:               o.ID,
 		ContainerId:      o.ContainerID,
 		DatabaseName:     o.DatabaseName,
@@ -68,6 +68,10 @@ func (o *Backup) Proto() *pb.Backup {
 		Message:  o.Message,
 		ExpireAt: nil,
 	}
+	if o.ScheduleID != nil {
+		backup.ScheduleId = *o.ScheduleID
+	}
+	return backup
 }
 
 func (o *Backup) CanBeDeleted() bool {

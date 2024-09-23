@@ -41,6 +41,7 @@ func BackupScheduleHandler(
 		return nil
 	}
 	now := time.Now()
+	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(now) {
 		b, op, err := backup_operations.MakeBackup(
 			ctx, clientConn, s3, allowedEndpointDomains, allowInsecureEndpoint, &pb.MakeBackupRequest{
@@ -54,7 +55,6 @@ func BackupScheduleHandler(
 		if err != nil {
 			return err
 		}
-		schedule.LastBackupID = &op.BackupID
 		err = schedule.UpdateNextLaunch(now)
 		if err != nil {
 			return err

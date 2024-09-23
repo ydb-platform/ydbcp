@@ -195,6 +195,18 @@ func (c *MockDBConnector) GetBackup(
 	return types.Backup{}, fmt.Errorf("backup not found, id %s", backupID)
 }
 
+func (c *MockDBConnector) GetSchedule(
+	_ context.Context, scheduleID string,
+) (types.BackupSchedule, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
+	if schedule, exist := c.backupSchedules[scheduleID]; exist {
+		return schedule, nil
+	}
+	return types.BackupSchedule{}, fmt.Errorf("backupSchedule not found, id %s", scheduleID)
+}
+
 func (c *MockDBConnector) SelectOperations(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]types.Operation, error) {
