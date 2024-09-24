@@ -57,6 +57,16 @@ func WithRawQuery(rawQuery string) ReadTableQueryOption {
 	}
 }
 
+func WithParameters(params ...table.ParameterOption) ReadTableQueryOption {
+	return func(d *ReadTableQueryImpl) {
+		for _, param := range params {
+			d.tableQueryParams = append(
+				d.tableQueryParams, param,
+			)
+		}
+	}
+}
+
 func WithTableName(tableName string) ReadTableQueryOption {
 	return func(d *ReadTableQueryImpl) {
 		d.tableName = tableName

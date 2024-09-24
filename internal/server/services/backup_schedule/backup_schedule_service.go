@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"github.com/gorhill/cronexpr"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"time"
 
 	"ydbcp/internal/auth"
@@ -31,6 +32,18 @@ $last_backup_id = SELECT schedule_id AS schedule_id_2, MAX_BY(b.id, b.completed_
 SELECT * FROM BackupSchedules AS schedules 
 LEFT JOIN $last_successful_backup_id AS b1 ON schedules.id = b1.schedule_id
 LEFT JOIN $last_backup_id AS b2 ON schedules.id = b2.schedule_id_2
+`, types.BackupStateAvailable,
+	)
+	GetScheduleQuery = fmt.Sprintf(
+		`$rpo_info = SELECT 
+    <|
+        recovery_point: MAX(b.completed_at),
+        last_successful_backup_id: MAX_BY(b.id, b.completed_at)
+    |> FROM Backups AS b WHERE b.status = '%s' AND b.schedule_id = $schedule_id;
+
+$last_backup_id = SELECT MAX_BY(b.id, b.completed_at) AS last_backup_id FROM Backups AS b WHERE b.schedule_id = $schedule_id;
+
+SELECT s.*, $last_backup_id AS last_backup_id, $rpo_info.recovery_point AS recovery_point, $rpo_info.last_successful_backup_id AS last_successful_backup_id FROM BackupSchedules AS s WHERE s.id = $schedule_id
 `, types.BackupStateAvailable,
 	)
 )
@@ -115,19 +128,15 @@ func (s *BackupScheduleService) GetBackupSchedule(
 
 	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("request", request))
 
-	schedules, err := s.driver.SelectBackupSchedules(
+	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("BackupSchedules"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "id",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(scheduleID),
-					},
-				},
+			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithParameters(
+				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
 			),
 		),
 	)
+
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
@@ -186,8 +195,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 			},
 		)
 	}
-
-	schedules, err := s.driver.SelectBackupSchedules(
+	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
 			queries.WithRawQuery(ListSchedulesQuery),
 			queries.WithQueryFilters(queryFilters...),

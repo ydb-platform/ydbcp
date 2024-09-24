@@ -249,7 +249,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	return &types.GenericOperation{ID: operationId}, nil
 }
 
-func ReadBackupScheduleFromResultSet(res result.Result) (*types.BackupSchedule, error) {
+func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*types.BackupSchedule, error) {
 	var (
 		ID               string
 		containerID      string
@@ -288,19 +288,14 @@ func ReadBackupScheduleFromResultSet(res result.Result) (*types.BackupSchedule, 
 		named.Optional("paths_to_exclude", &sourcePathsToExclude),
 		named.Optional("recovery_point_objective", &recoveryPointObjective),
 		named.Optional("next_launch", &nextLaunch),
-		named.Optional("last_backup_id", &lastBackupID),
-		named.Optional("last_successful_backup_id", &lastSuccessfulBackupID),
-		named.Optional("recovery_point", &recoveryPoint),
+	}
+	if withRPOInfo {
+		namedValues = append(namedValues, named.Optional("last_backup_id", &lastBackupID))
+		namedValues = append(namedValues, named.Optional("last_successful_backup_id", &lastSuccessfulBackupID))
+		namedValues = append(namedValues, named.Optional("recovery_point", &recoveryPoint))
 	}
 
 	err := res.ScanNamed(namedValues...)
-
-	if err != nil && strings.Contains(err.Error(), "count of columns less then values") {
-		//this means the initial query was not a join but a simple select from BackupSchedules.
-		//unfortunately I did not find a great way to implement this behaviour with YDB Go SDK.
-		namedValues = namedValues[:len(namedValues)-3]
-		err = res.ScanNamed(namedValues...)
-	}
 
 	if err != nil {
 		return nil, err
