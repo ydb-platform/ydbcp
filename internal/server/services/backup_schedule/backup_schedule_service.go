@@ -25,8 +25,8 @@ import (
 
 var (
 	ListSchedulesQuery = fmt.Sprintf(
-		`$last_successful_backup_id = SELECT schedule_id, MAX(b.completed_at) as recovery_point, MAX_BY(b.id, b.completed_at) AS last_successful_backup_id from Backups as b WHERE b.status = '%s' GROUP BY schedule_id;
-$last_backup_id = SELECT schedule_id as schedule_id_2, MAX_BY(b.id, b.completed_at) AS last_backup_id from Backups as b GROUP BY schedule_id;
+		`$last_successful_backup_id = SELECT schedule_id, MAX(b.completed_at) AS recovery_point, MAX_BY(b.id, b.completed_at) AS last_successful_backup_id FROM Backups AS b WHERE b.status = '%s' GROUP BY schedule_id;
+$last_backup_id = SELECT schedule_id AS schedule_id_2, MAX_BY(b.id, b.completed_at) AS last_backup_id FROM Backups AS b GROUP BY schedule_id;
 
 select * from BackupSchedules as schedules 
 left join $last_successful_backup_id as b1 on schedules.id = b1.schedule_id
