@@ -5,6 +5,7 @@ option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbc
 
 import "ydbcp/v1alpha1/backup.proto";
 import "ydbcp/v1alpha1/operation.proto";
+import "google/protobuf/duration.proto";
 
 // A set of methods for managing backups;.
 service BackupService {
@@ -52,6 +53,7 @@ message MakeBackupRequest {
     repeated string source_paths = 4;  // [(size) = "<=256"];
     // Regexp for paths excluded from backup.
     repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
+    google.protobuf.Duration ttl = 6;
 }
 
 message DeleteBackupRequest {

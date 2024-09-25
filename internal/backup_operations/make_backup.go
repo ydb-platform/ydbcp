@@ -60,7 +60,7 @@ func MakeBackup(
 	allowedEndpointDomains []string,
 	allowInsecureEndpoint bool,
 	req *pb.MakeBackupRequest, scheduleId *string,
-	subject string, ttl *time.Duration,
+	subject string,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
 	if !IsAllowedEndpoint(req.DatabaseEndpoint, allowedEndpointDomains, allowInsecureEndpoint) {
 		xlog.Error(
@@ -145,9 +145,9 @@ func MakeBackup(
 	xlog.Info(ctx, "Export operation started")
 
 	var expireAt *time.Time
-	if ttl != nil {
+	if ttl := req.GetTtl(); ttl != nil {
 		expireAt = new(time.Time)
-		*expireAt = time.Now().Add(*ttl)
+		*expireAt = time.Now().Add(ttl.AsDuration())
 	}
 
 	now := timestamppb.Now()
