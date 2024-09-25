@@ -88,7 +88,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	backup, op, err := backup_operations.MakeBackup(
-		ctx, s.clientConn, s.s3, s.allowedEndpointDomains, s.allowInsecureEndpoint, req, nil, subject, nil,
+		ctx, s.clientConn, s.s3, s.allowedEndpointDomains, s.allowInsecureEndpoint, req, nil, subject,
 	)
 
 	if err != nil {
