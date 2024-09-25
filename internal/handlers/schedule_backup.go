@@ -43,6 +43,12 @@ func BackupScheduleHandler(
 	now := time.Now()
 	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(now) {
+		var ttl *time.Duration
+		if schedule.ScheduleSettings != nil && schedule.ScheduleSettings.Ttl != nil {
+			ttl = new(time.Duration)
+			*ttl = schedule.ScheduleSettings.Ttl.AsDuration()
+		}
+
 		b, op, err := backup_operations.MakeBackup(
 			ctx, clientConn, s3, allowedEndpointDomains, allowInsecureEndpoint, &pb.MakeBackupRequest{
 				ContainerId:          schedule.ContainerID,
@@ -50,7 +56,8 @@ func BackupScheduleHandler(
 				DatabaseEndpoint:     schedule.DatabaseEndpoint,
 				SourcePaths:          schedule.SourcePaths,
 				SourcePathsToExclude: schedule.SourcePathsToExclude,
-			}, &schedule.ID, "YDBCP", //TODO: who to put as subject here?
+			}, &schedule.ID, types.OperationCreatorName, //TODO: who to put as subject here?
+			ttl,
 		)
 		if err != nil {
 			return err

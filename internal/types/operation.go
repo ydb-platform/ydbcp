@@ -334,7 +334,7 @@ const (
 	OperationTypeRB       = OperationType("RB")
 	OperationTypeDB       = OperationType("DB")
 	BackupTimestampFormat = "20060102_150405"
-	S3ForcePathStyle      = true
+	OperationCreatorName  = "ydbcp"
 )
 
 func OperationToString(o Operation) string {

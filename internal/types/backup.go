@@ -2,6 +2,8 @@ package types
 
 import (
 	"fmt"
+	"google.golang.org/protobuf/types/known/timestamppb"
+	"time"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -37,6 +39,7 @@ type Backup struct {
 	AuditInfo        *pb.AuditInfo
 	Size             int64
 	ScheduleID       *string
+	ExpireAt         *time.Time
 }
 
 func (o *Backup) String() string {
@@ -71,6 +74,11 @@ func (o *Backup) Proto() *pb.Backup {
 	if o.ScheduleID != nil {
 		backup.ScheduleId = *o.ScheduleID
 	}
+
+	if o.ExpireAt != nil {
+		backup.ExpireAt = timestamppb.New(*o.ExpireAt)
+	}
+
 	return backup
 }
 
