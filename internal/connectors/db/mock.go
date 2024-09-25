@@ -76,19 +76,6 @@ func (c *MockDBConnector) SelectBackupSchedules(
 	return schedules, nil
 }
 
-func (c *MockDBConnector) SelectBackupsByStatus(
-	_ context.Context, _ string,
-) ([]*types.Backup, error) {
-	c.guard.Lock()
-	defer c.guard.Unlock()
-
-	backups := make([]*types.Backup, 0, len(c.backups))
-	for _, backup := range c.backups {
-		backups = append(backups, &backup)
-	}
-	return backups, nil
-}
-
 func (c *MockDBConnector) UpdateBackup(
 	_ context.Context, id string, backupStatus string,
 ) error {

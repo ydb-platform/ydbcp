@@ -87,7 +87,6 @@ func TBOperationHandler(
 		backups, err := db.SelectBackups(
 			ctx, queries.NewReadTableQuery(
 				queries.WithTableName("Backups"),
-				queries.WithSelectFields(queries.AllBackupFields...),
 				queries.WithQueryFilters(
 					queries.QueryFilter{
 						Field:  "id",

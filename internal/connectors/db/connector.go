@@ -46,7 +46,6 @@ type DBConnector interface {
 	SelectBackupSchedules(ctx context.Context, queryBuilder queries.ReadTableQuery) (
 		[]*types.BackupSchedule, error,
 	)
-	SelectBackupsByStatus(ctx context.Context, backupStatus string) ([]*types.Backup, error)
 	ActiveOperations(context.Context) ([]types.Operation, error)
 	UpdateOperation(context.Context, types.Operation) error
 	CreateOperation(context.Context, types.Operation) (string, error)
@@ -229,26 +228,6 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	return nil
 }
 
-func (d *YdbConnector) SelectBackupsByStatus(
-	ctx context.Context, backupStatus string,
-) ([]*types.Backup, error) {
-	return DoStructSelect[types.Backup](
-		ctx,
-		d,
-		queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithSelectFields("id"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "status",
-					Values: []table_types.Value{table_types.StringValueFromString(backupStatus)},
-				},
-			),
-		),
-		ReadBackupFromResultSet,
-	)
-}
-
 func (d *YdbConnector) SelectBackups(
 	ctx context.Context, queryBuilder queries.ReadTableQuery,
 ) ([]*types.Backup, error) {
@@ -290,7 +269,6 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 		d,
 		queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
-			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field: "status",

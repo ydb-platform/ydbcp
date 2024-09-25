@@ -11,7 +11,7 @@ import (
 
 func TestQueryBuilder_Read(t *testing.T) {
 	const (
-		queryString = `SELECT column1, column2, column3 FROM table1 WHERE (column1 = $param0 OR column1 = $param1) AND (column2 = $param2 OR column2 = $param3)`
+		queryString = `SELECT * FROM table1 WHERE (column1 = $param0 OR column1 = $param1) AND (column2 = $param2 OR column2 = $param3)`
 	)
 	var (
 		queryParams = table.NewQueryParameters(
@@ -23,7 +23,6 @@ func TestQueryBuilder_Read(t *testing.T) {
 	)
 	builder := NewReadTableQuery(
 		WithTableName("table1"),
-		WithSelectFields("column1", "column2", "column3"),
 		WithQueryFilters(
 			QueryFilter{
 				Field: "column1",

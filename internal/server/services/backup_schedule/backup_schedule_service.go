@@ -118,7 +118,6 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	schedules, err := s.driver.SelectBackupSchedules(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("BackupSchedules"),
-			queries.WithSelectFields(queries.AllBackupScheduleFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field: "id",
