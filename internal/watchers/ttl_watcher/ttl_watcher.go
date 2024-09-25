@@ -46,7 +46,6 @@ func TtlWatcherAction(
 	backups, err := db.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field: "status",
@@ -94,7 +93,9 @@ func TtlWatcherAction(
 			)
 
 			if err != nil {
-				xlog.Error(ctx, "can't create DeleteBackup operation", zap.String("BackupID", backup.ID), zap.Error(err))
+				xlog.Error(
+					ctx, "can't create DeleteBackup operation", zap.String("BackupID", backup.ID), zap.Error(err),
+				)
 			}
 
 			xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String("BackupID", backup.ID))

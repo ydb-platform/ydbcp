@@ -13,26 +13,6 @@ import (
 	"go.uber.org/zap"
 )
 
-// TODO: do not do this and always select all fields
-var (
-	AllBackupFields = []string{
-		"id", "container_id", "database", "endpoint",
-		"initiated", "created_at", "completed_at",
-		"s3_endpoint", "s3_region", "s3_bucket",
-		"s3_path_prefix", "status", "paths", "message",
-		"size", "schedule_id", "expire_at",
-	}
-	AllOperationFields = []string{
-		"id", "type", "container_id", "database", "endpoint", "backup_id",
-		"initiated", "created_at", "completed_at", "status", "message",
-		"paths", "operation_id", "paths_to_exclude", "updated_at",
-	}
-	AllBackupScheduleFields = []string{
-		"id", "container_id", "database", "endpoint", "name", "active", "crontab", "ttl", "paths", "paths_to_exclude",
-		"initiated", "created_at", "recovery_point_objective", "next_launch",
-	}
-)
-
 type QueryFilter struct {
 	Field  string
 	Values []table_types.Value
@@ -52,7 +32,6 @@ type ReadTableQuery interface {
 type ReadTableQueryImpl struct {
 	rawQuery         *string
 	tableName        string
-	selectFields     []string
 	filters          [][]table_types.Value
 	filterFields     []string
 	isLikeFilter     map[string]bool
@@ -81,12 +60,6 @@ func WithRawQuery(rawQuery string) ReadTableQueryOption {
 func WithTableName(tableName string) ReadTableQueryOption {
 	return func(d *ReadTableQueryImpl) {
 		d.tableName = tableName
-	}
-}
-
-func WithSelectFields(fields ...string) ReadTableQueryOption {
-	return func(d *ReadTableQueryImpl) {
-		d.selectFields = fields
 	}
 }
 
@@ -136,15 +109,11 @@ func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResul
 	var res string
 	filter := d.MakeFilterString()
 	if d.rawQuery == nil {
-		if len(d.selectFields) == 0 {
-			return nil, errors.New("no fields to select")
-		}
 		if len(d.tableName) == 0 {
 			return nil, errors.New("no table")
 		}
 		res = fmt.Sprintf(
-			"SELECT %s FROM %s%s",
-			strings.Join(d.selectFields, ", "),
+			"SELECT * FROM %s%s",
 			d.tableName,
 			filter,
 		)

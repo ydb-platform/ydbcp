@@ -65,7 +65,6 @@ func (s *OperationService) ListOperations(
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
-			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(queryFilters...),
 		),
 	)
@@ -92,7 +91,6 @@ func (s *OperationService) CancelOperation(
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
-			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -150,7 +148,8 @@ func (s *OperationService) CancelOperation(
 		return nil, status.Error(codes.Internal, "error updating operation")
 	}
 
-	xlog.Debug(ctx, "CancelOperation was started",
+	xlog.Debug(
+		ctx, "CancelOperation was started",
 		zap.String("operation", types.OperationToString(operation)),
 	)
 	return operation.Proto(), nil
@@ -169,7 +168,6 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
-			queries.WithSelectFields(queries.AllOperationFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",

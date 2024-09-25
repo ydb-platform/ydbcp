@@ -46,7 +46,6 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -117,7 +116,6 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -194,7 +192,6 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -371,7 +368,6 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
-			queries.WithSelectFields(queries.AllBackupFields...),
 			queries.WithQueryFilters(queryFilters...),
 		),
 	)
