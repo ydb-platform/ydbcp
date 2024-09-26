@@ -1,9 +1,11 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"github.com/gorhill/cronexpr"
 	"time"
+
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -18,7 +20,7 @@ type BackupSchedule struct {
 	SourcePaths            []string
 	SourcePathsToExclude   []string
 	Audit                  *pb.AuditInfo
-	Name                   *string
+	Name                   string
 	Active                 bool
 	ScheduleSettings       *pb.BackupScheduleSettings
 	NextLaunch             *time.Time
