@@ -50,3 +50,77 @@ func TestQueryBuilder_Read(t *testing.T) {
 	)
 	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
 }
+
+func TestQueryBuilder_Order(t *testing.T) {
+	const (
+		q1 = `SELECT * FROM table1 ORDER BY field`
+		q2 = `SELECT * FROM table1 ORDER BY field DESC`
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithOrderBy(
+			OrderSpec{
+				Field: "field",
+				Desc:  false,
+			},
+		),
+	)
+	query, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, q1, query.QueryText,
+		"bad query format",
+	)
+	builder = NewReadTableQuery(
+		WithTableName("table1"),
+		WithOrderBy(
+			OrderSpec{
+				Field: "field",
+				Desc:  true,
+			},
+		),
+	)
+	query, err = builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, q2, query.QueryText,
+		"bad query format",
+	)
+}
+
+func TestQueryBuilder_RawQueryModifiers(t *testing.T) {
+	const (
+		query     = `SELECT * FROM table1`
+		fullQuery = `SELECT * FROM table1 WHERE (col1 = $param0) AND (col2 = $param1) ORDER BY col3 DESC`
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithRawQuery(query),
+		WithQueryFilters(
+			QueryFilter{
+				Field: "col1",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("value1"),
+				},
+			},
+			QueryFilter{
+				Field: "col2",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("value1"),
+				},
+			},
+		),
+		WithOrderBy(
+			OrderSpec{
+				Field: "col3",
+				Desc:  true,
+			},
+		),
+	)
+	fq, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, fullQuery, fq.QueryText,
+		"bad query format",
+	)
+}

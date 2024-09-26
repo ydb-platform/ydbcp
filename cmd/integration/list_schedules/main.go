@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
+	"strconv"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
@@ -152,6 +153,10 @@ func SchedulesToInsert() []types.BackupSchedule {
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Hour),
 			},
+			Audit: &pb.AuditInfo{
+				CreatedAt:   timestamppb.New(threePM),
+				CompletedAt: nil,
+			},
 		},
 		{
 			ID:               "2",
@@ -164,6 +169,10 @@ func SchedulesToInsert() []types.BackupSchedule {
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Minute * 15),
 			},
+			Audit: &pb.AuditInfo{
+				CreatedAt:   timestamppb.New(fourPM),
+				CompletedAt: nil,
+			},
 		},
 		{
 			ID:               "3",
@@ -174,6 +183,10 @@ func SchedulesToInsert() []types.BackupSchedule {
 			Active:           true,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
+			},
+			Audit: &pb.AuditInfo{
+				CreatedAt:   timestamppb.New(fivePM),
+				CompletedAt: nil,
 			},
 		},
 		{
@@ -186,6 +199,10 @@ func SchedulesToInsert() []types.BackupSchedule {
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Minute * 15),
+			},
+			Audit: &pb.AuditInfo{
+				CreatedAt:   timestamppb.New(fivePM.Add(time.Hour)),
+				CompletedAt: nil,
 			},
 		},
 	}
@@ -250,7 +267,10 @@ func main() {
 	if len(schedules.Schedules) != 4 {
 		log.Panicln("did not get all the schedules")
 	}
-	for _, s := range schedules.Schedules {
+	for i, s := range schedules.Schedules {
+		if strconv.Itoa(4-i) != s.Id {
+			log.Panicf("wrong schedules order: expected %d, got %s", i, s.Id)
+		}
 		switch s.Id {
 		case "1":
 			{

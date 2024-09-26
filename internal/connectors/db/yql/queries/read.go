@@ -29,12 +29,18 @@ type ReadTableQuery interface {
 	FormatQuery(ctx context.Context) (*FormatQueryResult, error)
 }
 
+type OrderSpec struct {
+	Field string
+	Desc  bool
+}
+
 type ReadTableQueryImpl struct {
 	rawQuery         *string
 	tableName        string
 	filters          [][]table_types.Value
 	filterFields     []string
 	isLikeFilter     map[string]bool
+	orderBy          *OrderSpec
 	tableQueryParams []table.ParameterOption
 }
 
@@ -45,6 +51,7 @@ func NewReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
 	d.filters = make([][]table_types.Value, 0)
 	d.filterFields = make([]string, 0)
 	d.isLikeFilter = make(map[string]bool)
+
 	for _, opt := range options {
 		opt(d)
 	}
@@ -87,6 +94,12 @@ func WithQueryFilters(filters ...QueryFilter) ReadTableQueryOption {
 	}
 }
 
+func WithOrderBy(spec OrderSpec) ReadTableQueryOption {
+	return func(d *ReadTableQueryImpl) {
+		d.orderBy = &spec
+	}
+}
+
 func (d *ReadTableQueryImpl) AddTableQueryParam(paramValue table_types.Value) string {
 	paramName := fmt.Sprintf("$param%d", len(d.tableQueryParams))
 	d.tableQueryParams = append(
@@ -118,17 +131,26 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
 	var res string
 	filter := d.MakeFilterString()
+	orderBy := ""
+	if d.orderBy != nil {
+		descStr := ""
+		if d.orderBy.Desc == true {
+			descStr = " DESC"
+		}
+		orderBy = fmt.Sprintf(" ORDER BY %s%s", d.orderBy.Field, descStr)
+	}
 	if d.rawQuery == nil {
 		if len(d.tableName) == 0 {
 			return nil, errors.New("no table")
 		}
 		res = fmt.Sprintf(
-			"SELECT * FROM %s%s",
+			"SELECT * FROM %s%s%s",
 			d.tableName,
 			filter,
+			orderBy,
 		)
 	} else {
-		res = fmt.Sprintf("%s%s", *d.rawQuery, filter)
+		res = fmt.Sprintf("%s%s%s", *d.rawQuery, filter, orderBy)
 	}
 	xlog.Debug(ctx, "read query", zap.String("yql", res))
 	return &FormatQueryResult{
