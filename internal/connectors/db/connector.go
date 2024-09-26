@@ -43,7 +43,9 @@ type DBConnector interface {
 	SelectOperations(ctx context.Context, queryBuilder queries.ReadTableQuery) (
 		[]types.Operation, error,
 	)
-	SelectBackupSchedules(ctx context.Context, queryBuilder queries.ReadTableQuery) (
+
+	SelectBackupSchedules(ctx context.Context, queryBuilder queries.ReadTableQuery) ([]*types.BackupSchedule, error)
+	SelectBackupSchedulesWithRPOInfo(ctx context.Context, queryBuilder queries.ReadTableQuery) (
 		[]*types.BackupSchedule, error,
 	)
 	ActiveOperations(context.Context) ([]types.Operation, error)
@@ -257,7 +259,22 @@ func (d *YdbConnector) SelectBackupSchedules(
 		ctx,
 		d,
 		queryBuilder,
-		ReadBackupScheduleFromResultSet,
+		func(res result.Result) (*types.BackupSchedule, error) {
+			return ReadBackupScheduleFromResultSet(res, false)
+		},
+	)
+}
+
+func (d *YdbConnector) SelectBackupSchedulesWithRPOInfo(
+	ctx context.Context, queryBuilder queries.ReadTableQuery,
+) ([]*types.BackupSchedule, error) {
+	return DoStructSelect[types.BackupSchedule](
+		ctx,
+		d,
+		queryBuilder,
+		func(res result.Result) (*types.BackupSchedule, error) {
+			return ReadBackupScheduleFromResultSet(res, true)
+		},
 	)
 }
 

@@ -301,4 +301,60 @@ func main() {
 			}
 		}
 	}
+	{
+		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "1"})
+		if err != nil {
+			log.Panicf("failed to get backup schedule: %v", err)
+		}
+		if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fivePM {
+			log.Panicf(
+				"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fivePM.String(),
+				s.LastSuccessfulBackupInfo.String(),
+				s.Id,
+			)
+		}
+	}
+	{
+		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "2"})
+		if err != nil {
+			log.Panicf("failed to get backup schedule: %v", err)
+		}
+		if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
+			log.Panicf(
+				"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
+				s.LastSuccessfulBackupInfo.String(),
+				s.Id,
+			)
+
+		}
+	}
+	{
+		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "3"})
+		if err != nil {
+			log.Panicf("failed to get backup schedule: %v", err)
+		}
+		info := &pb.ScheduledBackupInfo{
+			BackupId:      "6",
+			RecoveryPoint: timestamppb.New(fourPM),
+		}
+		if !proto.Equal(info, s.LastSuccessfulBackupInfo) {
+			log.Panicf(
+				"Expected %s, got %s for scheduleID %s", info.String(), s.LastSuccessfulBackupInfo.String(),
+				s.Id,
+			)
+		}
+	}
+	{
+		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "4"})
+		if err != nil {
+			log.Panicf("failed to get backup schedule: %v", err)
+		}
+		if s.LastSuccessfulBackupInfo != nil {
+			log.Panicf(
+				"Expected nil, got %s for scheduleID %s", s.LastSuccessfulBackupInfo.String(),
+				s.Id,
+			)
+		}
+	}
+
 }
