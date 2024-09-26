@@ -288,10 +288,15 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		"$endpoint",
 		table_types.StringValueFromString(schedule.DatabaseEndpoint),
 	)
-	d.AddValueParam("$name", table_types.StringValueFromString(schedule.Name))
 	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
-	d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+
+	if schedule.Name != nil {
+		d.AddValueParam("$name", table_types.StringValueFromString(*schedule.Name))
+	}
+	if schedule.ScheduleSettings.Ttl != nil {
+		d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+	}
 	if len(schedule.SourcePaths) > 0 {
 		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
 	}
@@ -328,17 +333,25 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		tableName: "BackupSchedules",
 	}
 	d.AddUpdateId(table_types.StringValueFromString(schedule.ID))
-
-	d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
-	d.AddValueParam(
-		"$paths_to_exclude",
-		table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
-	)
-	d.AddValueParam("$name", table_types.StringValueFromString(schedule.Name))
 	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
-	d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
 
+	if len(schedule.SourcePaths) > 0 {
+		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+	}
+	if len(schedule.SourcePathsToExclude) > 0 {
+		d.AddValueParam(
+			"$paths_to_exclude",
+			table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+		)
+	}
+	if schedule.Name != nil {
+		d.AddValueParam("$name", table_types.StringValueFromString(*schedule.Name))
+	}
+
+	if schedule.ScheduleSettings.Ttl != nil {
+		d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+	}
 	if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 		d.AddValueParam(
 			"$recovery_point_objective",

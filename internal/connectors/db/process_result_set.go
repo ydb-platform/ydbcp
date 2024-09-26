@@ -301,8 +301,8 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		return nil, err
 	}
 
-	sourcePathsSlice := make([]string, 0)
-	sourcePathsToExcludeSlice := make([]string, 0)
+	var sourcePathsSlice []string
+	var sourcePathsToExcludeSlice []string
 	if sourcePaths != nil {
 		sourcePathsSlice = strings.Split(*sourcePaths, ",")
 	}
@@ -330,7 +330,7 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		SourcePaths:          sourcePathsSlice,
 		SourcePathsToExclude: sourcePathsToExcludeSlice,
 		Audit:                auditFromDb(initiated, createdAt, nil),
-		Name:                 StringOrEmpty(name),
+		Name:                 name,
 		Active:               active,
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: crontab},

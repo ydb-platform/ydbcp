@@ -256,20 +256,22 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 
 func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 	const (
-		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, name, active, crontab, ttl, paths, initiated, created_at, recovery_point_objective, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $name_0, $active_0, $crontab_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $next_launch_0)`
+		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, active, crontab, name, ttl, paths, initiated, created_at, recovery_point_objective, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $active_0, $crontab_0, $name_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $next_launch_0)`
 	)
 	scID := types.GenerateObjectID()
 	bID := types.GenerateObjectID()
 	now := time.Now()
+	name := "schedule"
+	paths := []string{"path1", "path2"}
 	schedule := types.BackupSchedule{
 		ID:                   scID,
 		ContainerID:          "abcde",
 		DatabaseName:         "dbname",
 		DatabaseEndpoint:     "grpcs://domain.zone.net:2135/my/db",
-		SourcePaths:          []string{"path1", "path2"},
+		SourcePaths:          paths,
 		SourcePathsToExclude: nil,
 		Audit:                &pb.AuditInfo{CreatedAt: timestamppb.Now(), Creator: "me"},
-		Name:                 "schedule",
+		Name:                 &name,
 		Active:               true,
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
@@ -288,11 +290,11 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 			table.ValueParam("$container_id_0", table_types.StringValueFromString(schedule.ContainerID)),
 			table.ValueParam("$database_0", table_types.StringValueFromString(schedule.DatabaseName)),
 			table.ValueParam("$endpoint_0", table_types.StringValueFromString(schedule.DatabaseEndpoint)),
-			table.ValueParam("$name_0", table_types.StringValueFromString(schedule.Name)),
 			table.ValueParam("$active_0", table_types.BoolValue(schedule.Active)),
 			table.ValueParam(
 				"$crontab_0", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab),
 			),
+			table.ValueParam("$name_0", table_types.StringValueFromString(*schedule.Name)),
 			table.ValueParam(
 				"$ttl_0", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()),
 			),
