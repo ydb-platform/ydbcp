@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"testing"
@@ -16,7 +17,9 @@ import (
 
 func TestBackupScheduleHandler(t *testing.T) {
 	ctx := context.Background()
-	now := time.Now()
+	clock := clockwork.NewFakeClockAt(time.Now())
+	now := clock.Now()
+	clock.Advance(time.Second)
 	schedule := types.BackupSchedule{
 		ID:               "12345",
 		ContainerID:      "abcde",
@@ -43,17 +46,18 @@ func TestBackupScheduleHandler(t *testing.T) {
 	)
 
 	handler := NewBackupScheduleHandler(
-		dbConnector,
 		clientConnector,
 		config.S3Config{
 			S3ForcePathStyle: false,
 			IsMock:           true,
 		},
-		[]string{".valid.com"},
-		true,
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 	)
-	err := handler(ctx, schedule)
+	err := handler(ctx, dbConnector, schedule, clock.Now())
 	assert.Empty(t, err)
 
 	// check operation status (should be pending)

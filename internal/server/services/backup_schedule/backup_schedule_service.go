@@ -79,6 +79,10 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.FailedPrecondition, "recovery point objective shoulde be greater than 0")
 	}
 	now := time.Now()
+	var scheduleName *string
+	if len(request.ScheduleName) > 0 {
+		scheduleName = &request.ScheduleName
+	}
 	schedule := types.BackupSchedule{
 		ID:                   types.GenerateObjectID(),
 		ContainerID:          request.ContainerId,
@@ -90,7 +94,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 			Creator:   subject,
 			CreatedAt: timestamppb.Now(),
 		},
-		Name:             request.ScheduleName,
+		Name:             scheduleName,
 		Active:           true,
 		ScheduleSettings: request.ScheduleSettings,
 		NextLaunch:       &now,

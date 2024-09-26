@@ -1,11 +1,9 @@
 package types
 
 import (
-	"context"
 	"fmt"
 	"github.com/gorhill/cronexpr"
 	"time"
-
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -20,7 +18,7 @@ type BackupSchedule struct {
 	SourcePaths            []string
 	SourcePathsToExclude   []string
 	Audit                  *pb.AuditInfo
-	Name                   string
+	Name                   *string
 	Active                 bool
 	ScheduleSettings       *pb.BackupScheduleSettings
 	NextLaunch             *time.Time
@@ -50,27 +48,30 @@ func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 	if b.NextLaunch != nil {
 		nextLaunchTs = timestamppb.New(*b.NextLaunch)
 	}
-	return &pb.BackupSchedule{
+	schedule := &pb.BackupSchedule{
 		Id:                       b.ID,
 		ContainerId:              b.ContainerID,
 		DatabaseName:             b.DatabaseName,
 		Endpoint:                 b.DatabaseEndpoint,
-		SourcePaths:              b.SourcePaths,
-		SourcePathsToExclude:     b.SourcePathsToExclude,
 		Audit:                    b.Audit,
-		ScheduleName:             b.Name,
 		Active:                   b.Active,
 		ScheduleSettings:         b.ScheduleSettings,
+		SourcePaths:              b.SourcePaths,
+		SourcePathsToExclude:     b.SourcePathsToExclude,
 		NextLaunch:               nextLaunchTs,
 		LastSuccessfulBackupInfo: backupInfo,
 	}
+	if b.Name != nil {
+		schedule.ScheduleName = *b.Name
+	}
+	return schedule
 }
 
 func (b *BackupSchedule) String() string {
 	return fmt.Sprintf(
 		"ID: %s, Name: %s, ContainerID: %s, DatabaseEndpoint: %s, DatabaseName: %s",
 		b.ID,
-		b.Name,
+		*b.Name,
 		b.ContainerID,
 		b.DatabaseEndpoint,
 		b.DatabaseName,
@@ -86,5 +87,3 @@ func (b *BackupSchedule) UpdateNextLaunch(now time.Time) error {
 	b.NextLaunch = &nextTime
 	return nil
 }
-
-type BackupScheduleHandler func(context.Context, BackupSchedule) error

@@ -2,7 +2,8 @@ package handlers
 
 import (
 	"context"
-	"google.golang.org/protobuf/types/known/durationpb"
+	"errors"
+	"go.uber.org/zap"
 	"time"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -10,54 +11,56 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
+type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule, time.Time) error
+
 func NewBackupScheduleHandler(
-	driver db.DBConnector,
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
-	allowedEndpointDomains []string,
-	allowInsecureEndpoint bool,
+	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
-) types.BackupScheduleHandler {
-	return func(ctx context.Context, schedule types.BackupSchedule) error {
+) BackupScheduleHandlerType {
+	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule, now time.Time) error {
 		return BackupScheduleHandler(
-			ctx, schedule, driver, clientConn, s3, allowedEndpointDomains, allowInsecureEndpoint, queryBuilderFactory,
+			ctx, driver, schedule, now, clientConn, s3, clientConfig,
+			queryBuilderFactory,
 		)
 	}
 }
 
 func BackupScheduleHandler(
 	ctx context.Context,
-	schedule types.BackupSchedule,
 	driver db.DBConnector,
+	schedule types.BackupSchedule,
+	now time.Time,
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
-	allowedEndpointDomains []string,
-	allowInsecureEndpoint bool,
+	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) error {
 	if !schedule.Active { //maybe just select active schedules; will be done in processor
-		return nil
+		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
+		return errors.New("backup schedule is not active")
 	}
-	now := time.Now()
 	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(now) {
-		var ttl *durationpb.Duration
-		if schedule.ScheduleSettings != nil {
-			ttl = schedule.ScheduleSettings.Ttl
-		}
 
+		backupRequest := &pb.MakeBackupRequest{
+			ContainerId:          schedule.ContainerID,
+			DatabaseName:         schedule.DatabaseName,
+			DatabaseEndpoint:     schedule.DatabaseEndpoint,
+			SourcePaths:          schedule.SourcePaths,
+			SourcePathsToExclude: schedule.SourcePathsToExclude,
+		}
+		if schedule.ScheduleSettings != nil {
+			backupRequest.Ttl = schedule.ScheduleSettings.Ttl
+		}
 		b, op, err := backup_operations.MakeBackup(
-			ctx, clientConn, s3, allowedEndpointDomains, allowInsecureEndpoint, &pb.MakeBackupRequest{
-				ContainerId:          schedule.ContainerID,
-				DatabaseName:         schedule.DatabaseName,
-				DatabaseEndpoint:     schedule.DatabaseEndpoint,
-				SourcePaths:          schedule.SourcePaths,
-				SourcePathsToExclude: schedule.SourcePathsToExclude,
-				Ttl:                  ttl,
-			}, &schedule.ID, types.OperationCreatorName, //TODO: who to put as subject here?
+			ctx, clientConn, s3, clientConfig.AllowedEndpointDomains, clientConfig.AllowInsecureEndpoint,
+			backupRequest, &schedule.ID, types.OperationCreatorName, //TODO: who to put as subject here?
 		)
 		if err != nil {
 			return err

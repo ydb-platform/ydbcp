@@ -141,13 +141,17 @@ func BackupsToInsert() ([]types.Backup, error) {
 }
 
 func SchedulesToInsert() []types.BackupSchedule {
+	name1 := "schedule 1"
+	name2 := "schedule 2"
+	name3 := "schedule 3"
+	name4 := "schedule 4"
 	return []types.BackupSchedule{
 		{
 			ID:               "1",
 			ContainerID:      containerID,
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
-			Name:             "schedule 1",
+			Name:             &name1,
 			Active:           true,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
@@ -163,7 +167,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			ContainerID:      containerID,
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
-			Name:             "schedule 2",
+			Name:             &name2,
 			Active:           true,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
@@ -179,7 +183,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			ContainerID:      containerID,
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
-			Name:             "schedule 3",
+			Name:             &name3,
 			Active:           true,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
@@ -194,7 +198,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			ContainerID:      containerID,
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
-			Name:             "schedule 4",
+			Name:             &name4,
 			Active:           true,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
