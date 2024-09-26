@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/jonboulle/clockwork"
 	"os"
 	"os/signal"
 	"sync"
@@ -22,6 +23,7 @@ import (
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	"ydbcp/internal/watchers/schedule_watcher"
 	"ydbcp/internal/watchers/ttl_watcher"
 	ap "ydbcp/pkg/plugins/auth"
 
@@ -145,7 +147,13 @@ func main() {
 	}
 
 	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
+
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
+
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(
+		clientConnector, configInstance.S3, configInstance.ClientConnection, queries.NewWriteTableQuery,
+	)
+	schedule_watcher.NewScheduleWatcher(ctx, &wg, clockwork.NewRealClock(), dbConnector, backupScheduleHandler)
 
 	wg.Add(1)
 	go func() {
