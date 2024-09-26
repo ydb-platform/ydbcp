@@ -1,7 +1,6 @@
 package types
 
 import (
-	"context"
 	"fmt"
 	"github.com/gorhill/cronexpr"
 	"time"
@@ -20,7 +19,7 @@ type BackupSchedule struct {
 	SourcePaths            []string
 	SourcePathsToExclude   []string
 	Audit                  *pb.AuditInfo
-	Name                   string
+	Name                   *string
 	Active                 bool
 	ScheduleSettings       *pb.BackupScheduleSettings
 	NextLaunch             *time.Time
