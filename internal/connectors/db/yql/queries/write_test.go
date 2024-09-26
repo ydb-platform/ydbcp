@@ -19,7 +19,7 @@ import (
 func TestQueryBuilder_UpdateUpdate(t *testing.T) {
 	const (
 		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
-UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
+UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1 AND status = $prev_status_1`
 	)
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
@@ -35,7 +35,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	}
 	builder := NewWriteTableQuery().
 		WithUpdateBackup(backup).
-		WithUpdateOperation(&op)
+		WithUpdateOperation(&op, types.OperationStateRunning)
 	var (
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
@@ -44,8 +44,14 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$status_1", table_types.StringValueFromString("Done")),
 			table.ValueParam("$message_1", table_types.StringValueFromString("Abcde")),
+			table.ValueParam("$prev_status_1", table_types.StringValueFromString(types.OperationStateRunning.String())),
 		)
 	)
+	expectedUpdateStats := map[string]uint64{
+		"Backups":    1,
+		"Operations": 1,
+	}
+
 	query, err := builder.FormatQuery(context.Background())
 	assert.Empty(t, err)
 	assert.Equal(
@@ -53,6 +59,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 		"bad query format",
 	)
 	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
+	assert.Equal(t, expectedUpdateStats, query.ExpectedUpdateStats, "bad update stats")
 }
 
 func TestQueryBuilder_CreateCreate(t *testing.T) {

@@ -42,7 +42,7 @@ func (w *WriteTableQueryMock) WithUpdateBackup(backup types.Backup) WriteTableQu
 	return w
 }
 
-func (w *WriteTableQueryMock) WithUpdateOperation(operation types.Operation) WriteTableQuery {
+func (w *WriteTableQueryMock) WithUpdateOperation(operation types.Operation, _ types.OperationState) WriteTableQuery {
 	w.Operation = operation
 	return w
 }

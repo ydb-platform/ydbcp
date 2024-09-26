@@ -54,6 +54,7 @@ func RBOperationHandler(
 
 	defer func() { _ = client.Close(ctx, conn) }()
 
+	prevState := operation.GetState()
 	ydbOpResponse, err := lookupYdbOperationStatus(
 		ctx, client, conn, operation, mr.YdbOperationId, mr.Audit.CreatedAt, config,
 	)
@@ -64,7 +65,7 @@ func RBOperationHandler(
 		operation.SetState(ydbOpResponse.opState)
 		operation.SetMessage(ydbOpResponse.opMessage)
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return db.UpdateOperation(ctx, operation, prevState)
 	}
 
 	if ydbOpResponse.opResponse == nil {
@@ -81,7 +82,7 @@ func RBOperationHandler(
 					operation.SetMessage("Operation deadline exceeded")
 				}
 
-				return db.UpdateOperation(ctx, operation)
+				return db.UpdateOperation(ctx, operation, prevState)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				operation.SetState(types.OperationStateDone)
@@ -105,7 +106,7 @@ func RBOperationHandler(
 				return err
 			}
 
-			return db.UpdateOperation(ctx, operation)
+			return db.UpdateOperation(ctx, operation, prevState)
 		}
 	case types.OperationStateCancelling:
 		{
@@ -116,7 +117,7 @@ func RBOperationHandler(
 					operation.GetAudit().CompletedAt = timestamppb.Now()
 				}
 
-				return db.UpdateOperation(ctx, operation)
+				return db.UpdateOperation(ctx, operation, prevState)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				operation.SetState(types.OperationStateDone)
@@ -160,5 +161,5 @@ func RBOperationHandler(
 	}
 
 	operation.GetAudit().CompletedAt = timestamppb.Now()
-	return db.UpdateOperation(ctx, operation)
+	return db.UpdateOperation(ctx, operation, prevState)
 }

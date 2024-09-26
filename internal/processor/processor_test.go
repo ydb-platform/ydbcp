@@ -43,9 +43,10 @@ func TestProcessor(t *testing.T) {
 				ctx, "TB handler called for operation",
 				zap.String("operation", types.OperationToString(op)),
 			)
+			prevState := op.GetState()
 			op.SetState(types.OperationStateDone)
 			op.SetMessage("Success")
-			db.UpdateOperation(ctx, op)
+			db.UpdateOperation(ctx, op, prevState)
 			handlerCalled <- struct{}{}
 			return nil
 		},

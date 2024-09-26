@@ -147,7 +147,7 @@ func (c *MockDBConnector) ActiveOperations(_ context.Context) (
 }
 
 func (c *MockDBConnector) UpdateOperation(
-	_ context.Context, op types.Operation,
+	_ context.Context, op types.Operation, prevState types.OperationState,
 ) error {
 	c.guard.Lock()
 	defer c.guard.Unlock()
@@ -155,7 +155,12 @@ func (c *MockDBConnector) UpdateOperation(
 	if _, exist := c.operations[op.GetID()]; !exist {
 		return fmt.Errorf("update nonexistent operation %s", types.OperationToString(op))
 	}
-	c.operations[op.GetID()] = op.Copy()
+	if c.operations[op.GetID()].GetState() == prevState {
+		c.operations[op.GetID()] = op.Copy()
+	} else {
+		return fmt.Errorf("operation state was changed %s", types.OperationToString(op))
+	}
+
 	return nil
 }
 

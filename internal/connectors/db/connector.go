@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"path"
+	"reflect"
 	"time"
 
 	"ydbcp/internal/config"
@@ -14,6 +16,7 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table/options"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
@@ -33,6 +36,11 @@ var (
 		),
 		table.CommitTx(),
 	)
+	writeTxNoCommit = table.TxControl(
+		table.BeginTx(
+			table.WithSerializableReadWrite(),
+		),
+	)
 )
 
 type DBConnector interface {
@@ -49,7 +57,7 @@ type DBConnector interface {
 		[]*types.BackupSchedule, error,
 	)
 	ActiveOperations(context.Context) ([]types.Operation, error)
-	UpdateOperation(context.Context, types.Operation) error
+	UpdateOperation(context.Context, types.Operation, types.OperationState) error
 	CreateOperation(context.Context, types.Operation) (string, error)
 	CreateBackup(context.Context, types.Backup) (string, error)
 	UpdateBackup(context context.Context, id string, backupState string) error
@@ -209,23 +217,97 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	if err != nil {
 		return err
 	}
+
+	txWasRolledBack := false
 	err = d.GetTableClient().Do(
 		ctx, func(ctx context.Context, s table.Session) (err error) {
-			_, _, err = s.Execute(
+			var (
+				txControl   *table.TransactionControl
+				statsOption options.ExecuteDataQueryOption
+			)
+
+			needToCheckQueryStats := len(queryFormat.ExpectedUpdateStats) > 0
+			if needToCheckQueryStats {
+				txControl = writeTxNoCommit
+				statsOption = options.WithCollectStatsModeBasic()
+			} else {
+				txControl = writeTx
+				statsOption = options.WithCollectStatsModeNone()
+			}
+
+			tx, res, err := s.Execute(
 				ctx,
-				writeTx,
+				txControl,
 				queryFormat.QueryText,
 				queryFormat.QueryParams,
+				statsOption,
 			)
 			if err != nil {
 				return err
 			}
-			return nil
+
+			defer func(res result.Result) {
+				err = res.Close()
+				if err != nil {
+					xlog.Error(ctx, "Error closing transaction result", zap.Error(err))
+				}
+			}(res) // result must be closed
+
+			if !needToCheckQueryStats {
+				return nil
+			}
+
+			if stats := res.Stats(); stats != nil {
+				updateStats := make(map[string]uint64)
+
+				for {
+					phaseStats, ok := stats.NextPhase()
+					if !ok {
+						break
+					}
+
+					for {
+						tableStats, ook := phaseStats.NextTableAccess()
+						if !ook {
+							break
+						}
+
+						_, tableName := path.Split(tableStats.Name)
+						// We can't receive modifications stats before commit.
+						// This query only contains modifications (upserts or updates),
+						// so we can be sure that all reads operations are related to updates.
+						// We can use this assumption to calculate updated rows count.
+						if tableStats.Reads.Rows > 0 {
+							updateStats[tableName] += tableStats.Reads.Rows
+						}
+					}
+				}
+
+				if !reflect.DeepEqual(updateStats, queryFormat.ExpectedUpdateStats) {
+					xlog.Error(ctx, "Expected updated rows count does not match actual",
+						zap.Any("expected", queryFormat.ExpectedUpdateStats),
+						zap.Any("actual", updateStats),
+					)
+					txWasRolledBack = true
+					return tx.Rollback(ctx)
+				}
+			} else {
+				xlog.Error(ctx, "Empty stats for upsert query")
+				txWasRolledBack = true
+				return tx.Rollback(ctx)
+			}
+
+			_, err = tx.CommitTx(ctx)
+			return err
 		},
 	)
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.Error(err))
 		return err
+	}
+
+	if txWasRolledBack {
+		return errors.New("transaction wasn't committed")
 	}
 	return nil
 }
@@ -303,7 +385,7 @@ func (d *YdbConnector) ActiveOperations(ctx context.Context) (
 }
 
 func (d *YdbConnector) UpdateOperation(
-	ctx context.Context, operation types.Operation,
+	ctx context.Context, operation types.Operation, prevState types.OperationState,
 ) error {
 	if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
 		operation.SetUpdatedAt(operation.GetAudit().CompletedAt)
@@ -311,7 +393,7 @@ func (d *YdbConnector) UpdateOperation(
 		operation.SetUpdatedAt(timestamppb.Now())
 	}
 
-	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(operation))
+	return d.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(operation, prevState))
 }
 
 func (d *YdbConnector) CreateOperation(

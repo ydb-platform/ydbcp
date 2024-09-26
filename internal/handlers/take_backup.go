@@ -53,6 +53,7 @@ func TBOperationHandler(
 
 	defer func() { _ = client.Close(ctx, conn) }()
 
+	prevState := operation.GetState()
 	ydbOpResponse, err := lookupYdbOperationStatus(
 		ctx, client, conn, operation, tb.YdbOperationId, tb.Audit.CreatedAt, config,
 	)
@@ -75,7 +76,7 @@ func TBOperationHandler(
 		backupToWrite.Message = operation.GetMessage()
 		backupToWrite.AuditInfo.CompletedAt = now
 		return db.ExecuteUpsert(
-			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 		)
 	}
 	if ydbOpResponse.opResponse == nil {
@@ -120,7 +121,7 @@ func TBOperationHandler(
 					operation.SetState(types.OperationStateStartCancelling)
 					operation.SetMessage("Operation deadline exceeded")
 				}
-				return db.UpdateOperation(ctx, operation)
+				return db.UpdateOperation(ctx, operation, prevState)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				size, err := getBackupSize(tb.BackupID)
 				if err != nil {
@@ -156,7 +157,7 @@ func TBOperationHandler(
 			backupToWrite.Message = operation.GetMessage()
 			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
 			return db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+				ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 			)
 		}
 	case types.OperationStateCancelling:
@@ -170,11 +171,11 @@ func TBOperationHandler(
 					operation.GetAudit().CompletedAt = now
 					backupToWrite.Message = operation.GetMessage()
 					return db.ExecuteUpsert(
-						ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+						ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 					)
 				}
 
-				return db.UpdateOperation(ctx, operation)
+				return db.UpdateOperation(ctx, operation, prevState)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				size, err := getBackupSize(tb.BackupID)
@@ -221,6 +222,6 @@ func TBOperationHandler(
 	backupToWrite.AuditInfo.CompletedAt = now
 	operation.GetAudit().CompletedAt = now
 	return db.ExecuteUpsert(
-		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 	)
 }

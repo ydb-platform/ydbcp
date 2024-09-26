@@ -27,8 +27,9 @@ type QueryFilter struct {
 }
 
 type FormatQueryResult struct {
-	QueryText   string
-	QueryParams *table.QueryParameters
+	QueryText           string
+	QueryParams         *table.QueryParameters
+	ExpectedUpdateStats map[string]uint64
 }
 
 type ReadTableQuery interface {

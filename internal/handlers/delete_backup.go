@@ -54,13 +54,14 @@ func DBOperationHandler(
 		Status: types.BackupStateUnknown,
 	}
 
+	prevState := operation.GetState()
 	if deadlineExceeded(dbOp.Audit.CreatedAt, config) {
 		backupToWrite.Status = types.BackupStateError
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Operation deadline exceeded")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return db.ExecuteUpsert(
-			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 		)
 	}
 
@@ -84,14 +85,14 @@ func DBOperationHandler(
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Backup not found")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return db.UpdateOperation(ctx, operation, prevState)
 	}
 
 	if backups[0].Status != types.BackupStateDeleting {
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backups[0].Status))
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return db.UpdateOperation(ctx, operation, prevState)
 	}
 
 	deleteBackup := func(pathPrefix string, bucket string) error {
@@ -118,7 +119,7 @@ func DBOperationHandler(
 	case types.OperationStatePending:
 		{
 			operation.SetState(types.OperationStateRunning)
-			err := db.UpdateOperation(ctx, operation)
+			err := db.UpdateOperation(ctx, operation, prevState)
 			if err != nil {
 				return fmt.Errorf("can't update operation: %v", err)
 			}
@@ -140,6 +141,6 @@ func DBOperationHandler(
 	}
 
 	return db.ExecuteUpsert(
-		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBuilderFactory().WithUpdateOperation(operation, prevState).WithUpdateBackup(backupToWrite),
 	)
 }

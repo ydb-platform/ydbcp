@@ -42,7 +42,7 @@ func TestRBOperationHandlerInvalidOperationResponse(t *testing.T) {
 
 	// try to handle rb operation with non-existing ydb operation id
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	op, err := dbConnector.GetOperation(ctx, rbOp.ID)
@@ -85,7 +85,7 @@ func TestRBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 
 	// try to handle pending rb operation with zero ttl
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (cancelling should be started because of deadline exceeded)
@@ -134,7 +134,7 @@ func TestRBOperationHandlerRunningOperationInProgress(t *testing.T) {
 
 	// try to handle pending rb operation with ttl
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 1000})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be pending)
@@ -182,7 +182,7 @@ func TestRBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 1000})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
@@ -229,7 +229,7 @@ func TestRBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 10})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be error)
@@ -278,7 +278,7 @@ func TestRBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 
 	// try to handle cancelling rb operation with zero ttl
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be failed because of deadline exceeded)
@@ -327,7 +327,7 @@ func TestRBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 1000})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)
@@ -375,7 +375,7 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 10})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
@@ -423,7 +423,7 @@ func TestRBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 10})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be cancelled)
@@ -471,7 +471,7 @@ func TestRBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	handler := NewRBOperationHandler(dbConnector, clientConnector, config.Config{OperationTtlSeconds: 10})
-	err := handler(ctx, &rbOp)
+	err := handler(ctx, rbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)

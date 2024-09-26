@@ -54,7 +54,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &dbOp)
+	err := handler(ctx, dbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be error because of deadline exceeded)
@@ -124,7 +124,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &dbOp)
+	err := handler(ctx, dbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
@@ -199,7 +199,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &dbOp)
+	err := handler(ctx, dbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
@@ -274,7 +274,7 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &dbOp)
+	err := handler(ctx, dbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be failed)

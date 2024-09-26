@@ -151,15 +151,16 @@ func (s *OperationService) CancelOperation(
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
-	if operation.GetState() != types.OperationStatePending {
-		xlog.Error(ctx, "can't cancel operation with state != pending")
+	if operation.GetState() != types.OperationStatePending && operation.GetState() != types.OperationStateRunning {
+		xlog.Error(ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()))
 		return operation.Proto(), nil
 	}
 
+	prevState := operation.GetState()
 	operation.SetState(types.OperationStateStartCancelling)
 	operation.SetMessage("Operation was cancelled via OperationService")
 
-	err = s.driver.UpdateOperation(ctx, operation)
+	err = s.driver.UpdateOperation(ctx, operation, prevState)
 	if err != nil {
 		xlog.Error(ctx, "error updating operation", zap.Error(err))
 		return nil, status.Error(codes.Internal, "error updating operation")

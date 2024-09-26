@@ -60,7 +60,7 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		config.Config{},
 		queries.NewWriteTableQueryMock,
 	)
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
@@ -120,7 +120,7 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (cancelling should be started because of deadline exceeded)
@@ -192,7 +192,7 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be pending)
@@ -280,7 +280,7 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be done)
@@ -352,7 +352,7 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be error)
@@ -423,7 +423,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be failed because of deadline exceeded)
@@ -496,7 +496,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)
@@ -583,7 +583,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 	// check operation status (should be done)
 	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
@@ -655,7 +655,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be cancelled)
@@ -727,7 +727,7 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 		}, queries.NewWriteTableQueryMock,
 	)
 
-	err := handler(ctx, &tbOp)
+	err := handler(ctx, tbOp.Copy())
 	assert.Empty(t, err)
 
 	// check operation status (should be the same as before)

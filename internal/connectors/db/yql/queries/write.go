@@ -21,7 +21,7 @@ type WriteTableQuery interface {
 	WithCreateOperation(operation types.Operation) WriteTableQuery
 	WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
 	WithUpdateBackup(backup types.Backup) WriteTableQuery
-	WithUpdateOperation(operation types.Operation) WriteTableQuery
+	WithUpdateOperation(operation types.Operation, prevState types.OperationState) WriteTableQuery
 	WithUpdateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
 }
 
@@ -35,6 +35,8 @@ type WriteSingleTableQueryImpl struct {
 	upsertFields     []string
 	tableQueryParams []table.ParameterOption
 	updateParam      *table.ParameterOption
+	filterFields     []string
+	filterParams     []table.ParameterOption
 }
 
 type WriteTableQueryImplOption func(*WriteTableQueryImpl)
@@ -192,7 +194,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 	return d
 }
 
-func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingleTableQueryImpl {
+func BuildUpdateOperationQuery(operation types.Operation, index int, prevState types.OperationState) WriteSingleTableQueryImpl {
 	d := WriteSingleTableQueryImpl{
 		index:     index,
 		tableName: "Operations",
@@ -217,6 +219,16 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 			table_types.TimestampValueFromTime(operation.GetUpdatedAt().AsTime()),
 		)
 	}
+
+	d.filterFields = append(d.filterFields, "status")
+	d.filterParams = append(
+		d.filterParams,
+		table.ValueParam(
+			fmt.Sprintf("%s_%d", "$prev_status", d.index),
+			table_types.StringValueFromString(prevState.String()),
+		),
+	)
+
 	return d
 }
 
@@ -381,9 +393,9 @@ func (d *WriteTableQueryImpl) WithUpdateBackup(backup types.Backup) WriteTableQu
 	return d
 }
 
-func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) WriteTableQuery {
+func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation, prevState types.OperationState) WriteTableQuery {
 	index := len(d.tableQueries)
-	d.tableQueries = append(d.tableQueries, BuildUpdateOperationQuery(operation, index))
+	d.tableQueries = append(d.tableQueries, BuildUpdateOperationQuery(operation, index, prevState))
 	return d
 }
 
@@ -439,25 +451,36 @@ func ProcessUpdateQuery(
 	for i := range t.upsertFields {
 		updates = append(updates, fmt.Sprintf("%s = %s", t.upsertFields[i], paramNames[i]))
 	}
+
+	filters := make([]string, 0)
+	filters = append(filters, keyParam)
+	for i := range t.filterFields {
+		filters = append(filters, fmt.Sprintf("%s = %s", t.filterFields[i], t.filterParams[i].Name()))
+	}
+
 	*queryStrings = append(
 		*queryStrings, fmt.Sprintf(
-			"UPDATE %s SET %s WHERE %s", t.tableName, strings.Join(updates, ", "), keyParam,
+			`UPDATE %s SET %s WHERE %s`,
+			t.tableName, strings.Join(updates, ", "), strings.Join(filters, " AND "),
 		),
 	)
 	*allParams = append(*allParams, *t.updateParam)
 	*allParams = append(*allParams, t.tableQueryParams...)
+	*allParams = append(*allParams, t.filterParams...)
 	return nil
 }
 
 func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
 	queryStrings := make([]string, 0)
 	allParams := make([]table.ParameterOption, 0)
+	expectedUpdateStats := make(map[string]uint64)
 	for _, t := range d.tableQueries {
 		var err error
 		if t.updateParam == nil {
 			err = ProcessUpsertQuery(&queryStrings, &allParams, &t)
 		} else {
 			err = ProcessUpdateQuery(&queryStrings, &allParams, &t)
+			expectedUpdateStats[t.tableName]++
 		}
 		if err != nil {
 			return nil, err
@@ -466,7 +489,8 @@ func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResu
 	res := strings.Join(queryStrings, ";\n")
 	xlog.Debug(ctx, "write query", zap.String("yql", res))
 	return &FormatQueryResult{
-		QueryText:   res,
-		QueryParams: table.NewQueryParameters(allParams...),
+		QueryText:           res,
+		QueryParams:         table.NewQueryParameters(allParams...),
+		ExpectedUpdateStats: expectedUpdateStats,
 	}, nil
 }
