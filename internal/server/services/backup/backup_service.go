@@ -221,6 +221,8 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	xlog.Error(ctx, "restore is not allowed")
+	return nil, status.Error(codes.PermissionDenied, "restore is not allowed")
 
 	if !backup_operations.IsAllowedEndpoint(req.DatabaseEndpoint, s.allowedEndpointDomains, s.allowInsecureEndpoint) {
 		xlog.Error(

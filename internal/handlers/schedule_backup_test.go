@@ -2,8 +2,6 @@ package handlers
 
 import (
 	"context"
-	"github.com/stretchr/testify/assert"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"testing"
 	"time"
 	"ydbcp/internal/config"
@@ -12,6 +10,9 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 )
 
 func TestBackupScheduleHandler(t *testing.T) {
