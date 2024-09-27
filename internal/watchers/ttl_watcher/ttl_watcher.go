@@ -68,6 +68,7 @@ func TtlWatcherAction(
 		if backup.ExpireAt != nil && backup.ExpireAt.Before(time.Now()) {
 			now := timestamppb.Now()
 			dbOp := &types.DeleteBackupOperation{
+				ID:          types.GenerateObjectID(),
 				ContainerID: backup.ContainerID,
 				BackupID:    backup.ID,
 				State:       types.OperationStatePending,
