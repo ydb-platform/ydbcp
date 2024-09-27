@@ -199,6 +199,12 @@ func (s *BackupScheduleService) ListBackupSchedules(
 		ctx, queries.NewReadTableQuery(
 			queries.WithRawQuery(ListSchedulesQuery),
 			queries.WithQueryFilters(queryFilters...),
+			queries.WithOrderBy(
+				queries.OrderSpec{
+					Field: "created_at",
+					Desc:  true,
+				},
+			),
 		),
 	)
 	if err != nil {

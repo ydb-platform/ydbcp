@@ -66,6 +66,12 @@ func (s *OperationService) ListOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
 			queries.WithQueryFilters(queryFilters...),
+			queries.WithOrderBy(
+				queries.OrderSpec{
+					Field: "created_at",
+					Desc:  true,
+				},
+			),
 		),
 	)
 	if err != nil {

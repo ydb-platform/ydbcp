@@ -369,6 +369,12 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithQueryFilters(queryFilters...),
+			queries.WithOrderBy(
+				queries.OrderSpec{
+					Field: "created_at",
+					Desc:  true,
+				},
+			),
 		),
 	)
 	if err != nil {
