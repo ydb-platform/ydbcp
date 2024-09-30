@@ -2,6 +2,7 @@ package operation
 
 import (
 	"context"
+	"strconv"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
@@ -62,6 +63,11 @@ func (s *OperationService) ListOperations(
 		)
 	}
 
+	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),
@@ -72,6 +78,7 @@ func (s *OperationService) ListOperations(
 					Desc:  true,
 				},
 			),
+			queries.WithPageSpec(*pageSpec),
 		),
 	)
 	if err != nil {
@@ -82,8 +89,12 @@ func (s *OperationService) ListOperations(
 	for _, operation := range operations {
 		pbOperations = append(pbOperations, operation.Proto())
 	}
-	xlog.Debug(ctx, "success list operations")
-	return &pb.ListOperationsResponse{Operations: pbOperations}, nil
+	res := &pb.ListOperationsResponse{Operations: pbOperations}
+	if uint64(len(pbOperations)) == pageSpec.Limit {
+		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
+	}
+	xlog.Debug(ctx, "success ListOperations")
+	return res, nil
 }
 
 func (s *OperationService) CancelOperation(

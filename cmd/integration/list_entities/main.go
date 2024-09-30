@@ -256,75 +256,104 @@ func main() {
 			log.Panicf("failed to insert schedule: %v", err)
 		}
 	}
-
 	scheduleClient := pb.NewBackupScheduleServiceClient(conn)
-	schedules, err := scheduleClient.ListBackupSchedules(
-		context.Background(), &pb.ListBackupSchedulesRequest{
-			ContainerId:      containerID,
-			DatabaseNameMask: "%",
-		},
-	)
-	if err != nil {
-		log.Panicf("failed to list backup schedules: %v", err)
-	}
 
-	if len(schedules.Schedules) != 4 {
-		log.Panicln("did not get all the schedules")
-	}
-	for i, s := range schedules.Schedules {
-		if strconv.Itoa(4-i) != s.Id {
-			log.Panicf("wrong schedules order: expected %d, got %s", i, s.Id)
+	{
+		schedules, err := scheduleClient.ListBackupSchedules(
+			context.Background(), &pb.ListBackupSchedulesRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				PageSize:         3,
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backup schedules: %v", err)
 		}
-		switch s.Id {
-		case "1":
-			{
-				if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fivePM {
-					log.Panicf(
-						"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fivePM.String(),
-						s.LastSuccessfulBackupInfo.String(),
-						s.Id,
-					)
-				}
+		if len(schedules.Schedules) != 3 {
+			log.Panicln("did not get expected amount schedules")
+		}
+		if schedules.NextPageToken != "3" {
+			log.Panicln("wrong next page token")
+		}
+		for i, s := range schedules.Schedules {
+			if strconv.Itoa(4-i) != s.Id {
+				log.Panicf("wrong schedules order: expected %d, got %s", i, s.Id)
 			}
-		case "2":
-			{
-				if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
-					log.Panicf(
-						"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
-						s.LastSuccessfulBackupInfo.String(),
-						s.Id,
-					)
+			switch s.Id {
+			case "2":
+				{
 
+					if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
+						log.Panicf(
+							"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
+							s.LastSuccessfulBackupInfo.String(),
+							s.Id,
+						)
+
+					}
 				}
-			}
-		case "3":
-			{
-				info := &pb.ScheduledBackupInfo{
-					BackupId:      "6",
-					RecoveryPoint: timestamppb.New(fourPM),
+			case "3":
+				{
+					info := &pb.ScheduledBackupInfo{
+						BackupId:      "6",
+						RecoveryPoint: timestamppb.New(fourPM),
+					}
+					if !proto.Equal(info, s.LastSuccessfulBackupInfo) {
+						log.Panicf(
+							"Expected %s, got %s for scheduleID %s", info.String(), s.LastSuccessfulBackupInfo.String(),
+							s.Id,
+						)
+					}
 				}
-				if !proto.Equal(info, s.LastSuccessfulBackupInfo) {
-					log.Panicf(
-						"Expected %s, got %s for scheduleID %s", info.String(), s.LastSuccessfulBackupInfo.String(),
-						s.Id,
-					)
+			case "4":
+				{
+					if s.LastSuccessfulBackupInfo != nil {
+						log.Panicf(
+							"Expected nil, got %s for scheduleID %s", s.LastSuccessfulBackupInfo.String(),
+							s.Id,
+						)
+					}
 				}
-			}
-		case "4":
-			{
-				if s.LastSuccessfulBackupInfo != nil {
-					log.Panicf(
-						"Expected nil, got %s for scheduleID %s", s.LastSuccessfulBackupInfo.String(),
-						s.Id,
-					)
+			default:
+				{
+					log.Panicf("unexpected schedule id: %s", s.Id)
 				}
-			}
-		default:
-			{
-				log.Panicf("unexpected schedule id: %s", s.Id)
 			}
 		}
 	}
+	{
+		schedules, err := scheduleClient.ListBackupSchedules(
+			context.Background(), &pb.ListBackupSchedulesRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				PageSize:         3,
+				PageToken:        "3",
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backup schedules: %v", err)
+		}
+		if len(schedules.Schedules) != 1 {
+			log.Panicln("did not get expected amount schedules")
+		}
+		if schedules.NextPageToken != "" {
+			log.Panicln("wrong next page token")
+		}
+
+		for _, s := range schedules.Schedules {
+			if s.Id != "1" {
+				log.Panicf("wrong schedule id, expected 1, got %s", s.Id)
+			}
+			if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fivePM {
+				log.Panicf(
+					"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fivePM.String(),
+					s.LastSuccessfulBackupInfo.String(),
+					s.Id,
+				)
+			}
+		}
+	}
+
 	{
 		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "1"})
 		if err != nil {
@@ -380,5 +409,58 @@ func main() {
 			)
 		}
 	}
+	{
+		backupClient := pb.NewBackupServiceClient(conn)
+		backupsPb, err := backupClient.ListBackups(
+			ctx, &pb.ListBackupsRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				PageSize:         4,
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backups: %v", err)
+		}
+		if len(backupsPb.Backups) != 4 {
+			log.Panicf("wrong list response size")
+		}
+		if backupsPb.NextPageToken != "4" {
+			log.Panicf("wrong next page token, expected \"4\", got \"%s\"", backupsPb.NextPageToken)
+		}
+		backupsPb, err = backupClient.ListBackups(
+			ctx, &pb.ListBackupsRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				PageSize:         4,
+				PageToken:        "4",
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backups: %v", err)
+		}
+		if len(backupsPb.Backups) != 4 {
+			log.Panicf("wrong list response size")
+		}
+		if backupsPb.NextPageToken != "8" {
+			log.Panicf("wrong next page token, expected \"8\", got \"%s\"", backupsPb.NextPageToken)
+		}
+		backupsPb, err = backupClient.ListBackups(
+			ctx, &pb.ListBackupsRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				PageSize:         4,
+				PageToken:        "8",
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backups: %v", err)
+		}
+		if len(backupsPb.Backups) != 0 {
+			log.Panicf("wrong list response size")
+		}
+		if backupsPb.NextPageToken != "" {
+			log.Panicf("wrong next page token, expected \"\", got \"%s\"", backupsPb.NextPageToken)
+		}
 
+	}
 }

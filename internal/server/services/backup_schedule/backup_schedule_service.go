@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/gorhill/cronexpr"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"strconv"
 	"time"
 
 	"ydbcp/internal/auth"
@@ -199,6 +200,12 @@ func (s *BackupScheduleService) ListBackupSchedules(
 			},
 		)
 	}
+
+	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
 			queries.WithRawQuery(ListSchedulesQuery),
@@ -209,6 +216,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 					Desc:  true,
 				},
 			),
+			queries.WithPageSpec(*pageSpec),
 		),
 	)
 	if err != nil {
@@ -219,8 +227,12 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	for _, schedule := range schedules {
 		pbSchedules = append(pbSchedules, schedule.Proto())
 	}
+	res := &pb.ListBackupSchedulesResponse{Schedules: pbSchedules}
+	if uint64(len(pbSchedules)) == pageSpec.Limit {
+		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
+	}
 	xlog.Debug(ctx, "ListBackupSchedules success")
-	return &pb.ListBackupSchedulesResponse{Schedules: pbSchedules}, nil
+	return res, nil
 }
 
 func (s *BackupScheduleService) ToggleBackupSchedule(

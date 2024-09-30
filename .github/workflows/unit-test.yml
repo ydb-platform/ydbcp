@@ -69,8 +69,8 @@ jobs:
       - name: docker compose up
         run: |
           docker compose up -d
-      - name: run list_schedules test
-        run: docker exec local-ydbcp sh -c './list_schedules'
+      - name: run list_entities test
+        run: docker exec local-ydbcp sh -c './list_entities'
       - name: docker compose down
         run: |
           docker compose down
