@@ -9,7 +9,7 @@ import (
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 )
 
-func TestQueryBuilder_Read(t *testing.T) {
+func TestQueryBuilderRead(t *testing.T) {
 	const (
 		queryString = `SELECT * FROM table1 WHERE (column1 = $param0 OR column1 = $param1) AND (column2 = $param2 OR column2 = $param3)`
 	)
@@ -51,7 +51,7 @@ func TestQueryBuilder_Read(t *testing.T) {
 	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
 }
 
-func TestQueryBuilder_Order(t *testing.T) {
+func TestQueryBuilderOrderBy(t *testing.T) {
 	const (
 		q1 = `SELECT * FROM table1 ORDER BY field`
 		q2 = `SELECT * FROM table1 ORDER BY field DESC`
@@ -88,7 +88,7 @@ func TestQueryBuilder_Order(t *testing.T) {
 	)
 }
 
-func TestQueryBuilder_RawQueryModifiers(t *testing.T) {
+func TestQueryBuilderRawQueryModifiers(t *testing.T) {
 	const (
 		query     = `SELECT * FROM table1`
 		fullQuery = `SELECT * FROM table1 WHERE (col1 = $param0) AND (col2 = $param1) ORDER BY col3 DESC`
@@ -123,4 +123,54 @@ func TestQueryBuilder_RawQueryModifiers(t *testing.T) {
 		t, fullQuery, fq.QueryText,
 		"bad query format",
 	)
+}
+
+func TestQueryBuilderPagination(t *testing.T) {
+	const (
+		query    = `SELECT * FROM table1 WHERE (col1 = $param0) ORDER BY col3 LIMIT 5 OFFSET 10`
+		noOffset = `SELECT * FROM table1 LIMIT 5`
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithQueryFilters(
+			QueryFilter{
+				Field: "col1",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("value1"),
+				},
+			},
+		),
+		WithOrderBy(
+			OrderSpec{
+				Field: "col3",
+			},
+		),
+		WithPageSpec(
+			PageSpec{
+				Limit:  5,
+				Offset: 10,
+			},
+		),
+	)
+	fq, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, query, fq.QueryText,
+		"bad query format",
+	)
+	builder = NewReadTableQuery(
+		WithTableName("table1"),
+		WithPageSpec(
+			PageSpec{
+				Limit: 5,
+			},
+		),
+	)
+	fq, err = builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, noOffset, fq.QueryText,
+		"bad query format",
+	)
+
 }

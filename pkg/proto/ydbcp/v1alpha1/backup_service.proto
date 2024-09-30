@@ -32,7 +32,8 @@ message ListBackupsRequest {
     uint32 page_size = 1000; // [(value) = "0-1000"];
 
     // Page token. Set `page_token` to the `next_page_token` returned by a previous ListBackups
-    // request to get the next page of results.
+    // request to get the next page of results. Page token is an integer that represents an OFFSET for
+    // YQL query.
     string page_token = 1001; // [(length) = "<=100"];
 }
 

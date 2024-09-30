@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"strconv"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -365,6 +366,11 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 		)
 	}
 
+	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
@@ -375,6 +381,7 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 					Desc:  true,
 				},
 			),
+			queries.WithPageSpec(*pageSpec),
 		),
 	)
 	if err != nil {
@@ -385,8 +392,14 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	for _, backup := range backups {
 		pbBackups = append(pbBackups, backup.Proto())
 	}
-	xlog.Debug(ctx, "success")
-	return &pb.ListBackupsResponse{Backups: pbBackups}, nil
+	res := &pb.ListBackupsResponse{
+		Backups: pbBackups,
+	}
+	if uint64(len(pbBackups)) == pageSpec.Limit {
+		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
+	}
+	xlog.Debug(ctx, "ListBackups success")
+	return res, nil
 }
 
 func (s *BackupService) Register(server server.Server) {
