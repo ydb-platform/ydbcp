@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/jonboulle/clockwork"
 	"os"
 	"os/signal"
 	"sync"
@@ -16,6 +15,7 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/handlers"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/processor"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/services/backup"
@@ -26,6 +26,8 @@ import (
 	"ydbcp/internal/watchers/schedule_watcher"
 	"ydbcp/internal/watchers/ttl_watcher"
 	ap "ydbcp/pkg/plugins/auth"
+
+	"github.com/jonboulle/clockwork"
 
 	"go.uber.org/automaxprocs/maxprocs"
 	"go.uber.org/zap"
@@ -70,6 +72,7 @@ func main() {
 			zap.String("config", confStr),
 		)
 	}
+	metrics := metrics.NewMetricsRegistry(ctx, &wg, &configInstance.MetricsServer)
 	server, err := server.NewServer(&configInstance.GRPCServer)
 	if err != nil {
 		xlog.Error(ctx, "failed to initialize GRPC server", zap.Error(err))
@@ -146,8 +149,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
-
+	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry, metrics)
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(

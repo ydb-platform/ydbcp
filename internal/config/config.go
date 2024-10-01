@@ -54,6 +54,13 @@ type GRPCServerConfig struct {
 	TLSKeyPath         string `yaml:"tls_key_path"`
 }
 
+type MetricsServerConfig struct {
+	BindAddress        string `yaml:"bind_address"`
+	BindPort           uint16 `yaml:"bind_port" default:"8080"`
+	TLSCertificatePath string `yaml:"tls_certificate_path"`
+	TLSKeyPath         string `yaml:"tls_key_path"`
+}
+
 type Config struct {
 	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
 	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
@@ -61,6 +68,7 @@ type Config struct {
 	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
 	Auth                AuthConfig             `yaml:"auth"`
 	GRPCServer          GRPCServerConfig       `yaml:"grpc_server"`
+	MetricsServer       MetricsServerConfig    `yaml:"metrics_server"`
 }
 
 var (
