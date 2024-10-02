@@ -41,7 +41,7 @@ func BackupScheduleHandler(
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) error {
-	if !schedule.Active { //maybe just select active schedules; will be done in processor
+	if !schedule.Active {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
 		return errors.New("backup schedule is not active")
 	}
@@ -58,6 +58,11 @@ func BackupScheduleHandler(
 		if schedule.ScheduleSettings != nil {
 			backupRequest.Ttl = schedule.ScheduleSettings.Ttl
 		}
+		xlog.Error(
+			ctx, "call MakeBackup for schedule", zap.String("scheduleID", schedule.ID),
+			zap.String("backupRequest", backupRequest.String()),
+		)
+
 		b, op, err := backup_operations.MakeBackup(
 			ctx, clientConn, s3, clientConfig.AllowedEndpointDomains, clientConfig.AllowInsecureEndpoint,
 			backupRequest, &schedule.ID, types.OperationCreatorName, //TODO: who to put as subject here?
