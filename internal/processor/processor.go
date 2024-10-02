@@ -6,12 +6,18 @@ import (
 	"time"
 
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
+)
+
+const (
+	metricsSubsystem = "operation_processor"
 )
 
 type OperationProcessorImpl struct {
@@ -26,6 +32,10 @@ type OperationProcessorImpl struct {
 
 	runningOperations map[string]bool
 	results           chan string
+
+	runsCount       *prometheus.CounterVec
+	failedCount     *prometheus.CounterVec
+	successfulCount *prometheus.CounterVec
 }
 
 type Option func(*OperationProcessorImpl)
@@ -51,6 +61,7 @@ func NewOperationProcessor(
 	wg *sync.WaitGroup,
 	db db.DBConnector,
 	handlers OperationHandlerRegistry,
+	mon metrics.MetricsRegistry,
 	options ...Option,
 ) *OperationProcessorImpl {
 	op := &OperationProcessorImpl{
@@ -62,6 +73,22 @@ func NewOperationProcessor(
 		tickerProvider:         ticker.NewRealTicker,
 		runningOperations:      make(map[string]bool),
 		results:                make(chan string),
+
+		runsCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
+			Subsystem: metricsSubsystem,
+			Name:      "operations_runs_count",
+			Help:      "Total count of runs of the operation",
+		}, []string{"task_type"}),
+		failedCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
+			Subsystem: metricsSubsystem,
+			Name:      "operations_failed_count",
+			Help:      "Total count of failed operations",
+		}, []string{"task_type"}),
+		successfulCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
+			Subsystem: metricsSubsystem,
+			Name:      "operations_successful_count",
+			Help:      "Total count of successful operations",
+		}, []string{"task_type"}),
 	}
 	for _, opt := range options {
 		opt(op)
@@ -138,6 +165,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		)
 		return
 	}
+	o.runsCount.WithLabelValues(op.GetType().String()).Inc()
 	o.runningOperations[op.GetID()] = true
 	o.workersWaitGroup.Add(1)
 	go func() {
@@ -155,12 +183,14 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 				zap.String("operation", types.OperationToString(op)),
 				zap.Error(err),
 			)
+			o.failedCount.WithLabelValues(op.GetType().String()).Inc()
 		} else {
 			xlog.Debug(
 				ctx,
 				"operation handler finished successfully",
 				zap.String("operation", types.OperationToString(op)),
 			)
+			o.successfulCount.WithLabelValues(op.GetType().String()).Inc()
 		}
 		o.results <- op.GetID()
 	}()

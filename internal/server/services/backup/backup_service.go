@@ -3,22 +3,21 @@ package backup
 import (
 	"context"
 	"strconv"
+
+	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
-	ap "ydbcp/pkg/plugins/auth"
-
-	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
