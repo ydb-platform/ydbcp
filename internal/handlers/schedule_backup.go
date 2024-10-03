@@ -58,7 +58,7 @@ func BackupScheduleHandler(
 		if schedule.ScheduleSettings != nil {
 			backupRequest.Ttl = schedule.ScheduleSettings.Ttl
 		}
-		xlog.Error(
+		xlog.Info(
 			ctx, "call MakeBackup for schedule", zap.String("scheduleID", schedule.ID),
 			zap.String("backupRequest", backupRequest.String()),
 		)
