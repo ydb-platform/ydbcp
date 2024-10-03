@@ -125,6 +125,44 @@ func main() {
 	if !done {
 		log.Panicln("failed to complete a restore in 30 seconds")
 	}
+	deleteOperation, err := client.DeleteBackup(
+		context.Background(), &pb.DeleteBackupRequest{
+			BackupId: backupOperation.BackupId,
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to delete backup: %v", err)
+	}
+	done = false
+	for range 30 {
+		op, err := opClient.GetOperation(
+			context.Background(), &pb.GetOperationRequest{
+				Id: deleteOperation.Id,
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to get operation: %v", err)
+		}
+		if op.GetStatus().String() == types.OperationStateDone.String() {
+			done = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if !done {
+		log.Panicln("failed to complete a delete backup in 30 seconds")
+	}
+	backup, err := client.GetBackup(
+		context.Background(),
+		&pb.GetBackupRequest{Id: backupOperation.BackupId},
+	)
+	if err != nil {
+		log.Panicf("failed to get backup: %v", err)
+	}
+	if backup.GetStatus().String() != types.BackupStateDeleted {
+		log.Panicf("expected DELETED backup status, but received: %s", backup.GetStatus().String())
+	}
+
 	scheduleClient := pb.NewBackupScheduleServiceClient(conn)
 	schedules, err := scheduleClient.ListBackupSchedules(
 		context.Background(), &pb.ListBackupSchedulesRequest{
