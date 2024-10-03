@@ -10,6 +10,7 @@ import (
 
 	"ydbcp/internal/util/xlog"
 
+	"github.com/creasty/defaults"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -95,6 +96,11 @@ func InitConfig(ctx context.Context, confPath string) (Config, error) {
 	}
 	confTxt = []byte(os.ExpandEnv(string(confTxt)))
 	var config Config
+	if err = defaults.Set(&config); err != nil {
+		xlog.Error(ctx, "Unable to set default configuration parameters", zap.Error(err))
+		return Config{}, err
+	}
+
 	err = yaml.Unmarshal(confTxt, &config)
 	if err != nil {
 		xlog.Error(ctx, "Unable to parse configuration file", zap.Error(err))
