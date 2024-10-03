@@ -99,6 +99,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	if err != nil {
 		return nil, err
 	}
+	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
+	xlog.Debug(ctx, "MakeBackup was started successfully", zap.String("operation", types.OperationToString(op)))
 	return op.Proto(), nil
 }
 
@@ -151,6 +153,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 
 	now := timestamppb.Now()
 	op := &types.DeleteBackupOperation{
+		ID:          types.GenerateObjectID(),
 		ContainerID: backup.ContainerID,
 		BackupID:    req.GetBackupId(),
 		State:       types.OperationStatePending,
@@ -166,14 +169,20 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		UpdatedAt:  now,
 	}
 
-	operationID, err := s.driver.CreateOperation(ctx, op)
+	backupToWrite := types.Backup{
+		ID:     req.GetBackupId(),
+		Status: types.BackupStateDeleting,
+	}
+
+	err = s.driver.ExecuteUpsert(
+		ctx, queries.NewWriteTableQuery().WithCreateOperation(op).WithUpdateBackup(backupToWrite),
+	)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.Error(err))
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
-	ctx = xlog.With(ctx, zap.String("OperationID", operationID))
 
-	op.ID = operationID
+	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
 	xlog.Debug(ctx, "DeleteBackup was started successfully", zap.String("operation", types.OperationToString(op)))
 	return op.Proto(), nil
 }

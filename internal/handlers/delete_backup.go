@@ -33,7 +33,7 @@ func DBOperationHandler(
 	db db.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBulderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) error {
 	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -60,7 +60,7 @@ func DBOperationHandler(
 		operation.SetMessage("Operation deadline exceeded")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return db.ExecuteUpsert(
-			ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 		)
 	}
 
@@ -81,7 +81,17 @@ func DBOperationHandler(
 	}
 
 	if len(backups) == 0 {
-		return fmt.Errorf("backup not found")
+		operation.SetState(types.OperationStateError)
+		operation.SetMessage("Backup not found")
+		operation.GetAudit().CompletedAt = timestamppb.Now()
+		return db.UpdateOperation(ctx, operation)
+	}
+
+	if backups[0].Status != types.BackupStateDeleting {
+		operation.SetState(types.OperationStateError)
+		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backups[0].Status))
+		operation.GetAudit().CompletedAt = timestamppb.Now()
+		return db.UpdateOperation(ctx, operation)
 	}
 
 	deleteBackup := func(pathPrefix string, bucket string) error {
@@ -107,11 +117,8 @@ func DBOperationHandler(
 	switch dbOp.State {
 	case types.OperationStatePending:
 		{
-			backupToWrite.Status = types.BackupStateDeleting
 			operation.SetState(types.OperationStateRunning)
-			err := db.ExecuteUpsert(
-				ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
-			)
+			err := db.UpdateOperation(ctx, operation)
 			if err != nil {
 				return fmt.Errorf("can't update operation: %v", err)
 			}
@@ -133,6 +140,6 @@ func DBOperationHandler(
 	}
 
 	return db.ExecuteUpsert(
-		ctx, queryBulderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
 	)
 }

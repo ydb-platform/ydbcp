@@ -33,7 +33,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:     backupID,
-		Status: types.BackupStateAvailable,
+		Status: types.BackupStateDeleting,
 	}
 
 	opMap := make(map[string]types.Operation)
@@ -87,7 +87,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:           backupID,
-		Status:       types.BackupStateAvailable,
+		Status:       types.BackupStateDeleting,
 		S3PathPrefix: "pathPrefix",
 	}
 
@@ -162,7 +162,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	}
 	backup := types.Backup{
 		ID:           backupID,
-		Status:       types.BackupStateAvailable,
+		Status:       types.BackupStateDeleting,
 		S3PathPrefix: "pathPrefix",
 	}
 
@@ -219,4 +219,74 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	objects, err := s3Connector.ListObjects("pathPrefix", "bucket")
 	assert.Empty(t, err)
 	assert.Empty(t, objects)
+}
+
+func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	dbOp := types.DeleteBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		State:               types.OperationStateRunning,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:           backupID,
+		Status:       types.BackupStateAvailable,
+		S3PathPrefix: "pathPrefix",
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	s3ObjectsMap := make(map[string][]*s3.Object)
+	backupMap[backupID] = backup
+	opMap[opId] = &dbOp
+	s3ObjectsMap["pathPrefix"] = []*s3.Object{
+		{
+			Key:  aws.String("data_1.csv"),
+			Size: aws.Int64(100),
+		},
+		{
+			Key:  aws.String("data_2.csv"),
+			Size: aws.Int64(150),
+		},
+		{
+			Key:  aws.String("data_3.csv"),
+			Size: aws.Int64(200),
+		},
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+
+	handler := NewDBOperationHandler(
+		dbConnector, s3Connector, config.Config{
+			OperationTtlSeconds: 1000,
+		}, queries.NewWriteTableQueryMock,
+	)
+
+	err := handler(ctx, &dbOp)
+	assert.Empty(t, err)
+
+	// check operation status (should be failed)
+	op, err := dbConnector.GetOperation(ctx, dbOp.ID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, op)
+	assert.Equal(t, types.OperationStateError, op.GetState())
+	assert.Equal(t, "Unexpected backup status: AVAILABLE", op.GetMessage())
+
+	// check backup status (should be the same as before)
+	b, err := dbConnector.GetBackup(ctx, backupID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, types.BackupStateAvailable, b.Status)
 }
