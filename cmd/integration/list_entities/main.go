@@ -461,6 +461,28 @@ func main() {
 		if backupsPb.NextPageToken != "" {
 			log.Panicf("wrong next page token, expected \"\", got \"%s\"", backupsPb.NextPageToken)
 		}
-
+		backupsPb, err = backupClient.ListBackups(
+			ctx, &pb.ListBackupsRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				Order: &pb.ListBackupsOrder{
+					Field: pb.BackupField_CREATED_AT,
+					Desc:  true,
+				},
+				DisplayStatus: []pb.Backup_Status{pb.Backup_DELETED},
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backups: %v", err)
+		}
+		if len(backupsPb.Backups) != 3 {
+			log.Panicf("wrong list response size")
+		}
+		if backupsPb.Backups[0].Audit.CreatedAt.AsTime() != fourPM {
+			log.Panicf(
+				"expected created_at: %s, got: %s", fourPM.String(),
+				backupsPb.Backups[0].Audit.CreatedAt.AsTime().String(),
+			)
+		}
 	}
 }

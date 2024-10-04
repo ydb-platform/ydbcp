@@ -3,6 +3,7 @@ package queries
 import (
 	"context"
 	"testing"
+	ydbcp "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -172,5 +173,26 @@ func TestQueryBuilderPagination(t *testing.T) {
 		t, noOffset, fq.QueryText,
 		"bad query format",
 	)
+}
 
+func TestOrderSpec(t *testing.T) {
+	const (
+		query = `SELECT * FROM table1 ORDER BY created_at DESC`
+	)
+	pbOrder := &ydbcp.ListBackupsOrder{
+		Field: ydbcp.BackupField_CREATED_AT,
+		Desc:  true,
+	}
+	spec, err := NewOrderSpec(pbOrder)
+	assert.Empty(t, err)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithOrderBy(*spec),
+	)
+	fq, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, query, fq.QueryText,
+		"bad query format",
+	)
 }
