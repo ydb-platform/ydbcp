@@ -205,4 +205,44 @@ func main() {
 	if schedules.Schedules[0].Id != schedule.Id {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
+
+	newScheduleName := "schedule-2.0"
+	newSourcePath := databaseName + "/kv_test"
+	newSchedule, err := scheduleClient.UpdateBackupSchedule(
+		context.Background(), &pb.UpdateBackupScheduleRequest{
+			Id:           schedule.Id,
+			ScheduleName: newScheduleName,
+			SourcePaths:  []string{newSourcePath},
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to update backup schedule: %v", err)
+	}
+	if newSchedule.Id != schedule.Id {
+		log.Panicf("schedule and updated schedule ids does not match: %s != %s", schedule.Id, newSchedule.Id)
+	}
+	if newSchedule.ScheduleName != newScheduleName {
+		log.Panicf("schedule name does not match: %s != %s", newSchedule.ScheduleName, newScheduleName)
+	}
+	schedules, err = scheduleClient.ListBackupSchedules(
+		context.Background(), &pb.ListBackupSchedulesRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: "%",
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backup schedules: %v", err)
+	}
+	if len(schedules.Schedules) != 1 {
+		log.Panicln("unexpected number of schedules")
+	}
+	if schedules.Schedules[0].ScheduleName != newScheduleName {
+		log.Panicf("schedule name does not match: %s != %s", schedules.Schedules[0].ScheduleName, newScheduleName)
+	}
+	if len(schedules.Schedules[0].SourcePaths) != 1 {
+		log.Panicf("unexpected number of source paths: %d", len(schedules.Schedules[0].SourcePaths))
+	}
+	if schedules.Schedules[0].SourcePaths[0] != newSourcePath {
+		log.Panicf("source paths not match: %s != %s", schedules.Schedules[0].ScheduleName, newScheduleName)
+	}
 }
