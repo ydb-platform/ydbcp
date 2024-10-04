@@ -8,6 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"ydbcp/internal/util/xlog"
 
@@ -61,6 +62,34 @@ func NewPageSpec(pageSize uint32, pageToken string) (*PageSpec, error) {
 		pageSpec.Offset = offset
 	}
 	return &pageSpec, nil
+}
+
+func NewOrderSpec(order *pb.ListBackupsOrder) (*OrderSpec, error) {
+	if order == nil {
+		return &OrderSpec{
+			Field: "created_at",
+			Desc:  true,
+		}, nil
+	}
+	var spec OrderSpec
+	switch order.GetField() {
+	case pb.BackupField_DATABASE_NAME:
+		spec.Field = "database"
+	case pb.BackupField_STATUS:
+		spec.Field = "status"
+	case pb.BackupField_CREATED_AT:
+		spec.Field = "created_at"
+	case pb.BackupField_EXPIRE_AT:
+		spec.Field = "expire_at"
+	case pb.BackupField_COMPLETED_AT:
+		spec.Field = "completed_at"
+	default:
+		return nil, status.Error(
+			codes.Internal, fmt.Sprintf("internal error: did not expect pb.BackupField_%s", order.GetField().String()),
+		)
+	}
+	spec.Desc = order.GetDesc()
+	return &spec, nil
 }
 
 type ReadTableQueryImpl struct {

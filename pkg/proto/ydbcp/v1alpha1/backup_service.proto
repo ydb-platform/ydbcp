@@ -7,6 +7,11 @@ import "ydbcp/v1alpha1/backup.proto";
 import "ydbcp/v1alpha1/operation.proto";
 import "google/protobuf/duration.proto";
 
+message ListBackupsOrder {
+    BackupField field = 1;
+    bool desc = 2;
+}
+
 // A set of methods for managing backups;.
 service BackupService {
     rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
@@ -24,6 +29,8 @@ service BackupService {
 message ListBackupsRequest {
     string container_id = 1;
     string database_name_mask = 2;
+    repeated Backup.Status display_status = 3;
+    ListBackupsOrder order = 4;
 
     // The maximum number of results per page that should be returned. If the number of available
     // results is larger than `page_size`, the service returns a `next_page_token` that can be used

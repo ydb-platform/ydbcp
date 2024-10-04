@@ -5,6 +5,14 @@ option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbc
 
 import "google/protobuf/timestamp.proto";
 
+enum BackupField {
+    DATABASE_NAME = 0;
+    STATUS = 1;
+    CREATED_AT = 2;
+    EXPIRE_AT = 3;
+    COMPLETED_AT = 4;
+}
+
 message Backup {
     enum Status {
         STATUS_UNSPECIFIED = 0;

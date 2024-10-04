@@ -373,8 +373,26 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 			},
 		)
 	}
-
+	if len(request.DisplayStatus) > 0 {
+		var displayStatuses []table_types.Value
+		for _, backupStatus := range request.DisplayStatus {
+			displayStatuses = append(
+				displayStatuses,
+				table_types.StringValueFromString(backupStatus.String()),
+			)
+		}
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field:  "status",
+				Values: displayStatuses,
+			},
+		)
+	}
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	if err != nil {
+		return nil, err
+	}
+	orderSpec, err := queries.NewOrderSpec(request.GetOrder())
 	if err != nil {
 		return nil, err
 	}
@@ -383,12 +401,7 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
 			queries.WithQueryFilters(queryFilters...),
-			queries.WithOrderBy(
-				queries.OrderSpec{
-					Field: "created_at",
-					Desc:  true,
-				},
-			),
+			queries.WithOrderBy(*orderSpec),
 			queries.WithPageSpec(*pageSpec),
 		),
 	)
