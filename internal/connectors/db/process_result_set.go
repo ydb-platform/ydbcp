@@ -255,10 +255,10 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		containerID      string
 		databaseName     string
 		databaseEndpoint string
-		active           bool
 
 		crontab string
 
+		status                 *string
 		initiated              *string
 		createdAt              *time.Time
 		name                   *string
@@ -277,9 +277,9 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		named.Required("container_id", &containerID),
 		named.Required("database", &databaseName),
 		named.Required("endpoint", &databaseEndpoint),
-		named.Required("active", &active),
 		named.Required("crontab", &crontab),
 
+		named.Optional("status", &status),
 		named.Optional("initiated", &initiated),
 		named.Optional("created_at", &createdAt),
 		named.Optional("name", &name),
@@ -331,7 +331,7 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		SourcePathsToExclude: sourcePathsToExcludeSlice,
 		Audit:                auditFromDb(initiated, createdAt, nil),
 		Name:                 name,
-		Active:               active,
+		Status:               StringOrDefault(status, types.BackupScheduleStateUnknown),
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: crontab},
 			Ttl:                    ttlDuration,

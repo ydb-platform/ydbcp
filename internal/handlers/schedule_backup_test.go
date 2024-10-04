@@ -23,7 +23,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 	schedule := types.BackupSchedule{
 		ID:               "12345",
 		ContainerID:      "abcde",
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		ScheduleSettings: &pb.BackupScheduleSettings{

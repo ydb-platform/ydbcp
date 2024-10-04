@@ -318,15 +318,6 @@ var (
 	OperationStateCancelling      = OperationState(pb.Operation_CANCELLING.String())
 	OperationStateCancelled       = OperationState(pb.Operation_CANCELED.String())
 	OperationStateStartCancelling = OperationState(pb.Operation_START_CANCELLING.String())
-
-	BackupStateUnknown   = pb.Backup_STATUS_UNSPECIFIED.String()
-	BackupStatePending   = pb.Backup_PENDING.String()
-	BackupStateRunning   = pb.Backup_RUNNING.String()
-	BackupStateAvailable = pb.Backup_AVAILABLE.String()
-	BackupStateError     = pb.Backup_ERROR.String()
-	BackupStateCancelled = pb.Backup_CANCELLED.String()
-	BackupStateDeleting  = pb.Backup_DELETING.String()
-	BackupStateDeleted   = pb.Backup_DELETED.String()
 )
 
 const (

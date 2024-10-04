@@ -24,6 +24,7 @@ const (
 	BackupScheduleService_GetBackupSchedule_FullMethodName    = "/ydbcp.v1alpha1.BackupScheduleService/GetBackupSchedule"
 	BackupScheduleService_ListBackupSchedules_FullMethodName  = "/ydbcp.v1alpha1.BackupScheduleService/ListBackupSchedules"
 	BackupScheduleService_ToggleBackupSchedule_FullMethodName = "/ydbcp.v1alpha1.BackupScheduleService/ToggleBackupSchedule"
+	BackupScheduleService_DeleteBackupSchedule_FullMethodName = "/ydbcp.v1alpha1.BackupScheduleService/DeleteBackupSchedule"
 )
 
 // BackupScheduleServiceClient is the client API for BackupScheduleService service.
@@ -35,6 +36,7 @@ type BackupScheduleServiceClient interface {
 	GetBackupSchedule(ctx context.Context, in *GetBackupScheduleRequest, opts ...grpc.CallOption) (*BackupSchedule, error)
 	ListBackupSchedules(ctx context.Context, in *ListBackupSchedulesRequest, opts ...grpc.CallOption) (*ListBackupSchedulesResponse, error)
 	ToggleBackupSchedule(ctx context.Context, in *ToggleBackupScheduleRequest, opts ...grpc.CallOption) (*BackupSchedule, error)
+	DeleteBackupSchedule(ctx context.Context, in *DeleteBackupScheduleRequest, opts ...grpc.CallOption) (*BackupSchedule, error)
 }
 
 type backupScheduleServiceClient struct {
@@ -90,6 +92,15 @@ func (c *backupScheduleServiceClient) ToggleBackupSchedule(ctx context.Context, 
 	return out, nil
 }
 
+func (c *backupScheduleServiceClient) DeleteBackupSchedule(ctx context.Context, in *DeleteBackupScheduleRequest, opts ...grpc.CallOption) (*BackupSchedule, error) {
+	out := new(BackupSchedule)
+	err := c.cc.Invoke(ctx, BackupScheduleService_DeleteBackupSchedule_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BackupScheduleServiceServer is the server API for BackupScheduleService service.
 // All implementations must embed UnimplementedBackupScheduleServiceServer
 // for forward compatibility
@@ -99,6 +110,7 @@ type BackupScheduleServiceServer interface {
 	GetBackupSchedule(context.Context, *GetBackupScheduleRequest) (*BackupSchedule, error)
 	ListBackupSchedules(context.Context, *ListBackupSchedulesRequest) (*ListBackupSchedulesResponse, error)
 	ToggleBackupSchedule(context.Context, *ToggleBackupScheduleRequest) (*BackupSchedule, error)
+	DeleteBackupSchedule(context.Context, *DeleteBackupScheduleRequest) (*BackupSchedule, error)
 	mustEmbedUnimplementedBackupScheduleServiceServer()
 }
 
@@ -120,6 +132,9 @@ func (UnimplementedBackupScheduleServiceServer) ListBackupSchedules(context.Cont
 }
 func (UnimplementedBackupScheduleServiceServer) ToggleBackupSchedule(context.Context, *ToggleBackupScheduleRequest) (*BackupSchedule, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ToggleBackupSchedule not implemented")
+}
+func (UnimplementedBackupScheduleServiceServer) DeleteBackupSchedule(context.Context, *DeleteBackupScheduleRequest) (*BackupSchedule, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteBackupSchedule not implemented")
 }
 func (UnimplementedBackupScheduleServiceServer) mustEmbedUnimplementedBackupScheduleServiceServer() {}
 
@@ -224,6 +239,24 @@ func _BackupScheduleService_ToggleBackupSchedule_Handler(srv interface{}, ctx co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupScheduleService_DeleteBackupSchedule_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteBackupScheduleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupScheduleServiceServer).DeleteBackupSchedule(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupScheduleService_DeleteBackupSchedule_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupScheduleServiceServer).DeleteBackupSchedule(ctx, req.(*DeleteBackupScheduleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BackupScheduleService_ServiceDesc is the grpc.ServiceDesc for BackupScheduleService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -250,6 +283,10 @@ var BackupScheduleService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ToggleBackupSchedule",
 			Handler:    _BackupScheduleService_ToggleBackupSchedule_Handler,
+		},
+		{
+			MethodName: "DeleteBackupSchedule",
+			Handler:    _BackupScheduleService_DeleteBackupSchedule_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

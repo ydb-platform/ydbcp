@@ -152,7 +152,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
 			Name:             &name1,
-			Active:           true,
+			Status:           types.BackupScheduleStateActive,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Hour),
@@ -168,7 +168,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
 			Name:             &name2,
-			Active:           true,
+			Status:           types.BackupScheduleStateActive,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Minute * 15),
@@ -184,7 +184,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
 			Name:             &name3,
-			Active:           true,
+			Status:           types.BackupScheduleStateActive,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 			},
@@ -199,7 +199,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 			DatabaseName:     databaseName,
 			DatabaseEndpoint: databaseEndpoint,
 			Name:             &name4,
-			Active:           true,
+			Status:           types.BackupScheduleStateActive,
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 				RecoveryPointObjective: durationpb.New(time.Minute * 15),

@@ -288,7 +288,7 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		"$endpoint",
 		table_types.StringValueFromString(schedule.DatabaseEndpoint),
 	)
-	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
+	d.AddValueParam("$status", table_types.StringValueFromString(schedule.Status))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 
 	if schedule.Name != nil {
@@ -333,7 +333,7 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		tableName: "BackupSchedules",
 	}
 	d.AddUpdateId(table_types.StringValueFromString(schedule.ID))
-	d.AddValueParam("$active", table_types.BoolValue(schedule.Active))
+	d.AddValueParam("$status", table_types.StringValueFromString(schedule.Status))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 	d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
 	d.AddValueParam(
