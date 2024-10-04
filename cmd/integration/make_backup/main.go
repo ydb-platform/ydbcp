@@ -245,4 +245,31 @@ func main() {
 	if schedules.Schedules[0].SourcePaths[0] != newSourcePath {
 		log.Panicf("source paths not match: %s != %s", schedules.Schedules[0].ScheduleName, newScheduleName)
 	}
+	deletedSchedule, err := scheduleClient.DeleteBackupSchedule(
+		context.Background(), &pb.DeleteBackupScheduleRequest{
+			Id: schedule.Id,
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to delete backup schedule: %v", err)
+	}
+
+	if deletedSchedule.Status != pb.BackupSchedule_DELETED {
+		log.Panicf("expected DELETED backup schedule status, but received: %s", deletedSchedule.Status.String())
+	}
+	schedules, err = scheduleClient.ListBackupSchedules(
+		context.Background(), &pb.ListBackupSchedulesRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: "%",
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backup schedules: %v", err)
+	}
+	if len(schedules.Schedules) != 1 {
+		log.Panicln("unexpected number of schedules")
+	}
+	if schedules.Schedules[0].Status != pb.BackupSchedule_DELETED {
+		log.Panicf("expected DELETED backup schedule status, but received: %s", schedules.Schedules[0].Status.String())
+	}
 }

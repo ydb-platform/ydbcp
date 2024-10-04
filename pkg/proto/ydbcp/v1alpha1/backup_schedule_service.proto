@@ -11,6 +11,7 @@ service BackupScheduleService {
     rpc GetBackupSchedule (GetBackupScheduleRequest) returns (BackupSchedule);
     rpc ListBackupSchedules (ListBackupSchedulesRequest) returns (ListBackupSchedulesResponse);
     rpc ToggleBackupSchedule (ToggleBackupScheduleRequest) returns (BackupSchedule);
+    rpc DeleteBackupSchedule (DeleteBackupScheduleRequest) returns (BackupSchedule);
 }
 
 message CreateBackupScheduleRequest {
@@ -63,4 +64,8 @@ message GetBackupScheduleRequest {
 message ToggleBackupScheduleRequest {
     string id = 1;
     bool active_state = 2;
+}
+
+message DeleteBackupScheduleRequest {
+    string id = 1;
 }

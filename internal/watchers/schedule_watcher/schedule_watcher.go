@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/handlers"
+	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 )
@@ -50,9 +51,9 @@ func ScheduleWatcherAction(
 			queries.WithTableName("BackupSchedules"),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
-					Field: "active",
+					Field: "status",
 					Values: []table_types.Value{
-						table_types.BoolValue(true),
+						table_types.StringValueFromString(types.BackupScheduleStateActive),
 					},
 				},
 			),

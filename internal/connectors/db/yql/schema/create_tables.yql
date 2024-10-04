@@ -66,7 +66,7 @@ CREATE TABLE BackupSchedules (
     database String NOT NULL,
     endpoint String NOT NULL,
     name String,
-    active Bool NOT NULL,
+    status String,
 
     crontab String NOT NULL,
     ttl Interval,

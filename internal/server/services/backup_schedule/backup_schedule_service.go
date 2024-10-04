@@ -96,7 +96,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 			CreatedAt: timestamppb.Now(),
 		},
 		Name:             scheduleName,
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
 		NextLaunch:       &now,
 	}
@@ -144,7 +144,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	schedule := schedules[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -305,6 +305,62 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	xlog.Error(ctx, "ToggleBackupSchedule not implemented")
 	//TODO implement me
 	return nil, status.Error(codes.Internal, "not implemented")
+}
+
+func (s *BackupScheduleService) DeleteBackupSchedule(
+	ctx context.Context, request *pb.DeleteBackupScheduleRequest,
+) (*pb.BackupSchedule, error) {
+	ctx = grpcinfo.WithGRPCInfo(ctx)
+
+	scheduleID := request.GetId()
+	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
+
+	xlog.Debug(ctx, "DeleteBackupSchedule", zap.Stringer("request", request))
+
+	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
+		ctx, queries.NewReadTableQuery(
+			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithParameters(
+				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
+			),
+		),
+	)
+
+	if err != nil {
+		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		return nil, status.Error(codes.Internal, "error getting backup schedule")
+	}
+	if len(schedules) == 0 {
+		xlog.Error(ctx, "backup schedule not found")
+		return nil, status.Error(codes.NotFound, "backup schedule not found")
+	}
+
+	schedule := schedules[0]
+	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	// TODO: Need to check access to backup schedule not by container id?
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
+	if err != nil {
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+
+	if schedule.Status == types.BackupScheduleStateDeleted {
+		xlog.Error(ctx, "backup schedule already deleted")
+		return nil, status.Error(codes.FailedPrecondition, "backup schedule already deleted")
+	}
+
+	schedule.Status = types.BackupScheduleStateDeleted
+	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
+	if err != nil {
+		xlog.Error(
+			ctx, "can't delete backup schedule", zap.String("backup schedule", schedule.Proto().String()),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "can't delete backup schedule")
+	}
+
+	xlog.Info(ctx, "DeleteBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
+	return schedule.Proto(), nil
 }
 
 func (s *BackupScheduleService) Register(server server.Server) {

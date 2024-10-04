@@ -11,6 +11,13 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
+var (
+	BackupScheduleStateUnknown  = pb.BackupSchedule_STATUS_UNSPECIFIED.String()
+	BackupScheduleStateActive   = pb.BackupSchedule_ACTIVE.String()
+	BackupScheduleStateInactive = pb.BackupSchedule_INACTIVE.String()
+	BackupScheduleStateDeleted  = pb.BackupSchedule_DELETED.String()
+)
+
 type BackupSchedule struct {
 	ID                     string
 	ContainerID            string
@@ -20,7 +27,7 @@ type BackupSchedule struct {
 	SourcePathsToExclude   []string
 	Audit                  *pb.AuditInfo
 	Name                   *string
-	Active                 bool
+	Status                 string
 	ScheduleSettings       *pb.BackupScheduleSettings
 	NextLaunch             *time.Time
 	LastBackupID           *string
@@ -55,7 +62,7 @@ func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 		DatabaseName:             b.DatabaseName,
 		Endpoint:                 b.DatabaseEndpoint,
 		Audit:                    b.Audit,
-		Active:                   b.Active,
+		Status:                   pb.BackupSchedule_Status(pb.BackupSchedule_Status_value[b.Status]),
 		ScheduleSettings:         b.ScheduleSettings,
 		SourcePaths:              b.SourcePaths,
 		SourcePathsToExclude:     b.SourcePathsToExclude,
@@ -70,12 +77,13 @@ func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 
 func (b *BackupSchedule) String() string {
 	return fmt.Sprintf(
-		"ID: %s, Name: %s, ContainerID: %s, DatabaseEndpoint: %s, DatabaseName: %s",
+		"ID: %s, Name: %s, ContainerID: %s, DatabaseEndpoint: %s, DatabaseName: %s, Status: %s",
 		b.ID,
 		*b.Name,
 		b.ContainerID,
 		b.DatabaseEndpoint,
 		b.DatabaseName,
+		b.Status,
 	)
 }
 

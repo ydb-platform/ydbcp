@@ -26,6 +26,13 @@ message ScheduledBackupInfo {
 }
 
 message BackupSchedule {
+    enum Status {
+        STATUS_UNSPECIFIED = 0;
+        ACTIVE = 1;
+        INACTIVE = 2;
+        DELETED = 3;
+    }
+
     //backup settings
     string id = 1;
     string container_id = 2;
@@ -37,7 +44,7 @@ message BackupSchedule {
     ydbcp.v1alpha1.AuditInfo audit = 7;
 
     string schedule_name = 8;
-    bool active = 9;
+    Status status = 9;
 
     BackupScheduleSettings schedule_settings = 10;
 

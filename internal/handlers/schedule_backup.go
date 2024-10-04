@@ -41,7 +41,7 @@ func BackupScheduleHandler(
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) error {
-	if !schedule.Active {
+	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
 		return errors.New("backup schedule is not active")
 	}

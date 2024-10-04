@@ -43,7 +43,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	schedule := types.BackupSchedule{
 		ID:               "12345",
 		ContainerID:      "abcde",
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		ScheduleSettings: &pb.BackupScheduleSettings{
@@ -142,7 +142,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	s1 := types.BackupSchedule{
 		ID:               "1",
 		ContainerID:      "abcde",
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		ScheduleSettings: &pb.BackupScheduleSettings{
@@ -154,7 +154,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	s2 := types.BackupSchedule{
 		ID:               "2",
 		ContainerID:      "abcde",
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		ScheduleSettings: &pb.BackupScheduleSettings{
@@ -260,7 +260,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	s1 := types.BackupSchedule{
 		ID:               "1",
 		ContainerID:      "abcde",
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		ScheduleSettings: &pb.BackupScheduleSettings{
@@ -275,7 +275,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
 		SourcePaths:      sourcePath,
-		Active:           true,
+		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern: &pb.BackupSchedulePattern{Crontab: "0 * * * *"}, //every hour
 		},
