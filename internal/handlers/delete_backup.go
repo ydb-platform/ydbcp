@@ -87,24 +87,18 @@ func DBOperationHandler(
 		return db.UpdateOperation(ctx, operation)
 	}
 
-	if backups[0].Status != types.BackupStateDeleting {
+	backup := backups[0]
+	if backup.Status != types.BackupStateDeleting {
 		operation.SetState(types.OperationStateError)
-		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backups[0].Status))
+		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backup.Status))
 		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return db.UpdateOperation(ctx, operation)
 	}
 
 	deleteBackup := func(pathPrefix string, bucket string) error {
-		objects, err := s3.ListObjects(pathPrefix, bucket)
+		err := DeleteBackupData(s3, pathPrefix, bucket)
 		if err != nil {
-			return fmt.Errorf("failed to list S3 objects: %v", err)
-		}
-
-		if len(objects) != 0 {
-			err = s3.DeleteObjects(objects, bucket)
-			if err != nil {
-				return fmt.Errorf("failed to delete S3 objects: %v", err)
-			}
+			return fmt.Errorf("failed to delete backup data: %v", err)
 		}
 
 		backupToWrite.Status = types.BackupStateDeleted
@@ -123,14 +117,14 @@ func DBOperationHandler(
 				return fmt.Errorf("can't update operation: %v", err)
 			}
 
-			err = deleteBackup(backups[0].S3PathPrefix, backups[0].S3Bucket)
+			err = deleteBackup(backup.S3PathPrefix, backup.S3Bucket)
 			if err != nil {
 				return err
 			}
 		}
 	case types.OperationStateRunning:
 		{
-			err = deleteBackup(backups[0].S3PathPrefix, backups[0].S3Bucket)
+			err = deleteBackup(backup.S3PathPrefix, backup.S3Bucket)
 			if err != nil {
 				return err
 			}

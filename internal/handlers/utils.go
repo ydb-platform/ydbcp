@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"time"
+	"ydbcp/internal/connectors/s3"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -127,5 +128,21 @@ func CancelYdbOperation(
 	operation.SetState(types.OperationStateCancelling)
 	operation.SetMessage(reason)
 	operation.GetAudit().CompletedAt = timestamppb.Now()
+	return nil
+}
+
+func DeleteBackupData(s3 s3.S3Connector, s3PathPrefix string, s3Bucket string) error {
+	objects, err := s3.ListObjects(s3PathPrefix, s3Bucket)
+	if err != nil {
+		return fmt.Errorf("failed to list S3 objects: %v", err)
+	}
+
+	if len(objects) != 0 {
+		err = s3.DeleteObjects(objects, s3Bucket)
+		if err != nil {
+			return fmt.Errorf("failed to delete S3 objects: %v", err)
+		}
+	}
+
 	return nil
 }

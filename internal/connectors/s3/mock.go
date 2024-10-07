@@ -25,10 +25,9 @@ func (m *MockS3Connector) ListObjects(pathPrefix string, _ string) ([]string, er
 				objects = append(objects, *object.Key)
 			}
 		}
-
-		return objects, nil
 	}
-	return nil, fmt.Errorf("objects not found, path: %s", pathPrefix)
+
+	return objects, nil
 }
 
 func (m *MockS3Connector) GetSize(pathPrefix string, _ string) (int64, error) {
