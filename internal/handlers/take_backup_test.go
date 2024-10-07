@@ -677,6 +677,96 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 
 }
 
+func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t *testing.T) {
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	tbOp := types.TakeBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		State:               types.OperationStateCancelling,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:           backupID,
+		Status:       types.BackupStateRunning,
+		S3PathPrefix: "pathPrefix",
+	}
+
+	ydbOp := &Ydb_Operations.Operation{
+		Id:     "1",
+		Ready:  true,
+		Status: Ydb.StatusIds_CANCELLED,
+		Issues: nil,
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
+	s3ObjectsMap := make(map[string][]*s3.Object)
+	backupMap[backupID] = backup
+	opMap[opId] = &tbOp
+	ydbOpMap["1"] = ydbOp
+	s3ObjectsMap["pathPrefix"] = []*s3.Object{
+		{
+			Key:  aws.String("data_1.csv"),
+			Size: aws.Int64(100),
+		},
+		{
+			Key:  aws.String("data_2.csv"),
+			Size: aws.Int64(150),
+		},
+		{
+			Key:  aws.String("data_3.csv"),
+			Size: aws.Int64(200),
+		},
+	}
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+	)
+	clientConnector := client.NewMockClientConnector(
+		client.WithOperations(ydbOpMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+
+	handler := NewTBOperationHandler(
+		dbConnector, clientConnector, s3Connector, config.Config{
+			OperationTtlSeconds: 10000,
+		}, queries.NewWriteTableQueryMock,
+	)
+
+	err := handler(ctx, &tbOp)
+	assert.Empty(t, err)
+
+	// check operation status (should be cancelled)
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, op)
+	assert.Equal(t, types.OperationStateCancelled, op.GetState())
+
+	// check backup status (should be cancelled)
+	b, err := dbConnector.GetBackup(ctx, backupID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, types.BackupStateCancelled, b.Status)
+
+	// check ydb operation status (should be forgotten)
+	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
+	assert.Empty(t, err)
+	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
+
+	// check s3 objects (should be removed)
+	objects, err := s3Connector.ListObjects("pathPrefix", "")
+	assert.Equal(t, 0, len(objects))
+}
+
 func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	ctx := context.Background()
 	opId := types.GenerateObjectID()

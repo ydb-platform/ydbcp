@@ -140,6 +140,9 @@ func (s *OperationService) CancelOperation(
 		permission = auth.PermissionBackupCreate
 	} else if operation.GetType() == types.OperationTypeRB {
 		permission = auth.PermissionBackupRestore
+	} else if operation.GetType() == types.OperationTypeDB {
+		xlog.Error(ctx, "can't cancel DeleteBackup operation")
+		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel DeleteBackup operation: %s", types.OperationToString(operation))
 	} else {
 		xlog.Error(ctx, "unknown operation type")
 		return nil, status.Errorf(codes.Internal, "unknown operation type: %s", operation.GetType().String())
@@ -151,9 +154,9 @@ func (s *OperationService) CancelOperation(
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
-	if operation.GetState() != types.OperationStatePending {
-		xlog.Error(ctx, "can't cancel operation with state != pending")
-		return operation.Proto(), nil
+	if operation.GetState() != types.OperationStatePending && operation.GetState() != types.OperationStateRunning {
+		xlog.Error(ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()))
+		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel operation with state: %s", operation.GetState().String())
 	}
 
 	operation.SetState(types.OperationStateStartCancelling)

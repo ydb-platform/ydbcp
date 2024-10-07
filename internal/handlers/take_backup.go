@@ -83,30 +83,32 @@ func TBOperationHandler(
 	}
 	opResponse := ydbOpResponse.opResponse
 
-	getBackupSize := func(backupID string) (int64, error) {
-		backups, err := db.SelectBackups(
-			ctx, queries.NewReadTableQuery(
-				queries.WithTableName("Backups"),
-				queries.WithQueryFilters(
-					queries.QueryFilter{
-						Field:  "id",
-						Values: []table_types.Value{table_types.StringValueFromString(backupID)},
-					},
-				),
+	backups, err := db.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(tb.BackupID)},
+				},
 			),
-		)
+		),
+	)
 
+	if err != nil {
+		return fmt.Errorf("can't select backups: %v", err)
+	}
+
+	if len(backups) == 0 {
+		return fmt.Errorf("backup not found: %s", tb.BackupID)
+	}
+
+	backup := backups[0]
+
+	getBackupSize := func(s3PathPrefix string, s3Bucket string) (int64, error) {
+		size, err := s3.GetSize(s3PathPrefix, s3Bucket)
 		if err != nil {
-			return 0, fmt.Errorf("can't select backups: %v", err)
-		}
-
-		if len(backups) == 0 {
-			return 0, fmt.Errorf("backup not found: %s", backupID)
-		}
-
-		size, err := s3.GetSize(backups[0].S3PathPrefix, backups[0].S3Bucket)
-		if err != nil {
-			return 0, fmt.Errorf("can't get size of objects by path: %s", backups[0].S3PathPrefix)
+			return 0, fmt.Errorf("can't get size of objects by path: %s", s3PathPrefix)
 		}
 
 		return size, nil
@@ -122,7 +124,7 @@ func TBOperationHandler(
 				}
 				return db.UpdateOperation(ctx, operation)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(tb.BackupID)
+				size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
 				if err != nil {
 					return err
 				}
@@ -177,7 +179,7 @@ func TBOperationHandler(
 				return db.UpdateOperation(ctx, operation)
 			}
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(tb.BackupID)
+				size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
 				if err != nil {
 					return err
 				}
@@ -187,6 +189,10 @@ func TBOperationHandler(
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Operation was completed despite cancellation: " + tb.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
+				err = DeleteBackupData(s3, backup.S3PathPrefix, backup.S3Bucket)
+				if err != nil {
+					return err
+				}
 				backupToWrite.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
 				operation.SetMessage(tb.Message)
