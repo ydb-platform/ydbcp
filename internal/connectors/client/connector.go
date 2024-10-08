@@ -237,6 +237,10 @@ func (d *ClientYdbConnector) ExportToS3(
 		return "", fmt.Errorf("error preparing list of items for export: %s", err.Error())
 	}
 
+	if len(items) == 0 {
+		return "", fmt.Errorf("empty list of items for export")
+	}
+
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Exporting data to s3",
