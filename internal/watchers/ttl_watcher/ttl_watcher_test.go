@@ -45,12 +45,15 @@ func TestTtlWatcher(t *testing.T) {
 	db := db.NewMockDBConnector(
 		db.WithBackups(backupMap),
 	)
+
+	ttlWatcherActionCompleted := make(chan struct{})
 	_ = NewTtlWatcher(
 		ctx,
 		&wg,
 		db,
 		queries.NewWriteTableQueryMock,
 		watchers.WithTickerProvider(tickerProvider),
+		watchers.WithActionCompletedChannel(&ttlWatcherActionCompleted),
 	)
 
 	// Wait for the ticker to be initialized
@@ -65,7 +68,14 @@ func TestTtlWatcher(t *testing.T) {
 	t0 := clock.Now().Add(time.Hour)
 	fakeTicker.Send(t0)
 
-	cancel()
+	// Wait for the watcher action to be completed
+	select {
+	case <-ctx.Done():
+		t.Error("action wasn't completed")
+	case <-ttlWatcherActionCompleted:
+		cancel()
+	}
+
 	wg.Wait()
 
 	// Check that DeleteBackup operation was created

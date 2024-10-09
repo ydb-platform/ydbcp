@@ -78,6 +78,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		queries.NewWriteTableQueryMock,
 	)
 
+	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
@@ -85,6 +86,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),
+		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
 
 	// Wait for the ticker to be initialized
@@ -96,7 +98,15 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	}
 
 	fakeTicker.Send(clock.Now())
-	cancel()
+
+	// Wait for the watcher action to be completed
+	select {
+	case <-ctx.Done():
+		t.Error("action wasn't completed")
+	case <-scheduleWatcherActionCompleted:
+		cancel()
+	}
+
 	wg.Wait()
 
 	// check operation status (should be pending)
@@ -190,6 +200,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		queries.NewWriteTableQueryMock,
 	)
 
+	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
@@ -197,6 +208,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),
+		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
 
 	// Wait for the ticker to be initialized
@@ -208,7 +220,15 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	}
 
 	fakeTicker.Send(clock.Now())
-	cancel()
+
+	// Wait for the watcher action to be completed
+	select {
+	case <-ctx.Done():
+		t.Error("action wasn't completed")
+	case <-scheduleWatcherActionCompleted:
+		cancel()
+	}
+
 	wg.Wait()
 
 	// check operation status (should be pending)
@@ -309,6 +329,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		queries.NewWriteTableQueryMock,
 	)
 
+	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
@@ -316,6 +337,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),
+		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
 
 	// Wait for the ticker to be initialized
@@ -327,7 +349,15 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	}
 
 	fakeTicker.Send(clock.Now())
-	cancel()
+
+	// Wait for the watcher action to be completed
+	select {
+	case <-ctx.Done():
+		t.Error("action wasn't completed")
+	case <-scheduleWatcherActionCompleted:
+		cancel()
+	}
+
 	wg.Wait()
 
 	// check operation status (should be pending)

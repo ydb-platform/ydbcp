@@ -13,11 +13,12 @@ import (
 type WatcherAction func(context.Context, time.Duration)
 
 type WatcherImpl struct {
-	ctx            context.Context
-	period         time.Duration
-	tickerProvider ticker.TickerProvider
-	action         WatcherAction
-	prefixName     string
+	ctx             context.Context
+	period          time.Duration
+	tickerProvider  ticker.TickerProvider
+	action          WatcherAction
+	prefixName      string
+	actionCompleted *chan struct{}
 }
 
 type Option func(*WatcherImpl)
@@ -25,6 +26,12 @@ type Option func(*WatcherImpl)
 func WithTickerProvider(ticketProvider ticker.TickerProvider) Option {
 	return func(o *WatcherImpl) {
 		o.tickerProvider = ticketProvider
+	}
+}
+
+func WithActionCompletedChannel(actionCompleted *chan struct{}) Option {
+	return func(o *WatcherImpl) {
+		o.actionCompleted = actionCompleted
 	}
 }
 
@@ -67,6 +74,10 @@ func (o *WatcherImpl) run(wg *sync.WaitGroup) {
 			xlog.Debug(o.ctx, fmt.Sprintf("Starting %s watcher action", o.prefixName))
 			o.action(o.ctx, o.period)
 			xlog.Debug(o.ctx, fmt.Sprintf("%s watcher action was completed", o.prefixName))
+
+			if o.actionCompleted != nil {
+				close(*o.actionCompleted)
+			}
 		}
 	}
 }

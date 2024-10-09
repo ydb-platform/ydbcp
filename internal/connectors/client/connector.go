@@ -35,6 +35,7 @@ type ClientConnector interface {
 	Open(ctx context.Context, dsn string) (*ydb.Driver, error)
 	Close(ctx context.Context, clientDb *ydb.Driver) error
 
+	PreparePathsForExport(ctx context.Context, clientDb *ydb.Driver, sourcePaths []string, sourcePathsToExclude []string) ([]string, error)
 	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error)
 	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error)
 	GetOperationStatus(
@@ -173,13 +174,17 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 	return result, nil
 }
 
-func prepareItemsForExport(
-	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
-) ([]*Ydb_Export.ExportToS3Settings_Item, error) {
-	sources := make([]string, 0)
-	exclusions := make([]regexp.Regexp, len(s3Settings.SourcePathToExclude))
+func (d *ClientYdbConnector) PreparePathsForExport(
+	ctx context.Context, clientDb *ydb.Driver, sourcePaths []string, sourcePathsToExclude []string,
+) ([]string, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
+	}
 
-	for i, excludePath := range s3Settings.SourcePathToExclude {
+	sources := make([]string, 0)
+	exclusions := make([]regexp.Regexp, len(sourcePathsToExclude))
+
+	for i, excludePath := range sourcePathsToExclude {
 		reg, err := regexp.Compile(excludePath)
 		if err != nil {
 			return nil, fmt.Errorf("error compiling exclude path regexp: %s", err.Error())
@@ -188,8 +193,8 @@ func prepareItemsForExport(
 		exclusions[i] = *reg
 	}
 
-	if len(s3Settings.SourcePaths) > 0 {
-		for _, sourcePath := range s3Settings.SourcePaths {
+	if len(sourcePaths) > 0 {
+		for _, sourcePath := range sourcePaths {
 			list, err := listDirectory(ctx, clientDb, sourcePath, exclusions)
 			if err != nil {
 				return nil, err
@@ -207,9 +212,18 @@ func prepareItemsForExport(
 		sources = append(sources, list...)
 	}
 
-	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(sources))
+	return sources, nil
+}
 
-	for i, source := range sources {
+func (d *ClientYdbConnector) ExportToS3(
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
+) (string, error) {
+	if clientDb == nil {
+		return "", fmt.Errorf("unititialized client db driver")
+	}
+
+	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(s3Settings.SourcePaths))
+	for i, source := range s3Settings.SourcePaths {
 		// Destination prefix format: s3_destination_prefix/rel_source_path
 		destinationPrefix := path.Join(
 			s3Settings.DestinationPrefix,
@@ -220,21 +234,6 @@ func prepareItemsForExport(
 			SourcePath:        source,
 			DestinationPrefix: destinationPrefix,
 		}
-	}
-
-	return items, nil
-}
-
-func (d *ClientYdbConnector) ExportToS3(
-	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
-) (string, error) {
-	if clientDb == nil {
-		return "", fmt.Errorf("unititialized client db driver")
-	}
-
-	items, err := prepareItemsForExport(ctx, clientDb, s3Settings)
-	if err != nil {
-		return "", fmt.Errorf("error preparing list of items for export: %s", err.Error())
 	}
 
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))

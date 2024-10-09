@@ -52,6 +52,12 @@ func (m *MockClientConnector) Close(_ context.Context, _ *ydb.Driver) error {
 	return nil
 }
 
+func (m *MockClientConnector) PreparePathsForExport(
+	_ context.Context, _ *ydb.Driver, sourcePaths []string, _ []string,
+) ([]string, error) {
+	return sourcePaths, nil
+}
+
 func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings types.ExportSettings) (string, error) {
 	objects := make([]ObjectPath, 0)
 	for _, source := range s3Settings.SourcePaths {
