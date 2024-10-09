@@ -74,6 +74,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		message          *string
 		size             *int64
 		scheduleId       *string
+		sourcePaths      *string
 
 		creator     *string
 		completedAt *time.Time
@@ -95,6 +96,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		named.Optional("size", &size),
 		named.Optional("schedule_id", &scheduleId),
 		named.Optional("expire_at", &expireAt),
+		named.Optional("paths", &sourcePaths),
 
 		named.Optional("created_at", &createdAt),
 		named.Optional("completed_at", &completedAt),
@@ -102,6 +104,11 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	)
 	if err != nil {
 		return nil, err
+	}
+
+	sourcePathsSlice := make([]string, 0)
+	if sourcePaths != nil {
+		sourcePathsSlice = strings.Split(*sourcePaths, ",")
 	}
 
 	return &types.Backup{
@@ -119,6 +126,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		Size:             Int64OrZero(size),
 		ScheduleID:       scheduleId,
 		ExpireAt:         expireAt,
+		SourcePaths:      sourcePathsSlice,
 	}, nil
 }
 

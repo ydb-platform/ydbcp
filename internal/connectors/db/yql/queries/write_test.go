@@ -57,7 +57,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 
 func TestQueryBuilder_CreateCreate(t *testing.T) {
 	const (
-		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message, size, initiated, created_at) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0, $size_0, $initiated_0, $created_at_0);
+		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message, size, paths, initiated, created_at) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0, $size_0, $paths_0, $initiated_0, $created_at_0);
 UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1)`
 	)
 	opId := types.GenerateObjectID()
@@ -112,6 +112,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("msg backup")),
 			table.ValueParam("$size_0", table_types.Int64Value(0)),
+			table.ValueParam("$paths_0", table_types.StringValueFromString("")),
 			table.ValueParam("$initiated_0", table_types.StringValueFromString("author")),
 			table.ValueParam(
 				"$created_at_0",

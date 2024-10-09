@@ -51,6 +51,7 @@ type Backup struct {
 	Size             int64
 	ScheduleID       *string
 	ExpireAt         *time.Time
+	SourcePaths      []string
 }
 
 func (o *Backup) String() string {
@@ -76,11 +77,12 @@ func (o *Backup) Proto() *pb.Backup {
 			Bucket:     o.S3Bucket,
 			PathPrefix: o.S3PathPrefix,
 		},
-		Audit:    o.AuditInfo,
-		Size:     o.Size,
-		Status:   pb.Backup_Status(pb.Backup_Status_value[o.Status]),
-		Message:  o.Message,
-		ExpireAt: nil,
+		Audit:       o.AuditInfo,
+		Size:        o.Size,
+		Status:      pb.Backup_Status(pb.Backup_Status_value[o.Status]),
+		Message:     o.Message,
+		ExpireAt:    nil,
+		SourcePaths: o.SourcePaths,
 	}
 	if o.ScheduleID != nil {
 		backup.ScheduleId = *o.ScheduleID
