@@ -122,18 +122,23 @@ func MakeBackup(
 		sourcePaths = append(sourcePaths, fullPath)
 	}
 
+	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.GetSourcePathsToExclude())
+	if err != nil {
+		xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
+		return nil, nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
+	}
+
 	s3Settings := types.ExportSettings{
-		Endpoint:            s3.Endpoint,
-		Region:              s3.Region,
-		Bucket:              s3.Bucket,
-		AccessKey:           accessKey,
-		SecretKey:           secretKey,
-		Description:         "ydbcp backup", // TODO: the description shoud be better
-		NumberOfRetries:     10,             // TODO: get it from configuration
-		SourcePaths:         sourcePaths,
-		SourcePathToExclude: req.GetSourcePathsToExclude(),
-		DestinationPrefix:   destinationPrefix,
-		S3ForcePathStyle:    s3.S3ForcePathStyle,
+		Endpoint:          s3.Endpoint,
+		Region:            s3.Region,
+		Bucket:            s3.Bucket,
+		AccessKey:         accessKey,
+		SecretKey:         secretKey,
+		Description:       "ydbcp backup", // TODO: the description shoud be better
+		NumberOfRetries:   10,             // TODO: get it from configuration
+		SourcePaths:       pathsForExport,
+		DestinationPrefix: destinationPrefix,
+		S3ForcePathStyle:  s3.S3ForcePathStyle,
 	}
 
 	clientOperationID, err := clientConn.ExportToS3(ctx, client, s3Settings)
@@ -165,8 +170,9 @@ func MakeBackup(
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		ScheduleID: scheduleId,
-		ExpireAt:   expireAt,
+		ScheduleID:  scheduleId,
+		ExpireAt:    expireAt,
+		SourcePaths: pathsForExport,
 	}
 
 	op := &types.TakeBackupOperation{
