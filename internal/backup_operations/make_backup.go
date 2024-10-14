@@ -130,6 +130,11 @@ func MakeBackup(
 		return nil, nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
 	}
 
+	if len(pathsForExport) == 0 {
+		xlog.Error(ctx, "empty list of paths for export")
+		return nil, nil, status.Error(codes.FailedPrecondition, "empty list of paths for export")
+	}
+
 	s3Settings := types.ExportSettings{
 		Endpoint:          s3.Endpoint,
 		Region:            s3.Region,

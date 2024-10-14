@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 	"log"
 	"time"
 
@@ -45,6 +47,24 @@ func main() {
 	if len(backups.Backups) > 0 {
 		log.Panicf("got backup from empty YDBCP: %s", backups.Backups[0].String())
 	}
+
+	_, err = client.MakeBackup(
+		context.Background(), &pb.MakeBackupRequest{
+			ContainerId:          containerID,
+			DatabaseName:         databaseName,
+			DatabaseEndpoint:     databaseEndpoint,
+			SourcePaths:          nil,
+			SourcePathsToExclude: []string{".+"}, // exclude all paths
+		},
+	)
+	if err == nil {
+		log.Panicf("backup with empty source paths was created")
+	}
+
+	if status.Code(err) != codes.FailedPrecondition {
+		log.Panicf("unexpected error code: %v", err)
+	}
+
 	backupOperation, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,

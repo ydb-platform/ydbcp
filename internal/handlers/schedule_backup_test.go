@@ -26,6 +26,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
 		DatabaseEndpoint: "mydb.valid.com",
+		SourcePaths:      []string{"/path/to/table"},
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 		},
