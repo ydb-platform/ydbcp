@@ -2,19 +2,21 @@ package backup_operations
 
 import (
 	"context"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"path"
 	"regexp"
 	"strings"
 	"time"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -24,7 +26,7 @@ var (
 func SafePathJoin(base string, relPath ...string) (fullPath string, ok bool) {
 	paths := append([]string{base}, relPath...)
 	fullPath = path.Join(paths...)
-	if strings.HasPrefix(fullPath, base+"/") {
+	if strings.HasPrefix(fullPath, base+"/") || fullPath == base {
 		return fullPath, true
 	}
 	return "", false // Possible Path Traversal

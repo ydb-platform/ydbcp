@@ -32,3 +32,23 @@ func TestEndpointSecureValidation(t *testing.T) {
 	assert.False(t, IsAllowedEndpoint("grpcs://evilvalid.com:1234", domains, false))
 	assert.False(t, IsAllowedEndpoint("badhostname.good.com", domains, false))
 }
+
+func TestSafePathJoin(t *testing.T) {
+	p, ok := SafePathJoin("/test", "/path/to")
+	assert.True(t, ok)
+	assert.Equal(t, "/test/path/to", p)
+
+	p, ok = SafePathJoin("/test", "")
+	assert.True(t, ok)
+	assert.Equal(t, "/test", p)
+
+	_, ok = SafePathJoin("/test", "../to")
+	assert.False(t, ok)
+
+	p, ok = SafePathJoin("/test", "///to")
+	assert.True(t, ok)
+	assert.Equal(t, "/test/to", p)
+
+	_, ok = SafePathJoin("/test/", "")
+	assert.False(t, ok)
+}
