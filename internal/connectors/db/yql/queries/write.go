@@ -336,11 +336,20 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	d.AddUpdateId(table_types.StringValueFromString(schedule.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(schedule.Status))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
-	d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
-	d.AddValueParam(
-		"$paths_to_exclude",
-		table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
-	)
+
+	if len(schedule.SourcePaths) > 0 {
+		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+	} else {
+		d.AddValueParam("$paths", table_types.NullableStringValueFromString(nil))
+	}
+	if len(schedule.SourcePathsToExclude) > 0 {
+		d.AddValueParam(
+			"$paths_to_exclude",
+			table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+		)
+	} else {
+		d.AddValueParam("$paths_to_exclude", table_types.NullableStringValueFromString(nil))
+	}
 	if schedule.Name != nil {
 		d.AddValueParam("$name", table_types.StringValueFromString(*schedule.Name))
 	}
