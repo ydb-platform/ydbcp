@@ -222,6 +222,15 @@ func main() {
 	if len(schedules.Schedules) != 1 {
 		log.Panicln("did not list created schedule")
 	}
+
+	if len(schedules.Schedules[0].SourcePaths) != 0 {
+		log.Panicln("unexpected number of source paths")
+	}
+
+	if len(schedules.Schedules[0].SourcePathsToExclude) != 0 {
+		log.Panicln("unexpected number of source paths to exclude")
+	}
+
 	if schedules.Schedules[0].Id != schedule.Id {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
@@ -264,6 +273,9 @@ func main() {
 	}
 	if schedules.Schedules[0].SourcePaths[0] != newSourcePath {
 		log.Panicf("source paths not match: %s != %s", schedules.Schedules[0].ScheduleName, newScheduleName)
+	}
+	if len(schedules.Schedules[0].SourcePathsToExclude) != 0 {
+		log.Panicln("unexpected number of source paths to exclude")
 	}
 	deletedSchedule, err := scheduleClient.DeleteBackupSchedule(
 		context.Background(), &pb.DeleteBackupScheduleRequest{
