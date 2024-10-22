@@ -5,13 +5,14 @@ go 1.22
 toolchain go1.22.1
 
 require (
+	github.com/adhocore/gronx v1.19.1
 	github.com/aws/aws-sdk-go v1.55.5
+	github.com/creasty/defaults v1.8.0
 	github.com/google/uuid v1.6.0
 	github.com/gorhill/cronexpr v0.0.0-20180427100037-88b0669f7d75
 	github.com/jonboulle/clockwork v0.3.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/stretchr/testify v1.9.0
-	github.com/undefinedlabs/go-mpatch v1.0.7
 	github.com/ydb-platform/ydb-go-genproto v0.0.0-20240821162910-6cb364b2ccc8
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.75.2
 	go.uber.org/automaxprocs v1.5.3
@@ -24,7 +25,6 @@ require (
 require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
-	github.com/creasty/defaults v1.8.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt/v4 v4.4.1 // indirect
 	github.com/jmespath/go-jmespath v0.4.0 // indirect
