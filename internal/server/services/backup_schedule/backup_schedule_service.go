@@ -3,11 +3,9 @@ package backup_schedule
 import (
 	"context"
 	"fmt"
-	"github.com/gorhill/cronexpr"
+	"github.com/jonboulle/clockwork"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"strconv"
-	"time"
-
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -53,6 +51,7 @@ type BackupScheduleService struct {
 	pb.UnimplementedBackupScheduleServiceServer
 	driver db.DBConnector
 	auth   ap.AuthProvider
+	clock  clockwork.Clock
 }
 
 func (s *BackupScheduleService) CreateBackupSchedule(
@@ -72,14 +71,10 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		)
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
 	}
-	_, err = cronexpr.Parse(request.ScheduleSettings.SchedulePattern.Crontab)
-	if err != nil {
-		return nil, status.Error(codes.FailedPrecondition, "failed to parse crontab")
-	}
+
 	if request.ScheduleSettings.RecoveryPointObjective != nil && (request.ScheduleSettings.RecoveryPointObjective.Seconds == 0) {
-		return nil, status.Error(codes.FailedPrecondition, "recovery point objective shoulde be greater than 0")
+		return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 	}
-	now := time.Now()
 	var scheduleName *string
 	if len(request.ScheduleName) > 0 {
 		scheduleName = &request.ScheduleName
@@ -98,19 +93,22 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Name:             scheduleName,
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
-		NextLaunch:       &now,
+	}
+	err = schedule.UpdateNextLaunch(s.clock.Now())
+	if err != nil {
+		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackupSchedule(schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't create backup schedule", zap.String("backup schedule", schedule.Proto().String()),
+			ctx, "can't create backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		return nil, status.Error(codes.Internal, "can't create backup schedule")
 	}
 	xlog.Info(ctx, "backup schedule created", zap.String("BackupScheduleID", schedule.ID))
-	return schedule.Proto(), nil
+	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) UpdateBackupSchedule(
@@ -159,7 +157,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 
 	if request.ScheduleSettings != nil {
 		if request.ScheduleSettings.SchedulePattern != nil {
-			_, err = cronexpr.Parse(request.ScheduleSettings.SchedulePattern.Crontab)
+			_, err = types.ParseCronExpr(request.ScheduleSettings.SchedulePattern.Crontab)
 			if err != nil {
 				return nil, status.Error(codes.FailedPrecondition, "failed to parse crontab")
 			}
@@ -170,19 +168,23 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		}
 
 		schedule.ScheduleSettings = request.ScheduleSettings
+		err = schedule.UpdateNextLaunch(s.clock.Now())
+		if err != nil {
+			return nil, status.Error(codes.FailedPrecondition, "failed to update next launch time")
+		}
 	}
 
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto().String()),
+			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
 	}
 
 	xlog.Info(ctx, "UpdateBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
-	return schedule.Proto(), nil
+	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) GetBackupSchedule(
@@ -223,7 +225,7 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("schedule", schedule))
-	return schedule.Proto(), nil
+	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) ListBackupSchedules(
@@ -287,7 +289,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	}
 	pbSchedules := make([]*pb.BackupSchedule, 0, len(schedules))
 	for _, schedule := range schedules {
-		pbSchedules = append(pbSchedules, schedule.Proto())
+		pbSchedules = append(pbSchedules, schedule.Proto(s.clock))
 	}
 	res := &pb.ListBackupSchedulesResponse{Schedules: pbSchedules}
 	if uint64(len(pbSchedules)) == pageSpec.Limit {
@@ -353,14 +355,14 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't delete backup schedule", zap.String("backup schedule", schedule.Proto().String()),
+			ctx, "can't delete backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		return nil, status.Error(codes.Internal, "can't delete backup schedule")
 	}
 
 	xlog.Info(ctx, "DeleteBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
-	return schedule.Proto(), nil
+	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) Register(server server.Server) {
@@ -374,5 +376,6 @@ func NewBackupScheduleService(
 	return &BackupScheduleService{
 		driver: driver,
 		auth:   auth,
+		clock:  clockwork.NewRealClock(),
 	}
 }

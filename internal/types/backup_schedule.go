@@ -2,7 +2,9 @@ package types
 
 import (
 	"fmt"
+	"github.com/adhocore/gronx"
 	"github.com/gorhill/cronexpr"
+	"github.com/jonboulle/clockwork"
 	"time"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -35,7 +37,15 @@ type BackupSchedule struct {
 	RecoveryPoint          *time.Time
 }
 
-func (b *BackupSchedule) Proto() *pb.BackupSchedule {
+func ParseCronExpr(str string) (*cronexpr.Expression, error) {
+	valid := gronx.IsValid(str)
+	if !valid {
+		return nil, fmt.Errorf("failed to parse crontab: \"%s\"", str)
+	}
+	return cronexpr.Parse(str)
+}
+
+func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 	var backupInfo *pb.ScheduledBackupInfo
 	if b.LastSuccessfulBackupID != nil {
 		backupInfo = &pb.ScheduledBackupInfo{
@@ -44,7 +54,7 @@ func (b *BackupSchedule) Proto() *pb.BackupSchedule {
 		if b.RecoveryPoint != nil {
 			backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
 			if b.ScheduleSettings.RecoveryPointObjective != nil {
-				rpoMargin := time.Since(*b.RecoveryPoint)
+				rpoMargin := clock.Since(*b.RecoveryPoint)
 				backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
 				backupInfo.LastBackupRpoMarginInterval = durationpb.New(rpoMargin)
 				backupInfo.LastBackupRpoMarginRatio = rpoMargin.Seconds() / float64(b.ScheduleSettings.RecoveryPointObjective.Seconds)
@@ -88,9 +98,9 @@ func (b *BackupSchedule) String() string {
 }
 
 func (b *BackupSchedule) UpdateNextLaunch(now time.Time) error {
-	expr, err := cronexpr.Parse(b.ScheduleSettings.SchedulePattern.Crontab)
+	expr, err := ParseCronExpr(b.ScheduleSettings.SchedulePattern.Crontab)
 	if err != nil {
-		return fmt.Errorf("failed to parse crontab: %v", err)
+		return err
 	}
 	nextTime := expr.Next(now)
 	b.NextLaunch = &nextTime
