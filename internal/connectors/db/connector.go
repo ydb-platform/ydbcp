@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -61,6 +60,38 @@ type YdbConnector struct {
 	driver *ydb.Driver
 }
 
+func select1(ctx context.Context, db *ydb.Driver) error {
+	readTx := table.TxControl(
+		table.BeginTx(
+			table.WithOnlineReadOnly(),
+		),
+		table.CommitTx(),
+	)
+	return db.Table().Do(
+		ctx, func(ctx context.Context, s table.Session) error {
+			_, res, err := s.Execute(
+				ctx,
+				readTx,
+				"SELECT 1",
+				nil,
+			)
+			if err != nil {
+				return err
+			}
+			defer func(res result.Result) {
+				err = res.Close()
+				if err != nil {
+					xlog.Error(ctx, "Error closing transaction result")
+				}
+			}(res) // result must be closed
+			if res.ResultSetCount() != 1 {
+				return errors.New("expected 1 result set")
+			}
+			return res.Err()
+		},
+	)
+}
+
 func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*YdbConnector, error) {
 	opts := []ydb.Option{
 		ydb.WithDialTimeout(time.Second * time.Duration(config.DialTimeoutSeconds)),
@@ -82,6 +113,11 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	if err != nil {
 		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)
 	}
+	err = select1(ctx, driver)
+	if err != nil {
+		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)
+	}
+
 	return &YdbConnector{driver: driver}, nil
 }
 
