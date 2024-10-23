@@ -125,6 +125,9 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 				table_types.StringValueFromString(strings.Join(tb.SourcePathsToExclude, ",")),
 			)
 		}
+		if tb.ParentOperationID != nil {
+			d.AddValueParam("$parent_operation_id", table_types.StringValueFromString(*tb.ParentOperationID))
+		}
 	} else if operation.GetType() == types.OperationTypeRB {
 		rb, ok := operation.(*types.RestoreBackupOperation)
 		if !ok {
