@@ -160,3 +160,15 @@ func (m *MockClientConnector) CancelOperation(_ context.Context, _ *ydb.Driver, 
 		Status: Ydb.StatusIds_SUCCESS,
 	}, nil
 }
+
+func (m *MockClientConnector) ListExportOperations(_ context.Context, _ *ydb.Driver) (*Ydb_Operations.ListOperationsResponse, error) {
+	operations := make([]*Ydb_Operations.Operation, len(m.operations))
+	for _, operation := range m.operations {
+		operations = append(operations, operation)
+	}
+	return &Ydb_Operations.ListOperationsResponse{
+		Status:     Ydb.StatusIds_SUCCESS,
+		Issues:     nil,
+		Operations: operations,
+	}, nil
+}

@@ -5,6 +5,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"log"
+	"strings"
 	"time"
 
 	"ydbcp/internal/types"
@@ -196,6 +197,23 @@ func main() {
 	if len(schedules.Schedules) > 0 {
 		log.Panicf("got backup schedule, but none created: %s", schedules.Schedules[0].String())
 	}
+	_, err = scheduleClient.CreateBackupSchedule(
+		context.Background(), &pb.CreateBackupScheduleRequest{
+			ContainerId:  containerID,
+			DatabaseName: "/non-existent-db",
+			Endpoint:     databaseEndpoint,
+			ScheduleName: "schedule",
+			ScheduleSettings: &pb.BackupScheduleSettings{
+				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"},
+			},
+		},
+	)
+	if err == nil {
+		log.Panicln("created schedule for non-existent-db")
+	}
+	if !strings.Contains(err.Error(), "user has no access to database") {
+		log.Panicf("Unexpected error message: %s", err.Error())
+	}
 	schedule, err := scheduleClient.CreateBackupSchedule(
 		context.Background(), &pb.CreateBackupScheduleRequest{
 			ContainerId:  containerID,
@@ -203,7 +221,7 @@ func main() {
 			Endpoint:     databaseEndpoint,
 			ScheduleName: "schedule",
 			ScheduleSettings: &pb.BackupScheduleSettings{
-				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
+				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"},
 			},
 		},
 	)

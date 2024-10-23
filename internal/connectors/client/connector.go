@@ -7,7 +7,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
@@ -47,6 +46,9 @@ type ClientConnector interface {
 	CancelOperation(
 		ctx context.Context, clientDb *ydb.Driver, operationId string,
 	) (*Ydb_Operations.CancelOperationResponse, error)
+	ListExportOperations(
+		ctx context.Context, clientDb *ydb.Driver,
+	) (*Ydb_Operations.ListOperationsResponse, error)
 }
 
 type ClientYdbConnector struct {
@@ -79,9 +81,8 @@ func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver,
 
 	db, err := ydb.Open(ctx, dsn, opts...)
 	if err != nil {
-		return nil, fmt.Errorf("error connecting to client db: %w", err)
+		return nil, fmt.Errorf("error connecting to client db, dsn %s: %w", dsn, err)
 	}
-
 	return db, nil
 }
 
@@ -474,4 +475,18 @@ func (d *ClientYdbConnector) CancelOperation(
 	}
 
 	return response, nil
+}
+
+func (d *ClientYdbConnector) ListExportOperations(
+	ctx context.Context, clientDb *ydb.Driver) (*Ydb_Operations.ListOperationsResponse, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
+	}
+	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
+	xlog.Info(ctx, "Listing export operations")
+	return client.ListOperations(ctx, &Ydb_Operations.ListOperationsRequest{
+		Kind:     "export",
+		PageSize: 1,
+	})
+
 }

@@ -6,7 +6,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"strconv"
+	"time"
 	"ydbcp/internal/auth"
+	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/server"
@@ -49,9 +51,28 @@ SELECT s.*, $last_backup_id AS last_backup_id, $rpo_info.recovery_point AS recov
 
 type BackupScheduleService struct {
 	pb.UnimplementedBackupScheduleServiceServer
-	driver db.DBConnector
-	auth   ap.AuthProvider
-	clock  clockwork.Clock
+	driver     db.DBConnector
+	clientConn client.ClientConnector
+	auth       ap.AuthProvider
+	clock      clockwork.Clock
+}
+
+func (s *BackupScheduleService) CheckClientDbAccess(
+	ctx context.Context, clientConnectionParams types.YdbConnectionParams) error {
+	dsn := types.MakeYdbConnectionString(clientConnectionParams)
+	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	clientDriver, err := s.clientConn.Open(connCtx, dsn)
+	if err != nil {
+		return status.Errorf(codes.NotFound, err.Error())
+	}
+	_, err = s.clientConn.ListExportOperations(connCtx, clientDriver)
+	if err != nil {
+		xlog.Error(ctx, "can't list export operations", zap.Error(err))
+		return status.Errorf(codes.PermissionDenied, "user has no access to database %s", dsn)
+	}
+	return nil
 }
 
 func (s *BackupScheduleService) CreateBackupSchedule(
@@ -65,6 +86,12 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+		Endpoint:     request.Endpoint,
+		DatabaseName: request.DatabaseName,
+	}); err != nil {
+		return nil, err
+	}
 	if request.ScheduleSettings == nil {
 		xlog.Error(
 			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String("request", request.String()),
@@ -147,7 +174,12 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
-
+	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+		Endpoint:     schedule.DatabaseEndpoint,
+		DatabaseName: schedule.DatabaseName,
+	}); err != nil {
+		return nil, err
+	}
 	schedule.SourcePaths = request.SourcePaths
 	schedule.SourcePathsToExclude = request.SourcePathsToExclude
 
@@ -371,11 +403,13 @@ func (s *BackupScheduleService) Register(server server.Server) {
 
 func NewBackupScheduleService(
 	driver db.DBConnector,
+	clientConn client.ClientConnector,
 	auth ap.AuthProvider,
 ) *BackupScheduleService {
 	return &BackupScheduleService{
-		driver: driver,
-		auth:   auth,
-		clock:  clockwork.NewRealClock(),
+		driver:     driver,
+		clientConn: clientConn,
+		auth:       auth,
+		clock:      clockwork.NewRealClock(),
 	}
 }

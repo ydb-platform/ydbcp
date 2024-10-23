@@ -116,7 +116,7 @@ func main() {
 		configInstance.ClientConnection.AllowInsecureEndpoint,
 	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
-	backup_schedule.NewBackupScheduleService(dbConnector, authProvider).Register(server)
+	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider).Register(server)
 	if err := server.Start(ctx, &wg); err != nil {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)
