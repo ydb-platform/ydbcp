@@ -58,10 +58,11 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 func TestQueryBuilder_CreateCreate(t *testing.T) {
 	const (
 		queryString = `UPSERT INTO Backups (id, container_id, database, endpoint, s3_endpoint, s3_region, s3_bucket, s3_path_prefix, status, message, size, paths, initiated, created_at) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $s3_endpoint_0, $s3_region_0, $s3_bucket_0, $s3_path_prefix_0, $status_0, $message_0, $size_0, $paths_0, $initiated_0, $created_at_0);
-UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1)`
+UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, parent_operation_id) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $parent_operation_id_1)`
 	)
 	opId := types.GenerateObjectID()
 	backupId := types.GenerateObjectID()
+	opParent := types.GenerateObjectID()
 	tbOp := types.TakeBackupOperation{
 		ID:          opId,
 		ContainerID: "a",
@@ -79,6 +80,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			Creator:   "author",
 			CreatedAt: timestamppb.Now(),
 		},
+		ParentOperationID: &opParent,
 	}
 	backup := types.Backup{
 		ID:               backupId,
@@ -151,6 +153,10 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam(
 				"$operation_id_1",
 				table_types.StringValueFromString(tbOp.YdbOperationId),
+			),
+			table.ValueParam(
+				"$parent_operation_id_1",
+				table_types.StringValueFromString(*tbOp.ParentOperationID),
 			),
 		)
 	)

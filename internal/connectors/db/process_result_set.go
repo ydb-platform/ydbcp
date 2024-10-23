@@ -149,6 +149,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		completedAt          *time.Time
 		updatedAt            *time.Time
 		updatedTs            *timestamppb.Timestamp
+		parentOperationID    *string
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
@@ -168,6 +169,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("completed_at", &completedAt),
 		named.Optional("initiated", &creator),
 		named.Optional("updated_at", &updatedAt),
+		named.Optional("parent_operation_id", &parentOperationID),
 	)
 	if err != nil {
 		return nil, err
@@ -208,6 +210,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			YdbOperationId:       StringOrEmpty(ydbOperationId),
 			Audit:                auditFromDb(creator, createdAt, completedAt),
 			UpdatedAt:            updatedTs,
+			ParentOperationID:    parentOperationID,
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {

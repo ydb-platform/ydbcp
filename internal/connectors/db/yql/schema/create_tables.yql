@@ -53,10 +53,12 @@ CREATE TABLE Operations (
     paths String,
     paths_to_exclude String,
     operation_id String,
+    parent_operation_id String,
 
     INDEX idx_cc GLOBAL ON (container_id, created_at, id),
     INDEX idx_cbc GLOBAL ON (container_id, backup_id, created_at, id),
     INDEX idx_cdc GLOBAL ON (container_id, database, created_at, id),
+    INDEX idx_p GLOBAL ON (parent_operation_id, id),
     PRIMARY KEY (id)
 );
 
