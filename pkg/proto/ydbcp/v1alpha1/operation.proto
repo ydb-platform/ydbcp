@@ -31,4 +31,5 @@ message Operation {
     Status status = 12;
     string message = 13;
     google.protobuf.Timestamp updated_at = 14;
+    string parent_operation_id = 15;
 }

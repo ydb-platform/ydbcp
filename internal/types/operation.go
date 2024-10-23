@@ -46,6 +46,7 @@ type TakeBackupOperation struct {
 	SourcePathsToExclude []string
 	Audit                *pb.AuditInfo
 	UpdatedAt            *timestamppb.Timestamp
+	ParentOperationID    *string
 }
 
 func (o *TakeBackupOperation) GetID() string {
@@ -89,7 +90,7 @@ func (o *TakeBackupOperation) Copy() Operation {
 }
 
 func (o *TakeBackupOperation) Proto() *pb.Operation {
-	return &pb.Operation{
+	op := &pb.Operation{
 		Id:                   o.ID,
 		ContainerId:          o.ContainerID,
 		Type:                 string(OperationTypeTB),
@@ -105,6 +106,10 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
 	}
+	if o.ParentOperationID != nil {
+		op.ParentOperationId = *o.ParentOperationID
+	}
+	return op
 }
 
 type RestoreBackupOperation struct {
@@ -254,6 +259,79 @@ func (o *DeleteBackupOperation) Proto() *pb.Operation {
 	}
 }
 
+type TakeBackupWithRetryOperation struct {
+	ID                   string
+	ContainerID          string
+	BackupID             string
+	State                OperationState
+	Message              string
+	YdbConnectionParams  YdbConnectionParams
+	YdbOperationId       string
+	SourcePaths          []string
+	SourcePathsToExclude []string
+	Audit                *pb.AuditInfo
+	UpdatedAt            *timestamppb.Timestamp
+}
+
+func (o *TakeBackupWithRetryOperation) GetID() string {
+	return o.ID
+}
+func (o *TakeBackupWithRetryOperation) SetID(id string) {
+	o.ID = id
+}
+func (o *TakeBackupWithRetryOperation) GetContainerID() string {
+	return o.ContainerID
+}
+func (o *TakeBackupWithRetryOperation) GetType() OperationType {
+	return OperationTypeTBR
+}
+func (o *TakeBackupWithRetryOperation) SetType(_ OperationType) {
+}
+func (o *TakeBackupWithRetryOperation) GetState() OperationState {
+	return o.State
+}
+func (o *TakeBackupWithRetryOperation) SetState(s OperationState) {
+	o.State = s
+}
+func (o *TakeBackupWithRetryOperation) GetMessage() string {
+	return o.Message
+}
+func (o *TakeBackupWithRetryOperation) SetMessage(m string) {
+	o.Message = m
+}
+func (o *TakeBackupWithRetryOperation) GetAudit() *pb.AuditInfo {
+	return nil
+}
+func (o *TakeBackupWithRetryOperation) GetUpdatedAt() *timestamppb.Timestamp {
+	return nil
+}
+func (o *TakeBackupWithRetryOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
+	o.UpdatedAt = t
+}
+func (o *TakeBackupWithRetryOperation) Copy() Operation {
+	copy := *o
+	return &copy
+}
+
+func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
+	return &pb.Operation{
+		Id:                   o.ID,
+		ContainerId:          o.ContainerID,
+		Type:                 string(OperationTypeTB),
+		DatabaseName:         o.YdbConnectionParams.DatabaseName,
+		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
+		YdbServerOperationId: o.YdbOperationId,
+		BackupId:             o.BackupID,
+		SourcePaths:          o.SourcePaths,
+		SourcePathsToExclude: o.SourcePathsToExclude,
+		RestorePaths:         nil,
+		Audit:                o.Audit,
+		Status:               o.State.Enum(),
+		Message:              o.Message,
+		UpdatedAt:            o.UpdatedAt,
+	}
+}
+
 type GenericOperation struct {
 	ID          string
 	ContainerID string
@@ -324,6 +402,7 @@ const (
 	OperationTypeTB       = OperationType("TB")
 	OperationTypeRB       = OperationType("RB")
 	OperationTypeDB       = OperationType("DB")
+	OperationTypeTBR      = OperationType("TBR")
 	BackupTimestampFormat = "20060102_150405"
 	OperationCreatorName  = "ydbcp"
 )
