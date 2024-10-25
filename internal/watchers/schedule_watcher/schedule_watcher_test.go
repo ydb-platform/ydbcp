@@ -77,13 +77,13 @@ func TestScheduleWatcherSimple(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
+		clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
-		clock,
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),
@@ -201,13 +201,13 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
+		clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
-		clock,
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),
@@ -331,13 +331,13 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
+		clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
-		clock,
 		dbConnector,
 		handler,
 		watchers.WithTickerProvider(tickerProvider),

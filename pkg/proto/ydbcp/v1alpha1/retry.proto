@@ -1,0 +1,15 @@
+syntax = "proto3";
+
+package ydbcp.v1alpha1;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
+
+import "google/protobuf/duration.proto";
+
+message RetryConfig {
+  //user can set number of retries or max_backoff interval.
+  //if one of them is reached, retries stop.
+  oneof retries {
+    uint32 count = 1;
+    google.protobuf.Duration max_backoff = 2;
+  }
+}

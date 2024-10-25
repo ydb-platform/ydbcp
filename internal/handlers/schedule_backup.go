@@ -3,8 +3,8 @@ package handlers
 import (
 	"context"
 	"errors"
+	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
-	"time"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -15,18 +15,19 @@ import (
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
-type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule, time.Time) error
+type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule) error
 
 func NewBackupScheduleHandler(
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
+	clock clockwork.Clock,
 ) BackupScheduleHandlerType {
-	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule, now time.Time) error {
+	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule) error {
 		return BackupScheduleHandler(
-			ctx, driver, schedule, now, clientConn, s3, clientConfig,
-			queryBuilderFactory,
+			ctx, driver, schedule, clientConn, s3, clientConfig,
+			queryBuilderFactory, clock,
 		)
 	}
 }
@@ -35,18 +36,18 @@ func BackupScheduleHandler(
 	ctx context.Context,
 	driver db.DBConnector,
 	schedule types.BackupSchedule,
-	now time.Time,
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
+	clock clockwork.Clock,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
 		return errors.New("backup schedule is not active")
 	}
 	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
-	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(now) {
+	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(clock.Now()) {
 
 		backupRequest := &pb.MakeBackupRequest{
 			ContainerId:          schedule.ContainerID,
@@ -65,12 +66,12 @@ func BackupScheduleHandler(
 
 		b, op, err := backup_operations.MakeBackup(
 			ctx, clientConn, s3, clientConfig.AllowedEndpointDomains, clientConfig.AllowInsecureEndpoint,
-			backupRequest, &schedule.ID, types.OperationCreatorName, //TODO: who to put as subject here?
+			backup_operations.FromGRPCRequest(backupRequest, &schedule.ID), types.OperationCreatorName, clock,
 		)
 		if err != nil {
 			return err
 		}
-		err = schedule.UpdateNextLaunch(now)
+		err = schedule.UpdateNextLaunch(clock.Now())
 		if err != nil {
 			return err
 		}

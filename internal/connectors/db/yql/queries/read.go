@@ -98,6 +98,7 @@ type ReadTableQueryImpl struct {
 	filters          [][]table_types.Value
 	filterFields     []string
 	isLikeFilter     map[string]bool
+	index            *string
 	orderBy          *OrderSpec
 	pageSpec         *PageSpec
 	tableQueryParams []table.ParameterOption
@@ -165,6 +166,12 @@ func WithPageSpec(spec PageSpec) ReadTableQueryOption {
 	}
 }
 
+func WithIndex(index string) ReadTableQueryOption {
+	return func(d *ReadTableQueryImpl) {
+		d.index = &index
+	}
+}
+
 func (d *ReadTableQueryImpl) AddTableQueryParam(paramValue table_types.Value) string {
 	paramName := fmt.Sprintf("$param%d", len(d.tableQueryParams))
 	d.tableQueryParams = append(
@@ -219,17 +226,23 @@ func (d *ReadTableQueryImpl) FormatPage() *string {
 	return &page
 }
 
+func (d *ReadTableQueryImpl) FormatTable() string {
+	if d.index == nil {
+		return d.tableName
+	}
+	return fmt.Sprintf("%s VIEW %s", d.tableName, *d.index)
+}
+
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
 	var res string
 	filter := d.MakeFilterString()
-
 	if d.rawQuery == nil {
 		if len(d.tableName) == 0 {
 			return nil, errors.New("no table")
 		}
 		res = fmt.Sprintf(
 			"SELECT * FROM %s%s",
-			d.tableName,
+			d.FormatTable(),
 			filter,
 		)
 	} else {

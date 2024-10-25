@@ -20,10 +20,10 @@ import (
 
 func NewTBOperationHandler(
 	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
-	queryBulderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBulderFactory,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client, s3, config, queryBulderFactory)
+		return TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory)
 	}
 }
 

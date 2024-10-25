@@ -74,3 +74,11 @@ jobs:
       - name: docker compose down
         run: |
           docker compose down
+      - name: docker compose up
+        run: |
+          docker compose up -d
+      - name: run orm test
+        run: docker exec local-ydbcp sh -c './orm'
+      - name: docker compose down
+        run: |
+          docker compose down

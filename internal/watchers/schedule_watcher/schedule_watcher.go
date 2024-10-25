@@ -2,7 +2,6 @@ package schedule_watcher
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 	"sync"
@@ -18,7 +17,6 @@ import (
 func NewScheduleWatcher(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	clock clockwork.Clock,
 	db db.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
 	options ...watchers.Option,
@@ -27,7 +25,7 @@ func NewScheduleWatcher(
 		ctx,
 		wg,
 		func(ctx context.Context, period time.Duration) {
-			ScheduleWatcherAction(ctx, period, clock, db, handler)
+			ScheduleWatcherAction(ctx, period, db, handler)
 		},
 		time.Minute,
 		"BackupSchedule",
@@ -38,7 +36,6 @@ func NewScheduleWatcher(
 func ScheduleWatcherAction(
 	baseCtx context.Context,
 	period time.Duration,
-	clock clockwork.Clock,
 	db db.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
 ) {
@@ -66,7 +63,7 @@ func ScheduleWatcherAction(
 	}
 
 	for _, schedule := range schedules {
-		err = handler(ctx, db, *schedule, clock.Now())
+		err = handler(ctx, db, *schedule)
 		if err != nil {
 			xlog.Error(ctx, "error handling backup schedule", zap.String("scheduleID", schedule.ID), zap.Error(err))
 		}

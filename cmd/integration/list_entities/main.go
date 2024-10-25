@@ -8,6 +8,7 @@ import (
 	"log"
 	"strconv"
 	"time"
+	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -16,7 +17,6 @@ import (
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -214,12 +214,7 @@ func SchedulesToInsert() []types.BackupSchedule {
 
 func main() {
 	ctx := context.Background()
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	conn, err := grpc.NewClient(ydbcpEndpoint, opts...)
-	if err != nil {
-		log.Panicln("failed to dial")
-	}
+	conn := common.CreateGRPCClient(ydbcpEndpoint)
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {

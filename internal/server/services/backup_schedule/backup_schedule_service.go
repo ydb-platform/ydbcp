@@ -2,7 +2,6 @@ package backup_schedule
 
 import (
 	"context"
-	"fmt"
 	"github.com/jonboulle/clockwork"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"strconv"
@@ -23,30 +22,6 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/timestamppb"
-)
-
-var (
-	ListSchedulesQuery = fmt.Sprintf(
-		`$last_successful_backup_id = SELECT schedule_id, MAX(b.completed_at) AS recovery_point, MAX_BY(b.id, b.completed_at) AS last_successful_backup_id FROM Backups AS b WHERE b.status = '%s' GROUP BY schedule_id;
-$last_backup_id = SELECT schedule_id AS schedule_id_2, MAX_BY(b.id, b.completed_at) AS last_backup_id FROM Backups AS b GROUP BY schedule_id;
-
-SELECT * FROM BackupSchedules AS schedules 
-LEFT JOIN $last_successful_backup_id AS b1 ON schedules.id = b1.schedule_id
-LEFT JOIN $last_backup_id AS b2 ON schedules.id = b2.schedule_id_2
-`, types.BackupStateAvailable,
-	)
-	GetScheduleQuery = fmt.Sprintf(
-		`$rpo_info = SELECT 
-    <|
-        recovery_point: MAX(b.completed_at),
-        last_successful_backup_id: MAX_BY(b.id, b.completed_at)
-    |> FROM Backups AS b WHERE b.status = '%s' AND b.schedule_id = $schedule_id;
-
-$last_backup_id = SELECT MAX_BY(b.id, b.completed_at) AS last_backup_id FROM Backups AS b WHERE b.schedule_id = $schedule_id;
-
-SELECT s.*, $last_backup_id AS last_backup_id, $rpo_info.recovery_point AS recovery_point, $rpo_info.last_successful_backup_id AS last_successful_backup_id FROM BackupSchedules AS s WHERE s.id = $schedule_id
-`, types.BackupStateAvailable,
-	)
 )
 
 type BackupScheduleService struct {
@@ -150,7 +125,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithRawQuery(queries.GetScheduleQuery),
 			queries.WithParameters(
 				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
 			),
@@ -237,7 +212,7 @@ func (s *BackupScheduleService) GetBackupSchedule(
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithRawQuery(queries.GetScheduleQuery),
 			queries.WithParameters(
 				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
 			),
@@ -310,7 +285,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(ListSchedulesQuery),
+			queries.WithRawQuery(queries.ListSchedulesQuery),
 			queries.WithQueryFilters(queryFilters...),
 			queries.WithOrderBy(
 				queries.OrderSpec{
@@ -349,7 +324,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithRawQuery(queries.GetScheduleQuery),
 			queries.WithParameters(
 				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
 			),
@@ -422,7 +397,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithRawQuery(queries.GetScheduleQuery),
 			queries.WithParameters(
 				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
 			),

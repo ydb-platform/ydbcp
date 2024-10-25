@@ -18,9 +18,8 @@ RUN go build -o . ./cmd/ydbcp/main.go
 
 # Build integration test app
 RUN go build -o ./make_backup ./cmd/integration/make_backup/main.go
-
-# Build integration test app
 RUN go build -o ./list_entities ./cmd/integration/list_entities/main.go
+RUN go build -o ./orm ./cmd/integration/orm/main.go
 
 # Command to run the executable
 CMD ["./main", "--config=local_config.yaml"]

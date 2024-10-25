@@ -16,6 +16,7 @@ type MockDBConnector struct {
 	operations      map[string]types.Operation
 	backups         map[string]types.Backup
 	backupSchedules map[string]types.BackupSchedule
+	operationIDs    *[]string
 }
 
 type Option func(*MockDBConnector)
@@ -213,9 +214,26 @@ func (c *MockDBConnector) GetSchedule(
 	return types.BackupSchedule{}, fmt.Errorf("backupSchedule not found, id %s", scheduleID)
 }
 
+func (c *MockDBConnector) SetOperationsIDSelector(ids []string) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+
+	c.operationIDs = &ids
+}
+
 func (c *MockDBConnector) SelectOperations(
 	_ context.Context, _ queries.ReadTableQuery,
 ) ([]types.Operation, error) {
+	c.guard.Lock()
+	defer c.guard.Unlock()
+	if c.operationIDs != nil {
+		res := make([]types.Operation, 0, len(*c.operationIDs))
+		for _, id := range *c.operationIDs {
+			res = append(res, c.operations[id].Copy())
+		}
+		c.operationIDs = nil
+		return res, nil
+	}
 	res := make([]types.Operation, 0, len(c.operations))
 	for _, v := range c.operations {
 		res = append(res, v.Copy())
