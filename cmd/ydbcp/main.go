@@ -156,11 +156,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	if err := handlersRegistry.Add(
+		types.OperationTypeTBWR,
+		handlers.NewTBWROperationHandler(
+			dbConnector,
+			clientConnector,
+			configInstance.S3,
+			configInstance.ClientConnection,
+			queries.NewWriteTableQuery,
+			clockwork.NewRealClock()),
+	); err != nil {
+		xlog.Error(ctx, "failed to register TBWR handler", zap.Error(err))
+		os.Exit(1)
+	}
+
 	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry, metrics)
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(
-		clientConnector, configInstance.S3, configInstance.ClientConnection, queries.NewWriteTableQuery, clockwork.NewRealClock(),
+		queries.NewWriteTableQuery, clockwork.NewRealClock(),
 	)
 	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler)
 	xlog.Info(ctx, "YDBCP started")

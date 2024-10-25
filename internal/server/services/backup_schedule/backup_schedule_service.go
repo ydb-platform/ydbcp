@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"time"
 	"ydbcp/internal/auth"
+	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -81,6 +82,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	if len(request.ScheduleName) > 0 {
 		scheduleName = &request.ScheduleName
 	}
+
 	schedule := types.BackupSchedule{
 		ID:                   types.GenerateObjectID(),
 		ContainerID:          request.ContainerId,
@@ -96,6 +98,12 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
 	}
+
+	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn)
+	if err != nil {
+		return nil, err
+	}
+
 	err = schedule.UpdateNextLaunch(s.clock.Now())
 	if err != nil {
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
@@ -185,6 +193,11 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		if err != nil {
 			return nil, status.Error(codes.FailedPrecondition, "failed to update next launch time")
 		}
+	}
+
+	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(schedule), s.clientConn)
+	if err != nil {
+		return nil, err
 	}
 
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))

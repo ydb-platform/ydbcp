@@ -106,3 +106,12 @@ func (b *BackupSchedule) UpdateNextLaunch(now time.Time) error {
 	b.NextLaunch = &nextTime
 	return nil
 }
+
+func (b *BackupSchedule) GetCronDuration() (time.Duration, error) {
+	expr, err := ParseCronExpr(b.ScheduleSettings.SchedulePattern.Crontab)
+	if err != nil {
+		return time.Duration(0), err
+	}
+	nextTime := expr.NextN(time.Now(), 2)
+	return nextTime[1].Sub(nextTime[0]), nil
+}

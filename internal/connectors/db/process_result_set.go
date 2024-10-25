@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
@@ -197,7 +196,6 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	}
 
 	if updatedAt != nil {
-		log.Print("updated at read from db")
 		updatedTs = timestamppb.New(*updatedAt)
 	}
 

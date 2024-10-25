@@ -36,11 +36,31 @@ const (
 	INTERNAL_MAX_RETRIES = 20
 	MIN_BACKOFF          = time.Minute
 	BACKOFF_EXP          = 1.5
-	Error                = iota
-	RunNewTb             = iota
-	Skip                 = iota
-	Success              = iota
 )
+
+type RetryDecision int
+
+const (
+	Error    RetryDecision = iota
+	RunNewTb RetryDecision = iota
+	Skip     RetryDecision = iota
+	Success  RetryDecision = iota
+)
+
+func (r RetryDecision) String() string {
+	switch r {
+	case Error:
+		return "Error"
+	case RunNewTb:
+		return "RunNewTb"
+	case Skip:
+		return "Skip"
+	case Success:
+		return "Success"
+	default:
+		return "Unknown"
+	}
+}
 
 func exp(p int) time.Duration {
 	return time.Duration(math.Pow(BACKOFF_EXP, float64(p)))
@@ -78,7 +98,7 @@ func shouldRetry(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clo
 	return &res
 }
 
-func HandleTbOps(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clock clockwork.Clock) (int, error) {
+func HandleTbOps(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clock clockwork.Clock) (RetryDecision, error) {
 	//select last tbOp.
 	//if nothing, run new, skip
 	//if there is a tbOp, check its status
@@ -137,7 +157,7 @@ func TBWROperationHandler(
 
 	ops, err := db.SelectOperations(ctx, queries.NewReadTableQuery(
 		queries.WithTableName("Operations"),
-		queries.WithIndex("idx_pc"),
+		queries.WithIndex("idx_p"),
 		queries.WithQueryFilters(queries.QueryFilter{
 			Field:  "parent_operation_id",
 			Values: []table_types.Value{table_types.StringValueFromString(tbwr.ID)},
@@ -167,6 +187,12 @@ func TBWROperationHandler(
 				}
 				return err
 			}
+			xlog.Info(
+				ctx,
+				"TBWROperationHandler",
+				zap.String("OperationID", operation.GetID()),
+				zap.String("decision", do.String()),
+			)
 			switch do {
 			case Success:
 				{

@@ -3,12 +3,11 @@ package backup_operations
 import (
 	"context"
 	"github.com/jonboulle/clockwork"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"path"
 	"regexp"
 	"strings"
 	"time"
-	"ydbcp/internal/connectors/db"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/types"
@@ -33,18 +32,19 @@ type MakeBackupInternalRequest struct {
 	SourcePathsToExclude []string
 	ScheduleID           *string
 	Ttl                  *time.Duration
+	ParentOperationID    *string
 }
 
-func FromGRPCRequest(request *pb.MakeBackupRequest, scheduleID *string) MakeBackupInternalRequest {
+func FromBackupSchedule(schedule *types.BackupSchedule) MakeBackupInternalRequest {
 	res := MakeBackupInternalRequest{
-		ContainerID:          request.ContainerId,
-		DatabaseEndpoint:     request.DatabaseEndpoint,
-		DatabaseName:         request.DatabaseName,
-		SourcePaths:          request.SourcePaths,
-		SourcePathsToExclude: request.SourcePathsToExclude,
-		ScheduleID:           scheduleID,
+		ContainerID:          schedule.ContainerID,
+		DatabaseEndpoint:     schedule.DatabaseEndpoint,
+		DatabaseName:         schedule.DatabaseName,
+		SourcePaths:          schedule.SourcePaths,
+		SourcePathsToExclude: schedule.SourcePathsToExclude,
+		ScheduleID:           &schedule.ID,
 	}
-	if ttl := request.Ttl.AsDuration(); request.Ttl != nil {
+	if ttl := schedule.ScheduleSettings.Ttl.AsDuration(); schedule.ScheduleSettings.Ttl != nil {
 		res.Ttl = &ttl
 	}
 	return res
@@ -59,6 +59,7 @@ func FromTBWROperation(tbwr *types.TakeBackupWithRetryOperation) MakeBackupInter
 		SourcePathsToExclude: tbwr.SourcePathsToExclude,
 		ScheduleID:           tbwr.ScheduleID,
 		Ttl:                  tbwr.Ttl,
+		ParentOperationID:    &tbwr.ID,
 	}
 }
 
@@ -92,6 +93,53 @@ func IsAllowedEndpoint(e string, allowedEndpointDomains []string, allowInsecureE
 		}
 	}
 	return false
+}
+
+func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector) ([]string, error) {
+	clientConnectionParams := types.YdbConnectionParams{
+		Endpoint:     req.DatabaseEndpoint,
+		DatabaseName: req.DatabaseName,
+	}
+	dsn := types.MakeYdbConnectionString(clientConnectionParams)
+	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	client, err := clientConn.Open(ctx, dsn)
+	if err != nil {
+		xlog.Error(ctx, "can't open client connection", zap.Error(err))
+		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
+	}
+	defer func() {
+		if err := clientConn.Close(ctx, client); err != nil {
+			xlog.Error(ctx, "can't close client connection", zap.Error(err))
+		}
+	}()
+	return ValidateSourcePaths(ctx, req, clientConn, client, dsn)
+}
+
+func ValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector, client *ydb.Driver, dsn string) ([]string, error) {
+	if req.ScheduleID != nil {
+		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
+	}
+	sourcePaths := make([]string, 0, len(req.SourcePaths))
+	for _, p := range req.SourcePaths {
+		fullPath, ok := SafePathJoin(req.DatabaseName, p)
+		if !ok {
+			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
+			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
+		}
+		sourcePaths = append(sourcePaths, fullPath)
+	}
+
+	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
+	if err != nil {
+		xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
+		return nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
+	}
+
+	if len(pathsForExport) == 0 {
+		xlog.Error(ctx, "empty list of paths for export")
+		return nil, status.Error(codes.FailedPrecondition, "empty list of paths for export")
+	}
+	return pathsForExport, nil
 }
 
 func MakeBackup(
@@ -157,35 +205,10 @@ func MakeBackup(
 	)
 	ctx = xlog.With(ctx, zap.String("S3DestinationPrefix", destinationPrefix))
 
-	sourcePaths := make([]string, 0, len(req.SourcePaths))
-	for _, p := range req.SourcePaths {
-		fullPath, ok := SafePathJoin(req.DatabaseName, p)
-		if !ok {
-			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
-			return nil, nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
-		}
-		sourcePaths = append(sourcePaths, fullPath)
-	}
+	pathsForExport, err := ValidateSourcePaths(ctx, req, clientConn, client, dsn)
 
-	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
 	if err != nil {
-		xlog.Error(
-			ctx,
-			"error preparing paths for export",
-			zap.Strings("sourcePaths", req.SourcePaths),
-			zap.String("scheduleID", db.StringOrEmpty(req.ScheduleID)),
-			zap.Error(err),
-		)
-		return nil, nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
-	}
-
-	if len(pathsForExport) == 0 {
-		xlog.Error(
-			ctx,
-			"empty list of paths for export",
-			zap.String("scheduleID", db.StringOrEmpty(req.ScheduleID)),
-		)
-		return nil, nil, status.Error(codes.FailedPrecondition, "empty list of paths for export")
+		return nil, nil, err
 	}
 
 	s3Settings := types.ExportSettings{
@@ -250,8 +273,9 @@ func MakeBackup(
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		YdbOperationId: clientOperationID,
-		UpdatedAt:      now,
+		YdbOperationId:    clientOperationID,
+		UpdatedAt:         now,
+		ParentOperationID: req.ParentOperationID,
 	}
 
 	return backup, op, nil

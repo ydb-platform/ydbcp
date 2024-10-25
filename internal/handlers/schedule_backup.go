@@ -5,9 +5,8 @@ import (
 	"errors"
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
-	"ydbcp/internal/backup_operations"
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/client"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -18,15 +17,12 @@ import (
 type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule) error
 
 func NewBackupScheduleHandler(
-	clientConn client.ClientConnector,
-	s3 config.S3Config,
-	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 	clock clockwork.Clock,
 ) BackupScheduleHandlerType {
 	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule) error {
 		return BackupScheduleHandler(
-			ctx, driver, schedule, clientConn, s3, clientConfig,
+			ctx, driver, schedule,
 			queryBuilderFactory, clock,
 		)
 	}
@@ -36,9 +32,6 @@ func BackupScheduleHandler(
 	ctx context.Context,
 	driver db.DBConnector,
 	schedule types.BackupSchedule,
-	clientConn client.ClientConnector,
-	s3 config.S3Config,
-	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 	clock clockwork.Clock,
 ) error {
@@ -48,36 +41,53 @@ func BackupScheduleHandler(
 	}
 	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(clock.Now()) {
-
-		backupRequest := &pb.MakeBackupRequest{
-			ContainerId:          schedule.ContainerID,
-			DatabaseName:         schedule.DatabaseName,
-			DatabaseEndpoint:     schedule.DatabaseEndpoint,
-			SourcePaths:          schedule.SourcePaths,
-			SourcePathsToExclude: schedule.SourcePathsToExclude,
-		}
-		if schedule.ScheduleSettings != nil {
-			backupRequest.Ttl = schedule.ScheduleSettings.Ttl
-		}
-		xlog.Info(
-			ctx, "call MakeBackup for schedule", zap.String("scheduleID", schedule.ID),
-			zap.String("backupRequest", backupRequest.String()),
-		)
-
-		b, op, err := backup_operations.MakeBackup(
-			ctx, clientConn, s3, clientConfig.AllowedEndpointDomains, clientConfig.AllowInsecureEndpoint,
-			backup_operations.FromGRPCRequest(backupRequest, &schedule.ID), types.OperationCreatorName, clock,
-		)
+		backoff, err := schedule.GetCronDuration()
 		if err != nil {
 			return err
 		}
+		now := timestamppb.New(clock.Now())
+		schedule.ScheduleSettings.Ttl.AsDuration()
+		tbwr := &types.TakeBackupWithRetryOperation{
+			TakeBackupOperation: types.TakeBackupOperation{
+				ID:          types.GenerateObjectID(),
+				ContainerID: schedule.ContainerID,
+				State:       types.OperationStateRunning,
+				YdbConnectionParams: types.YdbConnectionParams{
+					Endpoint:     schedule.DatabaseEndpoint,
+					DatabaseName: schedule.DatabaseName,
+				},
+				SourcePaths:          schedule.SourcePaths,
+				SourcePathsToExclude: schedule.SourcePathsToExclude,
+				Audit: &pb.AuditInfo{
+					Creator:   types.OperationCreatorName,
+					CreatedAt: now,
+				},
+				UpdatedAt: now,
+			},
+			ScheduleID: &schedule.ID,
+			RetryConfig: &pb.RetryConfig{
+				Retries: &pb.RetryConfig_MaxBackoff{MaxBackoff: durationpb.New(backoff)},
+			},
+		}
+		if schedule.ScheduleSettings != nil {
+			if schedule.ScheduleSettings.Ttl != nil {
+				d := schedule.ScheduleSettings.Ttl.AsDuration()
+				tbwr.Ttl = &d
+			}
+		}
+
+		xlog.Info(
+			ctx, "create TakeBackupWithRetryOperation for schedule", zap.String("scheduleID", schedule.ID),
+			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
+		)
+
 		err = schedule.UpdateNextLaunch(clock.Now())
 		if err != nil {
 			return err
 		}
 		return driver.ExecuteUpsert(
 			ctx,
-			queryBuilderFactory().WithCreateBackup(*b).WithCreateOperation(op).WithUpdateBackupSchedule(schedule),
+			queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(schedule),
 		)
 	}
 	return nil

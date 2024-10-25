@@ -31,6 +31,7 @@ func main() {
 		}
 	}(conn)
 	client := pb.NewBackupServiceClient(conn)
+	opClient := pb.NewOperationServiceClient(conn)
 	backups, err := client.ListBackups(
 		context.Background(), &pb.ListBackupsRequest{
 			ContainerId:      containerID,
@@ -61,7 +62,7 @@ func main() {
 		log.Panicf("unexpected error code: %v", err)
 	}
 
-	backupOperation, err := client.MakeBackup(
+	tbwr, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,
 			DatabaseName:         databaseName,
@@ -73,6 +74,16 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to make backup: %v", err)
 	}
+	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
+		Id: tbwr.Id,
+	})
+	if err != nil {
+		log.Panicf("failed to get operation: %v", err)
+	}
+	if op.GetType() != types.OperationTypeTBWR.String() {
+		log.Panicf("unexpected operation type: %v", op.GetType())
+	}
+	time.Sleep(time.Second * 11) // to wait for operation handler
 	backups, err = client.ListBackups(
 		context.Background(), &pb.ListBackupsRequest{
 			ContainerId:      containerID,
@@ -86,6 +97,18 @@ func main() {
 		log.Panicf("Did not list freshly made backup")
 	}
 	backupPb := backups.Backups[0]
+	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
+		ContainerId:      containerID,
+		DatabaseNameMask: databaseName,
+		OperationTypes:   []string{types.OperationTypeTB.String()},
+	})
+	if err != nil {
+		log.Panicf("failed to list operations: %v", err)
+	}
+	if len(ops.Operations) != 1 {
+		log.Panicf("expected one TB operation, got %d", len(ops.Operations))
+	}
+	backupOperation := ops.Operations[0]
 	if backupPb.Id != backupOperation.BackupId {
 		log.Panicf(
 			"backupOperation backupID %s does not match listed backup id %s", backupOperation.BackupId, backupPb.Id,
@@ -121,7 +144,6 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to make restore: %v", err)
 	}
-	opClient := pb.NewOperationServiceClient(conn)
 	done = false
 	for range 30 {
 		op, err := opClient.GetOperation(
@@ -249,7 +271,7 @@ func main() {
 	}
 
 	newScheduleName := "schedule-2.0"
-	newSourcePath := databaseName + "/kv_test"
+	newSourcePath := "/kv_test"
 	newSchedule, err := scheduleClient.UpdateBackupSchedule(
 		context.Background(), &pb.UpdateBackupScheduleRequest{
 			Id:           schedule.Id,
