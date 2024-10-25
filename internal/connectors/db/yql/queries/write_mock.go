@@ -7,9 +7,9 @@ import (
 )
 
 type WriteTableQueryMock struct {
-	Operation      types.Operation
-	Backup         types.Backup
-	BackupSchedule types.BackupSchedule
+	Operation      *types.Operation
+	Backup         *types.Backup
+	BackupSchedule *types.BackupSchedule
 }
 
 type WriteTableQueryMockOption func(*WriteTableQueryMock)
@@ -23,31 +23,31 @@ func (w *WriteTableQueryMock) FormatQuery(_ context.Context) (*FormatQueryResult
 }
 
 func (w *WriteTableQueryMock) WithCreateBackup(backup types.Backup) WriteTableQuery {
-	w.Backup = backup
+	w.Backup = &backup
 	return w
 }
 
 func (w *WriteTableQueryMock) WithCreateOperation(operation types.Operation) WriteTableQuery {
-	w.Operation = operation
+	w.Operation = &operation
 	return w
 }
 
 func (w *WriteTableQueryMock) WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery {
-	w.BackupSchedule = schedule
+	w.BackupSchedule = &schedule
 	return w
 }
 
 func (w *WriteTableQueryMock) WithUpdateBackup(backup types.Backup) WriteTableQuery {
-	w.Backup = backup
+	w.Backup = &backup
 	return w
 }
 
 func (w *WriteTableQueryMock) WithUpdateOperation(operation types.Operation) WriteTableQuery {
-	w.Operation = operation
+	w.Operation = &operation
 	return w
 }
 
 func (w *WriteTableQueryMock) WithUpdateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery {
-	w.BackupSchedule = schedule
+	w.BackupSchedule = &schedule
 	return w
 }

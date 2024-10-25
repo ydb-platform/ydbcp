@@ -62,6 +62,18 @@ func (s *OperationService) ListOperations(
 			},
 		)
 	}
+	if len(request.OperationTypes) > 0 {
+		typeValues := make([]table_types.Value, len(request.OperationTypes))
+		for i, opType := range request.OperationTypes {
+			typeValues[i] = table_types.StringValueFromString(opType)
+		}
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field:  "type",
+				Values: typeValues,
+			},
+		)
+	}
 
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {

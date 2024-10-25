@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/jonboulle/clockwork"
 	"strconv"
-
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -88,24 +87,48 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	now := timestamppb.Now()
 
-	backup, op, err := backup_operations.MakeBackup(
-		ctx, s.clientConn, s.s3, s.allowedEndpointDomains, s.allowInsecureEndpoint, backup_operations.FromGRPCRequest(req, nil), subject, s.clock,
-	)
+	tbwr := &types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{
+			ID:          types.GenerateObjectID(),
+			ContainerID: req.ContainerId,
+			State:       types.OperationStateRunning,
+			YdbConnectionParams: types.YdbConnectionParams{
+				Endpoint:     req.DatabaseEndpoint,
+				DatabaseName: req.DatabaseName,
+			},
+			SourcePaths:          req.SourcePaths,
+			SourcePathsToExclude: req.SourcePathsToExclude,
+			Audit: &pb.AuditInfo{
+				Creator:   subject,
+				CreatedAt: now,
+			},
+			UpdatedAt: now,
+		},
+		RetryConfig: &pb.RetryConfig{
+			Retries: &pb.RetryConfig_Count{Count: 3},
+		},
+	}
+	if d := req.Ttl.AsDuration(); req.Ttl != nil {
+		tbwr.Ttl = &d
+	}
 
+	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
 	if err != nil {
 		return nil, err
 	}
+
 	err = s.driver.ExecuteUpsert(
-		ctx, queries.NewWriteTableQuery().WithCreateBackup(*backup).WithCreateOperation(op),
+		ctx, queries.NewWriteTableQuery().WithCreateOperation(tbwr),
 	)
 	if err != nil {
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
-	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
-	xlog.Debug(ctx, "MakeBackup was started successfully", zap.String("operation", types.OperationToString(op)))
-	return op.Proto(), nil
+	ctx = xlog.With(ctx, zap.String("BackupID", tbwr.BackupID))
+	ctx = xlog.With(ctx, zap.String("OperationID", tbwr.GetID()))
+	xlog.Debug(ctx, "MakeBackup was started successfully", zap.String("operation", types.OperationToString(tbwr)))
+	return tbwr.Proto(), nil
 }
 
 func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (*pb.Operation, error) {

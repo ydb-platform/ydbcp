@@ -4,11 +4,8 @@ import (
 	"context"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
 	"testing"
 	"time"
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -34,7 +31,6 @@ func TestBackupScheduleHandler(t *testing.T) {
 	}
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
-	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[schedule.ID] = schedule
 	dbConnector := db.NewMockDBConnector(
@@ -42,39 +38,26 @@ func TestBackupScheduleHandler(t *testing.T) {
 		db.WithOperations(opMap),
 		db.WithBackupSchedules(scheduleMap),
 	)
-	clientConnector := client.NewMockClientConnector(
-		client.WithOperations(ydbOpMap),
-	)
 
 	handler := NewBackupScheduleHandler(
-		clientConnector,
-		config.S3Config{
-			S3ForcePathStyle: false,
-			IsMock:           true,
-		},
-		config.ClientConnectionConfig{
-			AllowedEndpointDomains: []string{".valid.com"},
-			AllowInsecureEndpoint:  true,
-		},
 		queries.NewWriteTableQueryMock,
 		clock,
 	)
 	err := handler(ctx, dbConnector, schedule)
 	assert.Empty(t, err)
 
-	// check operation status (should be pending)
+	// check operation status (should be running)
 	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
+	assert.Equal(t, types.OperationTypeTBWR, ops[0].GetType())
 	assert.Equal(t, types.OperationStateRunning, ops[0].GetState())
 
-	// check backup status (should be running)
+	// check backup status (should be empty)
 	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})
 	assert.Empty(t, err)
-	assert.NotEmpty(t, backups)
-	assert.Equal(t, len(backups), 1)
-	assert.Equal(t, types.BackupStateRunning, backups[0].Status)
+	assert.Empty(t, backups)
 
 	// check schedule next launch
 	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})

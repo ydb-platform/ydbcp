@@ -311,7 +311,7 @@ func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
 	return &pb.Operation{
 		Id:                   o.ID,
 		ContainerId:          o.ContainerID,
-		Type:                 string(OperationTypeTB),
+		Type:                 string(OperationTypeTBWR),
 		DatabaseName:         o.YdbConnectionParams.DatabaseName,
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
