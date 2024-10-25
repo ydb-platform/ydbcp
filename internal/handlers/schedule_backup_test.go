@@ -57,8 +57,9 @@ func TestBackupScheduleHandler(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
+		clock,
 	)
-	err := handler(ctx, dbConnector, schedule, clock.Now())
+	err := handler(ctx, dbConnector, schedule)
 	assert.Empty(t, err)
 
 	// check operation status (should be pending)

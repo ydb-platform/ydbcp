@@ -4,15 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log"
-	"strings"
-
-	"ydbcp/internal/types"
-	"ydbcp/internal/util/xlog"
-
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
+	"log"
+	"strings"
+	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
+	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 type WriteTableQuery interface {
@@ -79,7 +78,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		)
 		if operation.GetAudit().CompletedAt != nil {
 			d.AddValueParam(
-				"completed_at",
+				"$completed_at",
 				table_types.TimestampValueFromTime(operation.GetAudit().CompletedAt.AsTime()),
 			)
 		}
@@ -127,6 +126,54 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		}
 		if tb.ParentOperationID != nil {
 			d.AddValueParam("$parent_operation_id", table_types.StringValueFromString(*tb.ParentOperationID))
+		}
+	} else if operation.GetType() == types.OperationTypeTBWR {
+		tbwr, ok := operation.(*types.TakeBackupWithRetryOperation)
+		if !ok {
+			log.Fatalf("error cast operation to TakeBackupWithRetryOperation operation_id %s", operation.GetID())
+		}
+
+		d.AddValueParam(
+			"$container_id", table_types.StringValueFromString(tbwr.ContainerID),
+		)
+		d.AddValueParam(
+			"$database",
+			table_types.StringValueFromString(tbwr.YdbConnectionParams.DatabaseName),
+		)
+		d.AddValueParam(
+			"$endpoint",
+			table_types.StringValueFromString(tbwr.YdbConnectionParams.Endpoint),
+		)
+		if len(tbwr.SourcePaths) > 0 {
+			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tbwr.SourcePaths, ",")))
+		}
+		if len(tbwr.SourcePathsToExclude) > 0 {
+			d.AddValueParam(
+				"$paths_to_exclude",
+				table_types.StringValueFromString(strings.Join(tbwr.SourcePathsToExclude, ",")),
+			)
+		}
+		if tbwr.RetryConfig != nil {
+			switch r := tbwr.RetryConfig.Retries.(type) {
+			case *pb.RetryConfig_Count:
+				{
+					d.AddValueParam("$retries_count", table_types.Uint32Value(r.Count))
+					d.AddValueParam("$retries_max_backoff", table_types.NullableIntervalValueFromDuration(nil))
+				}
+			case *pb.RetryConfig_MaxBackoff:
+				{
+					d.AddValueParam("$retries_count", table_types.NullableUint32Value(nil))
+					d.AddValueParam("$retries_max_backoff", table_types.IntervalValueFromDuration(r.MaxBackoff.AsDuration()))
+				}
+			default:
+				log.Fatalf("bad developers did not account for new oneof value")
+			}
+		}
+		if tbwr.ScheduleID != nil {
+			d.AddValueParam("$schedule_id", table_types.StringValueFromString(*tbwr.ScheduleID))
+		}
+		if tbwr.Ttl != nil {
+			d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(*tbwr.Ttl))
 		}
 	} else if operation.GetType() == types.OperationTypeRB {
 		rb, ok := operation.(*types.RestoreBackupOperation)
@@ -183,7 +230,6 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		)
 
 		d.AddValueParam("$paths", table_types.StringValueFromString(db.PathPrefix))
-
 	} else {
 		log.Fatalf(
 			"unknown operation type write to db operation_id %s, operation_type %s",
@@ -204,10 +250,12 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 	d.AddValueParam(
 		"$status", table_types.StringValueFromString(operation.GetState().String()),
 	)
-	d.AddValueParam(
-		"$message",
-		table_types.StringValueFromString(operation.GetMessage()),
-	)
+	if operation.GetMessage() != "" { //so we don't override non-empty message
+		d.AddValueParam(
+			"$message",
+			table_types.StringValueFromString(operation.GetMessage()),
+		)
+	}
 	if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
 		d.AddValueParam(
 			"$completed_at",

@@ -7,12 +7,12 @@ import (
 	"log"
 	"strings"
 	"time"
+	"ydbcp/cmd/integration/common"
 
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 const (
@@ -23,12 +23,7 @@ const (
 )
 
 func main() {
-	var opts []grpc.DialOption
-	opts = append(opts, grpc.WithTransportCredentials(insecure.NewCredentials()))
-	conn, err := grpc.NewClient(ydbcpEndpoint, opts...)
-	if err != nil {
-		log.Panicln("failed to dial")
-	}
+	conn := common.CreateGRPCClient(ydbcpEndpoint)
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
 		if err != nil {

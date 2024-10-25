@@ -4,6 +4,7 @@ package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup.proto";
+import "ydbcp/v1alpha1/retry.proto";
 import "google/protobuf/timestamp.proto";
 
 message Operation {
@@ -32,4 +33,5 @@ message Operation {
     string message = 13;
     google.protobuf.Timestamp updated_at = 14;
     string parent_operation_id = 15;
+    RetryConfig retry_config = 16;
 }

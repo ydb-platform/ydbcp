@@ -2,6 +2,7 @@ package db
 
 import (
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -150,6 +151,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		updatedAt            *time.Time
 		updatedTs            *timestamppb.Timestamp
 		parentOperationID    *string
+		scheduleID           *string
+		ttl                  *time.Duration
+		retriesCount         *uint32
+		maxBackoff           *time.Duration
 	)
 	err := res.ScanNamed(
 		named.Required("id", &operationId),
@@ -170,6 +175,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("initiated", &creator),
 		named.Optional("updated_at", &updatedAt),
 		named.Optional("parent_operation_id", &parentOperationID),
+		named.Optional("schedule_id", &scheduleID),
+		named.Optional("ttl", &ttl),
+		named.Optional("retries_count", &retriesCount),
+		named.Optional("retries_max_backoff", &maxBackoff),
 	)
 	if err != nil {
 		return nil, err
@@ -188,6 +197,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	}
 
 	if updatedAt != nil {
+		log.Print("updated at read from db")
 		updatedTs = timestamppb.New(*updatedAt)
 	}
 
@@ -254,6 +264,39 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			Audit:      auditFromDb(creator, createdAt, completedAt),
 			PathPrefix: pathPrefix,
 			UpdatedAt:  updatedTs,
+		}, nil
+	} else if operationType == string(types.OperationTypeTBWR) {
+		var retryConfig *pb.RetryConfig = nil
+		if maxBackoff != nil {
+			retryConfig = &pb.RetryConfig{
+				Retries: &pb.RetryConfig_MaxBackoff{
+					MaxBackoff: durationpb.New(*maxBackoff),
+				},
+			}
+		}
+		if retriesCount != nil {
+			retryConfig = &pb.RetryConfig{
+				Retries: &pb.RetryConfig_Count{Count: *retriesCount},
+			}
+		}
+		return &types.TakeBackupWithRetryOperation{
+			TakeBackupOperation: types.TakeBackupOperation{
+				ID:          operationId,
+				ContainerID: containerId,
+				State:       operationState,
+				Message:     StringOrEmpty(message),
+				YdbConnectionParams: types.YdbConnectionParams{
+					Endpoint:     databaseEndpoint,
+					DatabaseName: databaseName,
+				},
+				SourcePaths:          sourcePathsSlice,
+				SourcePathsToExclude: sourcePathsToExcludeSlice,
+				Audit:                auditFromDb(creator, createdAt, completedAt),
+				UpdatedAt:            updatedTs,
+			},
+			ScheduleID:  scheduleID,
+			Ttl:         ttl,
+			RetryConfig: retryConfig,
 		}, nil
 	}
 

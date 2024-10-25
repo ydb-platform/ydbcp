@@ -54,6 +54,11 @@ CREATE TABLE Operations (
     paths_to_exclude String,
     operation_id String,
     parent_operation_id String,
+    --used only in TBWR
+    schedule_id String,
+    ttl Interval,
+    retries_count Uint32,
+    retries_max_backoff Interval,
 
     INDEX idx_cc GLOBAL ON (container_id, created_at, id),
     INDEX idx_cbc GLOBAL ON (container_id, backup_id, created_at, id),

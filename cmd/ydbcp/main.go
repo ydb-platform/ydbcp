@@ -153,10 +153,10 @@ func main() {
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(
-		clientConnector, configInstance.S3, configInstance.ClientConnection, queries.NewWriteTableQuery,
+		clientConnector, configInstance.S3, configInstance.ClientConnection, queries.NewWriteTableQuery, clockwork.NewRealClock(),
 	)
-	schedule_watcher.NewScheduleWatcher(ctx, &wg, clockwork.NewRealClock(), dbConnector, backupScheduleHandler)
-
+	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler)
+	xlog.Info(ctx, "YDBCP started")
 	wg.Add(1)
 	go func() {
 		defer wg.Done()

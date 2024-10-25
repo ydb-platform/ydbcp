@@ -196,3 +196,19 @@ func TestOrderSpec(t *testing.T) {
 		"bad query format",
 	)
 }
+
+func TestIndex(t *testing.T) {
+	const (
+		query = `SELECT * FROM table1 VIEW index`
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithIndex("index"),
+	)
+	fq, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, query, fq.QueryText,
+		"bad query format",
+	)
+}

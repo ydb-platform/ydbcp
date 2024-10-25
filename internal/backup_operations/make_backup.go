@@ -2,6 +2,7 @@ package backup_operations
 
 import (
 	"context"
+	"github.com/jonboulle/clockwork"
 	"path"
 	"regexp"
 	"strings"
@@ -22,6 +23,43 @@ import (
 var (
 	validEndpoint = regexp.MustCompile(`^(grpcs://|grpc://)?([A-Za-z0-9\-\.]+)(:[0-9]+)?$`)
 )
+
+type MakeBackupInternalRequest struct {
+	ContainerID          string
+	DatabaseEndpoint     string
+	DatabaseName         string
+	SourcePaths          []string
+	SourcePathsToExclude []string
+	ScheduleID           *string
+	Ttl                  *time.Duration
+}
+
+func FromGRPCRequest(request *pb.MakeBackupRequest, scheduleID *string) MakeBackupInternalRequest {
+	res := MakeBackupInternalRequest{
+		ContainerID:          request.ContainerId,
+		DatabaseEndpoint:     request.DatabaseEndpoint,
+		DatabaseName:         request.DatabaseName,
+		SourcePaths:          request.SourcePaths,
+		SourcePathsToExclude: request.SourcePathsToExclude,
+		ScheduleID:           scheduleID,
+	}
+	if ttl := request.Ttl.AsDuration(); request.Ttl != nil {
+		res.Ttl = &ttl
+	}
+	return res
+}
+
+func FromTBWROperation(tbwr *types.TakeBackupWithRetryOperation) MakeBackupInternalRequest {
+	return MakeBackupInternalRequest{
+		ContainerID:          tbwr.ContainerID,
+		DatabaseEndpoint:     tbwr.YdbConnectionParams.Endpoint,
+		DatabaseName:         tbwr.YdbConnectionParams.DatabaseName,
+		SourcePaths:          tbwr.SourcePaths,
+		SourcePathsToExclude: tbwr.SourcePathsToExclude,
+		ScheduleID:           tbwr.ScheduleID,
+		Ttl:                  tbwr.Ttl,
+	}
+}
 
 func SafePathJoin(base string, relPath ...string) (fullPath string, ok bool) {
 	paths := append([]string{base}, relPath...)
@@ -61,8 +99,9 @@ func MakeBackup(
 	s3 config.S3Config,
 	allowedEndpointDomains []string,
 	allowInsecureEndpoint bool,
-	req *pb.MakeBackupRequest, scheduleId *string,
+	req MakeBackupInternalRequest,
 	subject string,
+	clock clockwork.Clock,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
 	if !IsAllowedEndpoint(req.DatabaseEndpoint, allowedEndpointDomains, allowInsecureEndpoint) {
 		xlog.Error(
@@ -110,7 +149,7 @@ func MakeBackup(
 	destinationPrefix := path.Join(
 		s3.PathPrefix,
 		dbNamePath,
-		time.Now().Format(types.BackupTimestampFormat),
+		clock.Now().Format(types.BackupTimestampFormat),
 	)
 	ctx = xlog.With(ctx, zap.String("S3DestinationPrefix", destinationPrefix))
 
@@ -124,7 +163,7 @@ func MakeBackup(
 		sourcePaths = append(sourcePaths, fullPath)
 	}
 
-	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.GetSourcePathsToExclude())
+	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
 	if err != nil {
 		xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
 		return nil, nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
@@ -157,17 +196,17 @@ func MakeBackup(
 	xlog.Info(ctx, "Export operation started")
 
 	var expireAt *time.Time
-	if ttl := req.GetTtl(); ttl != nil {
+	if req.Ttl != nil {
 		expireAt = new(time.Time)
-		*expireAt = time.Now().Add(ttl.AsDuration())
+		*expireAt = clock.Now().Add(*req.Ttl)
 	}
 
-	now := timestamppb.Now()
+	now := timestamppb.New(clock.Now())
 	backup := &types.Backup{
 		ID:               types.GenerateObjectID(),
-		ContainerID:      req.GetContainerId(),
-		DatabaseName:     req.GetDatabaseName(),
-		DatabaseEndpoint: req.GetDatabaseEndpoint(),
+		ContainerID:      req.ContainerID,
+		DatabaseName:     req.DatabaseName,
+		DatabaseEndpoint: req.DatabaseEndpoint,
 		S3Endpoint:       s3.Endpoint,
 		S3Region:         s3.Region,
 		S3Bucket:         s3.Bucket,
@@ -177,7 +216,7 @@ func MakeBackup(
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		ScheduleID:  scheduleId,
+		ScheduleID:  req.ScheduleID,
 		ExpireAt:    expireAt,
 		SourcePaths: pathsForExport,
 	}
@@ -185,14 +224,14 @@ func MakeBackup(
 	op := &types.TakeBackupOperation{
 		ID:          types.GenerateObjectID(),
 		BackupID:    backup.ID,
-		ContainerID: req.ContainerId,
+		ContainerID: req.ContainerID,
 		State:       types.OperationStateRunning,
 		YdbConnectionParams: types.YdbConnectionParams{
-			Endpoint:     req.GetDatabaseEndpoint(),
-			DatabaseName: req.GetDatabaseName(),
+			Endpoint:     req.DatabaseEndpoint,
+			DatabaseName: req.DatabaseName,
 		},
-		SourcePaths:          req.GetSourcePaths(),
-		SourcePathsToExclude: req.GetSourcePathsToExclude(),
+		SourcePaths:          req.SourcePaths,
+		SourcePathsToExclude: req.SourcePathsToExclude,
 		Audit: &pb.AuditInfo{
 			CreatedAt: now,
 			Creator:   subject,

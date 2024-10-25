@@ -2,6 +2,7 @@ package backup
 
 import (
 	"context"
+	"github.com/jonboulle/clockwork"
 	"strconv"
 
 	"ydbcp/internal/auth"
@@ -32,6 +33,7 @@ type BackupService struct {
 	auth                   ap.AuthProvider
 	allowedEndpointDomains []string
 	allowInsecureEndpoint  bool
+	clock                  clockwork.Clock
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
@@ -87,7 +89,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	backup, op, err := backup_operations.MakeBackup(
-		ctx, s.clientConn, s.s3, s.allowedEndpointDomains, s.allowInsecureEndpoint, req, nil, subject,
+		ctx, s.clientConn, s.s3, s.allowedEndpointDomains, s.allowInsecureEndpoint, backup_operations.FromGRPCRequest(req, nil), subject, s.clock,
 	)
 
 	if err != nil {
@@ -442,5 +444,6 @@ func NewBackupService(
 		auth:                   auth,
 		allowedEndpointDomains: allowedEndpointDomains,
 		allowInsecureEndpoint:  allowInsecureEndpoint,
+		clock:                  clockwork.NewRealClock(),
 	}
 }

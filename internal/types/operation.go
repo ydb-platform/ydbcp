@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strings"
+	"time"
 
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -260,17 +261,10 @@ func (o *DeleteBackupOperation) Proto() *pb.Operation {
 }
 
 type TakeBackupWithRetryOperation struct {
-	ID                   string
-	ContainerID          string
-	BackupID             string
-	State                OperationState
-	Message              string
-	YdbConnectionParams  YdbConnectionParams
-	YdbOperationId       string
-	SourcePaths          []string
-	SourcePathsToExclude []string
-	Audit                *pb.AuditInfo
-	UpdatedAt            *timestamppb.Timestamp
+	TakeBackupOperation
+	ScheduleID  *string
+	Ttl         *time.Duration
+	RetryConfig *pb.RetryConfig
 }
 
 func (o *TakeBackupWithRetryOperation) GetID() string {
@@ -283,7 +277,7 @@ func (o *TakeBackupWithRetryOperation) GetContainerID() string {
 	return o.ContainerID
 }
 func (o *TakeBackupWithRetryOperation) GetType() OperationType {
-	return OperationTypeTBR
+	return OperationTypeTBWR
 }
 func (o *TakeBackupWithRetryOperation) SetType(_ OperationType) {
 }
@@ -300,10 +294,10 @@ func (o *TakeBackupWithRetryOperation) SetMessage(m string) {
 	o.Message = m
 }
 func (o *TakeBackupWithRetryOperation) GetAudit() *pb.AuditInfo {
-	return nil
+	return o.Audit
 }
 func (o *TakeBackupWithRetryOperation) GetUpdatedAt() *timestamppb.Timestamp {
-	return nil
+	return o.UpdatedAt
 }
 func (o *TakeBackupWithRetryOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
@@ -329,6 +323,27 @@ func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
 		Status:               o.State.Enum(),
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
+		RetryConfig:          o.RetryConfig,
+	}
+}
+
+func (o *TakeBackupWithRetryOperation) SpawnNewTBOperation(backupID string, subject string, ydbOperationId string) TakeBackupOperation {
+	return TakeBackupOperation{
+		ID:                   GenerateObjectID(),
+		ContainerID:          o.ContainerID,
+		BackupID:             backupID,
+		State:                OperationStateRunning,
+		Message:              "",
+		YdbConnectionParams:  o.YdbConnectionParams,
+		YdbOperationId:       ydbOperationId,
+		SourcePaths:          o.SourcePaths,
+		SourcePathsToExclude: o.SourcePathsToExclude,
+		Audit: &pb.AuditInfo{
+			Creator:   subject,
+			CreatedAt: timestamppb.Now(),
+		},
+		UpdatedAt:         timestamppb.Now(),
+		ParentOperationID: &o.ID,
 	}
 }
 
@@ -402,7 +417,7 @@ const (
 	OperationTypeTB       = OperationType("TB")
 	OperationTypeRB       = OperationType("RB")
 	OperationTypeDB       = OperationType("DB")
-	OperationTypeTBR      = OperationType("TBR")
+	OperationTypeTBWR     = OperationType("TBWR")
 	BackupTimestampFormat = "20060102_150405"
 	OperationCreatorName  = "ydbcp"
 )
