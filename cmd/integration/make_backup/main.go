@@ -295,6 +295,39 @@ func main() {
 	if len(schedules.Schedules[0].SourcePathsToExclude) != 0 {
 		log.Panicln("unexpected number of source paths to exclude")
 	}
+
+	inactiveSchedule, err := scheduleClient.ToggleBackupSchedule(
+		context.Background(), &pb.ToggleBackupScheduleRequest{
+			Id:          newSchedule.Id,
+			ActiveState: false,
+		},
+	)
+
+	if err != nil {
+		log.Panicf("failed to deactivate backup schedule: %v", err)
+	}
+
+	if inactiveSchedule.Status != pb.BackupSchedule_INACTIVE {
+		log.Panicf("expected INACTIVE backup schedule status, but received: %s", inactiveSchedule.Status.String())
+	}
+
+	schedules, err = scheduleClient.ListBackupSchedules(
+		context.Background(), &pb.ListBackupSchedulesRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: "%",
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backup schedules: %v", err)
+	}
+	if len(schedules.Schedules) != 1 {
+		log.Panicln("unexpected number of schedules")
+	}
+
+	if schedules.Schedules[0].Status != pb.BackupSchedule_INACTIVE {
+		log.Panicf("expected INACTIVE backup schedule status, but received: %s", schedules.Schedules[0].Status.String())
+	}
+
 	deletedSchedule, err := scheduleClient.DeleteBackupSchedule(
 		context.Background(), &pb.DeleteBackupScheduleRequest{
 			Id: schedule.Id,
@@ -321,5 +354,16 @@ func main() {
 	}
 	if schedules.Schedules[0].Status != pb.BackupSchedule_DELETED {
 		log.Panicf("expected DELETED backup schedule status, but received: %s", schedules.Schedules[0].Status.String())
+	}
+
+	_, err = scheduleClient.ToggleBackupSchedule(
+		context.Background(), &pb.ToggleBackupScheduleRequest{
+			Id:          deletedSchedule.Id,
+			ActiveState: true,
+		},
+	)
+
+	if err == nil {
+		log.Panicln("deleted schedule was successfully activated")
 	}
 }
