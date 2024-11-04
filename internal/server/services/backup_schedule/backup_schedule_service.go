@@ -180,6 +180,12 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	}); err != nil {
 		return nil, err
 	}
+
+	if schedule.Status == types.BackupScheduleStateDeleted {
+		xlog.Error(ctx, "backup schedule was deleted")
+		return nil, status.Error(codes.FailedPrecondition, "backup schedule was deleted")
+	}
+
 	schedule.SourcePaths = request.SourcePaths
 	schedule.SourcePathsToExclude = request.SourcePathsToExclude
 
@@ -332,13 +338,76 @@ func (s *BackupScheduleService) ListBackupSchedules(
 }
 
 func (s *BackupScheduleService) ToggleBackupSchedule(
-	ctx context.Context, in *pb.ToggleBackupScheduleRequest,
+	ctx context.Context, request *pb.ToggleBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	ctx = xlog.With(ctx, zap.String("BackupScheduleID", in.GetId()))
-	xlog.Error(ctx, "ToggleBackupSchedule not implemented")
-	//TODO implement me
-	return nil, status.Error(codes.Internal, "not implemented")
+
+	scheduleID := request.GetId()
+	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
+
+	xlog.Debug(ctx, "ToggleBackupSchedule", zap.Stringer("request", request))
+
+	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
+		ctx, queries.NewReadTableQuery(
+			queries.WithRawQuery(GetScheduleQuery),
+			queries.WithParameters(
+				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
+			),
+		),
+	)
+
+	if err != nil {
+		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		return nil, status.Error(codes.Internal, "error getting backup schedule")
+	}
+	if len(schedules) == 0 {
+		xlog.Error(ctx, "backup schedule not found")
+		return nil, status.Error(codes.NotFound, "backup schedule not found")
+	}
+
+	schedule := schedules[0]
+	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
+	if err != nil {
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+		Endpoint:     schedule.DatabaseEndpoint,
+		DatabaseName: schedule.DatabaseName,
+	}); err != nil {
+		return nil, err
+	}
+
+	if schedule.Status == types.BackupScheduleStateDeleted {
+		xlog.Error(ctx, "backup schedule was deleted")
+		return nil, status.Error(codes.FailedPrecondition, "backup schedule was deleted")
+	}
+
+	if request.GetActiveState() {
+		schedule.Status = types.BackupScheduleStateActive
+	} else {
+		schedule.Status = types.BackupScheduleStateInactive
+	}
+
+	if schedule.ScheduleSettings != nil {
+		err = schedule.UpdateNextLaunch(s.clock.Now())
+		if err != nil {
+			return nil, status.Error(codes.Internal, "failed to update next launch time")
+		}
+	}
+
+	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
+	if err != nil {
+		xlog.Error(
+			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
+			zap.Error(err),
+		)
+		return nil, status.Error(codes.Internal, "can't update backup schedule")
+	}
+
+	xlog.Info(ctx, "ToggleBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
+	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) DeleteBackupSchedule(
