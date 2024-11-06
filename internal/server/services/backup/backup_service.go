@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
@@ -33,15 +34,22 @@ type BackupService struct {
 	allowedEndpointDomains []string
 	allowInsecureEndpoint  bool
 	clock                  clockwork.Clock
+	mon                    metrics.MetricsRegistry
+}
+
+func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
+	s.mon.IncApiCallsCounter("BackupService", methodName, code.String())
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
+	const methodName string = "GetBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Debug(ctx, "GetBackup", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", request.Id))
 	backupID, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
 	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
@@ -58,10 +66,12 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
 	if len(backups) == 0 {
 		xlog.Error(ctx, "backup not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
@@ -69,21 +79,25 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	// TODO: Need to check access to backup resource by backupID
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
-	xlog.Debug(ctx, "GetBackup", zap.String("backup", backup.String()))
+	xlog.Debug(ctx, methodName, zap.String("backup", backup.String()))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return backups[0].Proto(), nil
 }
 
 func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
+	const methodName string = "MakeBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Info(ctx, "MakeBackup", zap.String("request", req.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 
 	ctx = xlog.With(ctx, zap.String("ContainerID", req.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, req.ContainerId, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -116,6 +130,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 
 	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
@@ -123,22 +138,26 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		ctx, queries.NewWriteTableQuery().WithCreateOperation(tbwr),
 	)
 	if err != nil {
-		return nil, err
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, err.Error())
 	}
 	ctx = xlog.With(ctx, zap.String("BackupID", tbwr.BackupID))
 	ctx = xlog.With(ctx, zap.String("OperationID", tbwr.GetID()))
-	xlog.Debug(ctx, "MakeBackup was started successfully", zap.String("operation", types.OperationToString(tbwr)))
+	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(tbwr)))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return tbwr.Proto(), nil
 }
 
 func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (*pb.Operation, error) {
+	const methodName string = "DeleteBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Info(ctx, "DeleteBackup", zap.String("request", req.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
 	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
@@ -157,11 +176,13 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
 
 	if len(backups) == 0 {
 		xlog.Error(ctx, "backup not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission Denied?
 	}
 
@@ -170,12 +191,14 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	if !backup.CanBeDeleted() {
 		xlog.Error(ctx, "backup can't be deleted", zap.String("BackupStatus", backup.Status))
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup can't be deleted, status %s", backup.Status)
 	}
 
@@ -207,22 +230,26 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
 
 	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
-	xlog.Debug(ctx, "DeleteBackup was started successfully", zap.String("operation", types.OperationToString(op)))
+	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(op)))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return op.Proto(), nil
 }
 
 func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
+	const methodName string = "MakeRestore"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
 	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
@@ -240,10 +267,12 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
 	if len(backups) == 0 {
 		xlog.Error(ctx, "backup not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
@@ -253,6 +282,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		ctx, s.auth, auth.PermissionBackupRestore, backup.ContainerID, "",
 	) // TODO: check access to backup as resource
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -263,6 +293,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			"endpoint of database is invalid or not allowed",
 			zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
 		)
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Errorf(
 			codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint,
 		)
@@ -270,6 +301,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	if backup.Status != types.BackupStateAvailable {
 		xlog.Error(ctx, "backup is not available", zap.String("BackupStatus", backup.Status))
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
 	}
 
@@ -282,6 +314,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	client, err := s.clientConn.Open(ctx, dsn)
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Unknown)
 		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
 	}
 	defer func() {
@@ -293,11 +326,13 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	accessKey, err := s.s3.AccessKey()
 	if err != nil {
 		xlog.Error(ctx, "can't get S3AccessKey", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't get S3AccessKey")
 	}
 	secretKey, err := s.s3.SecretKey()
 	if err != nil {
 		xlog.Error(ctx, "can't get S3SecretKey", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't get S3SecretKey")
 	}
 
@@ -310,6 +345,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			fullPath, ok := backup_operations.SafePathJoin(backup.S3PathPrefix, p)
 			if !ok {
 				xlog.Error(ctx, "incorrect source path", zap.String("path", p))
+				s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 				return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
 			}
 			sourcePaths = append(sourcePaths, fullPath)
@@ -333,6 +369,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, client, s3Settings)
 	if err != nil {
 		xlog.Error(ctx, "can't start import operation", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Unknown)
 		return nil, status.Errorf(codes.Unknown, "can't start import operation, dsn %s", dsn)
 	}
 	ctx = xlog.With(ctx, zap.String("ClientOperationID", clientOperationID))
@@ -360,23 +397,27 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	operationID, err := s.driver.CreateOperation(ctx, op)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
 	ctx = xlog.With(ctx, zap.String("OperationID", operationID))
-	xlog.Info(ctx, "RestoreBackup operation created")
-
 	op.ID = operationID
+
+	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(op)))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return op.Proto(), nil
 }
 
 func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (
 	*pb.ListBackupsResponse, error,
 ) {
+	const methodName string = "ListBackups"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Debug(ctx, "ListBackups", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -421,10 +462,12 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	}
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	orderSpec, err := queries.NewOrderSpec(request.GetOrder())
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
@@ -438,6 +481,7 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	)
 	if err != nil {
 		xlog.Error(ctx, "error getting backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backups")
 	}
 	pbBackups := make([]*pb.Backup, 0, len(backups))
@@ -450,7 +494,8 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	if uint64(len(pbBackups)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, "ListBackups success")
+	xlog.Debug(ctx, methodName, zap.String("response", res.String()))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }
 
@@ -465,6 +510,7 @@ func NewBackupService(
 	auth ap.AuthProvider,
 	allowedEndpointDomains []string,
 	allowInsecureEndpoint bool,
+	mon metrics.MetricsRegistry,
 ) *BackupService {
 	return &BackupService{
 		driver:                 driver,
@@ -474,5 +520,6 @@ func NewBackupService(
 		allowedEndpointDomains: allowedEndpointDomains,
 		allowInsecureEndpoint:  allowInsecureEndpoint,
 		clock:                  clockwork.NewRealClock(),
+		mon:                    mon,
 	}
 }

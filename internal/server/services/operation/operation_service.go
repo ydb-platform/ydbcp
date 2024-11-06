@@ -7,6 +7,7 @@ import (
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
@@ -24,17 +25,24 @@ type OperationService struct {
 	pb.UnimplementedOperationServiceServer
 	driver db.DBConnector
 	auth   ap.AuthProvider
+	mon    metrics.MetricsRegistry
+}
+
+func (s *OperationService) IncApiCallsCounter(methodName string, code codes.Code) {
+	s.mon.IncApiCallsCounter("OperationService", methodName, code.String())
 }
 
 func (s *OperationService) ListOperations(
 	ctx context.Context,
 	request *pb.ListOperationsRequest,
 ) (*pb.ListOperationsResponse, error) {
+	const methodName string = "ListOperations"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Debug(ctx, "ListOperations", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -77,6 +85,7 @@ func (s *OperationService) ListOperations(
 
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
@@ -95,6 +104,7 @@ func (s *OperationService) ListOperations(
 	)
 	if err != nil {
 		xlog.Error(ctx, "error getting operations", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting operations")
 	}
 	pbOperations := make([]*pb.Operation, 0, len(operations))
@@ -105,7 +115,8 @@ func (s *OperationService) ListOperations(
 	if uint64(len(pbOperations)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, "success ListOperations")
+	xlog.Debug(ctx, methodName, zap.Stringer("response", res))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }
 
@@ -113,8 +124,9 @@ func (s *OperationService) CancelOperation(
 	ctx context.Context,
 	request *pb.CancelOperationRequest,
 ) (*pb.Operation, error) {
+	const methodName string = "CancelOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Debug(ctx, "CancelOperation", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("OperationID", request.OperationId))
 
 	operations, err := s.driver.SelectOperations(
@@ -131,11 +143,13 @@ func (s *OperationService) CancelOperation(
 
 	if err != nil {
 		xlog.Error(ctx, "error getting operation", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting operation")
 	}
 
 	if len(operations) == 0 {
 		xlog.Error(ctx, "operation not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "operation not found")
 	}
 
@@ -154,20 +168,24 @@ func (s *OperationService) CancelOperation(
 		permission = auth.PermissionBackupRestore
 	} else if operation.GetType() == types.OperationTypeDB {
 		xlog.Error(ctx, "can't cancel DeleteBackup operation")
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel DeleteBackup operation: %s", types.OperationToString(operation))
 	} else {
 		xlog.Error(ctx, "unknown operation type")
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Errorf(codes.Internal, "unknown operation type: %s", operation.GetType().String())
 	}
 
 	subject, err := auth.CheckAuth(ctx, s.auth, permission, operation.GetContainerID(), "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	if operation.GetState() != types.OperationStatePending && operation.GetState() != types.OperationStateRunning {
 		xlog.Error(ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()))
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel operation with state: %s", operation.GetState().String())
 	}
 
@@ -177,22 +195,26 @@ func (s *OperationService) CancelOperation(
 	err = s.driver.UpdateOperation(ctx, operation)
 	if err != nil {
 		xlog.Error(ctx, "error updating operation", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error updating operation")
 	}
 
 	xlog.Debug(
-		ctx, "CancelOperation was started",
+		ctx, methodName,
 		zap.String("operation", types.OperationToString(operation)),
 	)
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return operation.Proto(), nil
 }
 
 func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (*pb.Operation, error) {
+	const methodName string = "GetOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Debug(ctx, "GetOperation", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	operationID, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		xlog.Error(ctx, "failed to parse OperationID", zap.String("OperationID", request.GetId()), zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "failed to parse ObjectID")
 	}
 	ctx = xlog.With(ctx, zap.String("OperationID", operationID))
@@ -210,11 +232,13 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't select operations", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select operations")
 	}
 
 	if len(operations) == 0 {
 		xlog.Error(ctx, "operation not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "operation not found") // TODO: permission denied?
 	}
 	operation := operations[0]
@@ -222,11 +246,13 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	// TODO: Need to check access to operation resource by operationID
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operation.GetContainerID(), "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
-	xlog.Debug(ctx, "GetOperation", zap.String("operation", types.OperationToString(operations[0])))
+	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(operations[0])))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return operations[0].Proto(), nil
 }
 
@@ -234,9 +260,14 @@ func (s *OperationService) Register(server server.Server) {
 	pb.RegisterOperationServiceServer(server.GRPCServer(), s)
 }
 
-func NewOperationService(driver db.DBConnector, auth ap.AuthProvider) *OperationService {
+func NewOperationService(
+	driver db.DBConnector,
+	auth ap.AuthProvider,
+	mon metrics.MetricsRegistry,
+) *OperationService {
 	return &OperationService{
 		driver: driver,
 		auth:   auth,
+		mon:    mon,
 	}
 }

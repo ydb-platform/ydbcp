@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
@@ -20,10 +21,11 @@ func NewDBOperationHandler(
 	db db.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBulderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return DBOperationHandler(ctx, op, db, s3, config, queryBulderFactory)
+		return DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory, mon)
 	}
 }
 
@@ -33,7 +35,8 @@ func DBOperationHandler(
 	db db.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	mon metrics.MetricsRegistry,
 ) error {
 	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -54,14 +57,30 @@ func DBOperationHandler(
 		Status: types.BackupStateUnknown,
 	}
 
+	upsertAndReportMetrics := func(operation types.Operation, backup *types.Backup) error {
+		var err error
+
+		if backup != nil {
+			err = db.ExecuteUpsert(
+				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(*backup),
+			)
+		} else {
+			err = db.UpdateOperation(ctx, operation)
+		}
+
+		if err == nil {
+			mon.ObserveOperationDuration(operation)
+		}
+
+		return err
+	}
+
 	if deadlineExceeded(dbOp.Audit.CreatedAt, config) {
 		backupToWrite.Status = types.BackupStateError
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Operation deadline exceeded")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.ExecuteUpsert(
-			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
-		)
+		return upsertAndReportMetrics(operation, &backupToWrite)
 	}
 
 	backups, err := db.SelectBackups(
@@ -84,7 +103,7 @@ func DBOperationHandler(
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Backup not found")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return upsertAndReportMetrics(operation, nil)
 	}
 
 	backup := backups[0]
@@ -92,14 +111,16 @@ func DBOperationHandler(
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backup.Status))
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return upsertAndReportMetrics(operation, nil)
 	}
 
 	deleteBackup := func(pathPrefix string, bucket string) error {
-		err := DeleteBackupData(s3, pathPrefix, bucket)
+		size, err := DeleteBackupData(s3, pathPrefix, bucket)
 		if err != nil {
 			return fmt.Errorf("failed to delete backup data: %v", err)
 		}
+
+		mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
 
 		backupToWrite.Status = types.BackupStateDeleted
 		operation.SetState(types.OperationStateDone)
@@ -133,7 +154,5 @@ func DBOperationHandler(
 		return fmt.Errorf("unexpected operation state %s", dbOp.State)
 	}
 
-	return db.ExecuteUpsert(
-		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
-	)
+	return upsertAndReportMetrics(operation, &backupToWrite)
 }

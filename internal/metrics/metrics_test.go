@@ -12,7 +12,6 @@ import (
 
 	"ydbcp/internal/config"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,8 +26,7 @@ func TestMetricsCount(t *testing.T) {
 	}
 	p := NewMetricsRegistry(ctx, &wg, cfg)
 
-	count := p.Factory().NewCounter(prometheus.CounterOpts{Name: "test_counter"})
-	count.Add(123)
+	p.apiCallsCounter.WithLabelValues("test_service", "test_method", "test_status").Add(123)
 
 	repeat := 10
 	for {
@@ -45,7 +43,7 @@ func TestMetricsCount(t *testing.T) {
 		resBody, err := io.ReadAll(res.Body)
 		assert.NoError(t, err)
 
-		pattern := []byte("test_counter")
+		pattern := []byte("api_calls_count{method=\"test_method\",service=\"test_service\",status=\"test_status\"}")
 		val := 0
 		for _, line := range bytes.Split(resBody, []byte("\n")) {
 			if len(line) == 0 {

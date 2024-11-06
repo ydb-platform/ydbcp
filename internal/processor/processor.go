@@ -12,7 +12,6 @@ import (
 	"ydbcp/internal/util/xlog"
 
 	"github.com/google/uuid"
-	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/zap"
 )
 
@@ -33,9 +32,7 @@ type OperationProcessorImpl struct {
 	runningOperations map[string]bool
 	results           chan string
 
-	runsCount       *prometheus.CounterVec
-	failedCount     *prometheus.CounterVec
-	successfulCount *prometheus.CounterVec
+	mon metrics.MetricsRegistry
 }
 
 type Option func(*OperationProcessorImpl)
@@ -73,22 +70,7 @@ func NewOperationProcessor(
 		tickerProvider:         ticker.NewRealTicker,
 		runningOperations:      make(map[string]bool),
 		results:                make(chan string),
-
-		runsCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
-			Subsystem: metricsSubsystem,
-			Name:      "operations_runs_count",
-			Help:      "Total count of runs of the operation",
-		}, []string{"task_type"}),
-		failedCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
-			Subsystem: metricsSubsystem,
-			Name:      "operations_failed_count",
-			Help:      "Total count of failed operations",
-		}, []string{"task_type"}),
-		successfulCount: mon.Factory().NewCounterVec(prometheus.CounterOpts{
-			Subsystem: metricsSubsystem,
-			Name:      "operations_successful_count",
-			Help:      "Total count of successful operations",
-		}, []string{"task_type"}),
+		mon:                    mon,
 	}
 	for _, opt := range options {
 		opt(op)
@@ -165,7 +147,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		)
 		return
 	}
-	o.runsCount.WithLabelValues(op.GetType().String()).Inc()
+	o.mon.IncHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 	o.runningOperations[op.GetID()] = true
 	o.workersWaitGroup.Add(1)
 	go func() {
@@ -183,14 +165,14 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 				zap.String("operation", types.OperationToString(op)),
 				zap.Error(err),
 			)
-			o.failedCount.WithLabelValues(op.GetType().String()).Inc()
+			o.mon.IncFailedHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 		} else {
 			xlog.Debug(
 				ctx,
 				"operation handler finished successfully",
 				zap.String("operation", types.OperationToString(op)),
 			)
-			o.successfulCount.WithLabelValues(op.GetType().String()).Inc()
+			o.mon.IncSuccessfulHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 		}
 		o.results <- op.GetID()
 	}()

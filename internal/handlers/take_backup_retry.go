@@ -14,6 +14,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -24,11 +25,12 @@ func NewTBWROperationHandler(
 	client client.ClientConnector,
 	s3 config.S3Config,
 	clientConfig config.ClientConnectionConfig,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock)
+		return TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock, mon)
 	}
 }
 
@@ -142,8 +144,9 @@ func TBWROperationHandler(
 	clientConn client.ClientConnector,
 	s3 config.S3Config,
 	clientConfig config.ClientConnectionConfig,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	mon metrics.MetricsRegistry,
 ) error {
 	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
 

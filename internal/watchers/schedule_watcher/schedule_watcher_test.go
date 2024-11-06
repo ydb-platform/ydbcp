@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/handlers"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
@@ -62,6 +63,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock,
 		clock,
+		metrics.NewMockMetricsRegistry(),
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -170,6 +172,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock,
 		clock,
+		metrics.NewMockMetricsRegistry(),
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -286,6 +289,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock,
 		clock,
+		metrics.NewMockMetricsRegistry(),
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})

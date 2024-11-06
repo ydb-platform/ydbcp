@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"testing"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
@@ -12,7 +13,6 @@ import (
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -38,7 +38,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
-	s3ObjectsMap := make(map[string][]*s3.Object)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
 	dbConnector := db.NewMockDBConnector(
@@ -52,6 +52,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 0,
 		}, queries.NewWriteTableQueryMock,
+		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &dbOp)
@@ -89,23 +90,24 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		ID:           backupID,
 		Status:       types.BackupStateDeleting,
 		S3PathPrefix: "pathPrefix",
+		S3Bucket:     "bucket",
 	}
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
-	s3ObjectsMap := make(map[string][]*s3.Object)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
-	s3ObjectsMap["pathPrefix"] = []*s3.Object{
-		{
+	s3ObjectsMap["bucket"] = s3Client.Bucket{
+		"pathPrefix/data_1.csv": {
 			Key:  aws.String("data_1.csv"),
 			Size: aws.Int64(100),
 		},
-		{
+		"pathPrefix/data_2.csv": {
 			Key:  aws.String("data_2.csv"),
 			Size: aws.Int64(150),
 		},
-		{
+		"pathPrefix/data_3.csv": {
 			Key:  aws.String("data_3.csv"),
 			Size: aws.Int64(200),
 		},
@@ -118,10 +120,12 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	mon := metrics.NewMockMetricsRegistry()
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
+		mon,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -141,9 +145,12 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	assert.Equal(t, types.BackupStateDeleted, b.Status)
 
 	// check s3 objects (should be deleted)
-	objects, err := s3Connector.ListObjects("pathPrefix", "bucket")
+	objects, _, err := s3Connector.ListObjects("pathPrefix", "bucket")
 	assert.Empty(t, err)
 	assert.Empty(t, objects)
+
+	// check metrics
+	assert.Equal(t, int64(450), mon.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
@@ -164,23 +171,24 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 		ID:           backupID,
 		Status:       types.BackupStateDeleting,
 		S3PathPrefix: "pathPrefix",
+		S3Bucket:     "bucket",
 	}
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
-	s3ObjectsMap := make(map[string][]*s3.Object)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
-	s3ObjectsMap["pathPrefix"] = []*s3.Object{
-		{
+	s3ObjectsMap["bucket"] = s3Client.Bucket{
+		"pathPrefix/data_1.csv": {
 			Key:  aws.String("data_1.csv"),
 			Size: aws.Int64(100),
 		},
-		{
+		"pathPrefix/data_2.csv": {
 			Key:  aws.String("data_2.csv"),
 			Size: aws.Int64(150),
 		},
-		{
+		"pathPrefix/data_3.csv": {
 			Key:  aws.String("data_3.csv"),
 			Size: aws.Int64(200),
 		},
@@ -193,10 +201,12 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	mon := metrics.NewMockMetricsRegistry()
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
+		mon,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -216,9 +226,12 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	assert.Equal(t, types.BackupStateDeleted, b.Status)
 
 	// check s3 objects (should be deleted)
-	objects, err := s3Connector.ListObjects("pathPrefix", "bucket")
+	objects, _, err := s3Connector.ListObjects("pathPrefix", "bucket")
 	assert.Empty(t, err)
 	assert.Empty(t, objects)
+
+	// check metrics
+	assert.Equal(t, int64(450), mon.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
@@ -243,19 +256,19 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
-	s3ObjectsMap := make(map[string][]*s3.Object)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
-	s3ObjectsMap["pathPrefix"] = []*s3.Object{
-		{
+	s3ObjectsMap["bucket"] = s3Client.Bucket{
+		"pathPrefix/data_1.csv": {
 			Key:  aws.String("data_1.csv"),
 			Size: aws.Int64(100),
 		},
-		{
+		"pathPrefix/data_2.csv": {
 			Key:  aws.String("data_2.csv"),
 			Size: aws.Int64(150),
 		},
-		{
+		"pathPrefix/data_3.csv": {
 			Key:  aws.String("data_3.csv"),
 			Size: aws.Int64(200),
 		},
@@ -272,6 +285,7 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
+		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &dbOp)
