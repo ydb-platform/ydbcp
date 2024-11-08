@@ -1,16 +1,17 @@
 package xlog
 
 import (
+	"fmt"
 	"log"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
 
-func SetupLogging(verbose bool) *zap.Logger {
-	var level zapcore.Level = zapcore.WarnLevel
-	if verbose {
-		level = zapcore.DebugLevel
+func SetupLogging(logLevel string) (*zap.Logger, error) {
+	level, err := zapcore.ParseLevel(logLevel)
+	if err != nil {
+		return nil, fmt.Errorf("parse log level error: %w", err)
 	}
 	cfg := zap.NewProductionConfig()
 	cfg.Level.SetLevel(level)
@@ -20,5 +21,5 @@ func SetupLogging(verbose bool) *zap.Logger {
 	if err != nil {
 		log.Fatalln("Failed to create logger:", err)
 	}
-	return l
+	return l, nil
 }

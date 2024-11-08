@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-sdk/v3/log"
 	"os"
 	"os/signal"
 	"sync"
@@ -43,9 +44,21 @@ func main() {
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	configInstance, err := config.InitConfig(ctx, confPath)
+
+	if err != nil {
+		log.Error(fmt.Errorf("unable to initialize config: %w", err))
+		os.Exit(1)
+	}
+
 	var wg sync.WaitGroup
 
-	logger := xlog.SetupLogging(true)
+	logger, err := xlog.SetupLogging(configInstance.GRPCServer.LogLevel)
+	if err != nil {
+		log.Error(err)
+		os.Exit(1)
+	}
 	xlog.SetInternalLogger(logger)
 	defer func() {
 		err := logger.Sync()
@@ -54,17 +67,11 @@ func main() {
 		}
 	}()
 
-	_, err := maxprocs.Set(maxprocs.Logger(func(f string, p ...interface{}) { xlog.Info(ctx, fmt.Sprintf(f, p...)) }))
+	_, err = maxprocs.Set(maxprocs.Logger(func(f string, p ...interface{}) { xlog.Info(ctx, fmt.Sprintf(f, p...)) }))
 	if err != nil {
 		xlog.Error(ctx, "Can't set maxprocs", zap.Error(err))
 	}
 
-	configInstance, err := config.InitConfig(ctx, confPath)
-
-	if err != nil {
-		xlog.Error(ctx, "Unable to initialize config", zap.Error(err))
-		os.Exit(1)
-	}
 	if confStr, err := configInstance.ToString(); err == nil {
 		xlog.Debug(
 			ctx, "Use configuration file",

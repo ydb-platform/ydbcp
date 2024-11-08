@@ -18,7 +18,7 @@ import (
 const (
 	containerID      = "abcde"
 	databaseName     = "/local"
-	ydbcpEndpoint    = "localhost:50051"
+	ydbcpEndpoint    = "0.0.0.0:50051"
 	databaseEndpoint = "grpcs://local-ydb:2135"
 )
 
