@@ -53,6 +53,7 @@ type GRPCServerConfig struct {
 	BindPort           uint16 `yaml:"bind_port" default:"2135"`
 	TLSCertificatePath string `yaml:"tls_certificate_path"`
 	TLSKeyPath         string `yaml:"tls_key_path"`
+	LogLevel           string `yaml:"log_level"`
 }
 
 type MetricsServerConfig struct {

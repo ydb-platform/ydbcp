@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"time"
+	"ydbcp/internal/connectors/db"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -165,12 +166,22 @@ func MakeBackup(
 
 	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
 	if err != nil {
-		xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
+		xlog.Error(
+			ctx,
+			"error preparing paths for export",
+			zap.Strings("sourcePaths", req.SourcePaths),
+			zap.String("scheduleID", db.StringOrEmpty(req.ScheduleID)),
+			zap.Error(err),
+		)
 		return nil, nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
 	}
 
 	if len(pathsForExport) == 0 {
-		xlog.Error(ctx, "empty list of paths for export")
+		xlog.Error(
+			ctx,
+			"empty list of paths for export",
+			zap.String("scheduleID", db.StringOrEmpty(req.ScheduleID)),
+		)
 		return nil, nil, status.Error(codes.FailedPrecondition, "empty list of paths for export")
 	}
 

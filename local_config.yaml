@@ -23,3 +23,4 @@ s3:
 
 grpc_server:
   bind_port: 50051
+  log_level: INFO
