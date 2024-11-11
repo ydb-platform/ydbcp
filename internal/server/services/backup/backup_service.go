@@ -39,6 +39,7 @@ type BackupService struct {
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, "GetBackup", zap.String("request", request.String()))
+	ctx = xlog.With(ctx, zap.String("BackupID", request.Id))
 	backupID, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
@@ -79,8 +80,8 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 
 func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-
 	xlog.Info(ctx, "MakeBackup", zap.String("request", req.String()))
+
 	ctx = xlog.With(ctx, zap.String("ContainerID", req.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, req.ContainerId, "")
 	if err != nil {
@@ -101,6 +102,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	if err != nil {
 		return nil, err
 	}
+	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
 	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
 	xlog.Debug(ctx, "MakeBackup was started successfully", zap.String("operation", types.OperationToString(op)))
 	return op.Proto(), nil
@@ -109,6 +111,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (*pb.Operation, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Info(ctx, "DeleteBackup", zap.String("request", req.String()))
+	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
@@ -192,6 +195,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Info(ctx, "MakeRestore", zap.String("request", req.String()))
+	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
@@ -232,7 +236,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	if !backup_operations.IsAllowedEndpoint(req.DatabaseEndpoint, s.allowedEndpointDomains, s.allowInsecureEndpoint) {
 		xlog.Error(
-			ctx, "endpoint of database is invalid or not allowed", zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
+			ctx,
+			"endpoint of database is invalid or not allowed",
+			zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
 		)
 		return nil, status.Errorf(
 			codes.InvalidArgument, "endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint,

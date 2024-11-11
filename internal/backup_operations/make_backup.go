@@ -104,6 +104,9 @@ func MakeBackup(
 	subject string,
 	clock clockwork.Clock,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
+	if req.ScheduleID != nil {
+		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
+	}
 	if !IsAllowedEndpoint(req.DatabaseEndpoint, allowedEndpointDomains, allowInsecureEndpoint) {
 		xlog.Error(
 			ctx,
