@@ -178,13 +178,6 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 func (d *ClientYdbConnector) PreparePathsForExport(
 	ctx context.Context, clientDb *ydb.Driver, sourcePaths []string, sourcePathsToExclude []string,
 ) ([]string, error) {
-	xlog.Debug(
-		ctx,
-		"Preparing paths for export",
-		zap.String("database_name", clientDb.Name()),
-		zap.Strings("paths", sourcePaths),
-		zap.Strings("paths_to_exclude", sourcePathsToExclude),
-	)
 	if clientDb == nil {
 		return nil, fmt.Errorf("unititialized client db driver")
 	}
