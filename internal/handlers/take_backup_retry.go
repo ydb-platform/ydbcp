@@ -145,7 +145,7 @@ func TBWROperationHandler(
 	queryBuilderFactory queries.WriteQueryBulderFactory,
 	clock clockwork.Clock,
 ) error {
-	xlog.Info(ctx, "TBWROperationHandler", zap.String("OperationID", operation.GetID()))
+	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
 
 	if operation.GetType() != types.OperationTypeTBWR {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTBWR)
@@ -187,12 +187,13 @@ func TBWROperationHandler(
 				}
 				return err
 			}
-			xlog.Info(
-				ctx,
-				"TBWROperationHandler",
-				zap.String("OperationID", operation.GetID()),
-				zap.String("decision", do.String()),
-			)
+			if do != Error {
+				xlog.Info(
+					ctx,
+					"TBWROperationHandler",
+					zap.String("decision", do.String()),
+				)
+			}
 			switch do {
 			case Success:
 				{
@@ -206,6 +207,13 @@ func TBWROperationHandler(
 				{
 					tbwr.State = types.OperationStateError
 					tbwr.Message = "retry attempts exhausted"
+					fields := []zap.Field{
+						zap.Int("RetriesCount", len(ops)),
+					}
+					if len(ops) > 0 {
+						fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
+					}
+					xlog.Error(ctx, "retry attempts exhausted for TBWR operation", fields...)
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case RunNewTb:
@@ -223,6 +231,7 @@ func TBWROperationHandler(
 					if err != nil {
 						return err
 					}
+					xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb))
 				}
 			default:
@@ -237,6 +246,7 @@ func TBWROperationHandler(
 		//if has last and not cancelled: set start_cancelling to it, skip
 		//if cancelled, set cancelled to itself
 		{
+			xlog.Info(ctx, "cancelling TBWR operation")
 			if len(tbOps) == 0 {
 				tbwr.State = types.OperationStateCancelled
 				tbwr.Message = "Success"
@@ -249,6 +259,7 @@ func TBWROperationHandler(
 				return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			} else {
 				if last.State == types.OperationStatePending || last.State == types.OperationStateRunning {
+					xlog.Info(ctx, "cancelling TB operation", zap.String("TBOperationID", last.ID))
 					last.State = types.OperationStateStartCancelling
 					last.Message = "Cancelling by parent operation"
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(last))
