@@ -13,6 +13,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
@@ -241,6 +242,7 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -301,6 +303,7 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -364,6 +367,7 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t3.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -418,6 +422,7 @@ func TestTBWRHandlerError(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t2.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -470,6 +475,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -543,6 +549,7 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -617,6 +624,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
+		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)

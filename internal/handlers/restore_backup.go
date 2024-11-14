@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -16,10 +17,10 @@ import (
 )
 
 func NewRBOperationHandler(
-	db db.DBConnector, client client.ClientConnector, config config.Config,
+	db db.DBConnector, client client.ClientConnector, config config.Config, mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return RBOperationHandler(ctx, op, db, client, config)
+		return RBOperationHandler(ctx, op, db, client, config, mon)
 	}
 }
 
@@ -29,6 +30,7 @@ func RBOperationHandler(
 	db db.DBConnector,
 	client client.ClientConnector,
 	config config.Config,
+	mon metrics.MetricsRegistry,
 ) error {
 	xlog.Info(ctx, "RBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -54,6 +56,16 @@ func RBOperationHandler(
 
 	defer func() { _ = client.Close(ctx, conn) }()
 
+	upsertAndReportMetrics := func(operation types.Operation) error {
+		err := db.UpdateOperation(ctx, operation)
+
+		if err == nil {
+			mon.ObserveOperationDuration(operation)
+		}
+
+		return err
+	}
+
 	ydbOpResponse, err := lookupYdbOperationStatus(
 		ctx, client, conn, operation, mr.YdbOperationId, mr.Audit.CreatedAt, config,
 	)
@@ -64,7 +76,7 @@ func RBOperationHandler(
 		operation.SetState(ydbOpResponse.opState)
 		operation.SetMessage(ydbOpResponse.opMessage)
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return db.UpdateOperation(ctx, operation)
+		return upsertAndReportMetrics(operation)
 	}
 
 	if ydbOpResponse.opResponse == nil {
@@ -114,6 +126,7 @@ func RBOperationHandler(
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
 					operation.GetAudit().CompletedAt = timestamppb.Now()
+					return upsertAndReportMetrics(operation)
 				}
 
 				return db.UpdateOperation(ctx, operation)
@@ -160,5 +173,5 @@ func RBOperationHandler(
 	}
 
 	operation.GetAudit().CompletedAt = timestamppb.Now()
-	return db.UpdateOperation(ctx, operation)
+	return upsertAndReportMetrics(operation)
 }

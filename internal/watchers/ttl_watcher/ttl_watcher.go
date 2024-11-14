@@ -19,7 +19,7 @@ func NewTtlWatcher(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	db db.DBConnector,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	options ...watchers.Option,
 ) *watchers.WatcherImpl {
 	return watchers.NewWatcher(
@@ -38,7 +38,7 @@ func TtlWatcherAction(
 	baseCtx context.Context,
 	period time.Duration,
 	db db.DBConnector,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) {
 	ctx, cancel := context.WithTimeout(baseCtx, period)
 	defer cancel()

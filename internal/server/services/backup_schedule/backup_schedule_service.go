@@ -11,6 +11,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
@@ -31,6 +32,11 @@ type BackupScheduleService struct {
 	clientConn client.ClientConnector
 	auth       ap.AuthProvider
 	clock      clockwork.Clock
+	mon        metrics.MetricsRegistry
+}
+
+func (s *BackupScheduleService) IncApiCallsCounter(methodName string, code codes.Code) {
+	s.mon.IncApiCallsCounter("BackupScheduleService", methodName, code.String())
 }
 
 func (s *BackupScheduleService) CheckClientDbAccess(
@@ -54,11 +60,13 @@ func (s *BackupScheduleService) CheckClientDbAccess(
 func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx context.Context, request *pb.CreateBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
+	const methodName string = "CreateBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	xlog.Info(ctx, "CreateBackupSchedule", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, request.ContainerId, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -66,16 +74,19 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Endpoint:     request.Endpoint,
 		DatabaseName: request.DatabaseName,
 	}); err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	if request.ScheduleSettings == nil {
 		xlog.Error(
 			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String("request", request.String()),
 		)
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
 	}
 
 	if request.ScheduleSettings.RecoveryPointObjective != nil && (request.ScheduleSettings.RecoveryPointObjective.Seconds == 0) {
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 	}
 	var scheduleName *string
@@ -106,6 +117,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 
 	err = schedule.UpdateNextLaunch(s.clock.Now())
 	if err != nil {
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
@@ -115,21 +127,24 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 			ctx, "can't create backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create backup schedule")
 	}
-	xlog.Info(ctx, "backup schedule created", zap.String("BackupScheduleID", schedule.ID))
+	xlog.Debug(ctx, methodName, zap.Stringer("schedule", &schedule))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) UpdateBackupSchedule(
 	ctx context.Context, request *pb.UpdateBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
+	const methodName string = "UpdateBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
 
-	xlog.Debug(ctx, "UpdateBackupSchedule", zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -142,10 +157,12 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
 	if len(schedules) == 0 {
 		xlog.Error(ctx, "backup schedule not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
@@ -154,6 +171,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -161,11 +179,13 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		Endpoint:     schedule.DatabaseEndpoint,
 		DatabaseName: schedule.DatabaseName,
 	}); err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
 	if schedule.Status == types.BackupScheduleStateDeleted {
 		xlog.Error(ctx, "backup schedule was deleted")
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "backup schedule was deleted")
 	}
 
@@ -180,17 +200,20 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		if request.ScheduleSettings.SchedulePattern != nil {
 			_, err = types.ParseCronExpr(request.ScheduleSettings.SchedulePattern.Crontab)
 			if err != nil {
+				s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 				return nil, status.Error(codes.FailedPrecondition, "failed to parse crontab")
 			}
 		}
 
 		if request.ScheduleSettings.RecoveryPointObjective != nil && request.ScheduleSettings.RecoveryPointObjective.Seconds == 0 {
+			s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 			return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 		}
 
 		schedule.ScheduleSettings = request.ScheduleSettings
 		err = schedule.UpdateNextLaunch(s.clock.Now())
 		if err != nil {
+			s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 			return nil, status.Error(codes.FailedPrecondition, "failed to update next launch time")
 		}
 	}
@@ -206,22 +229,25 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
 	}
 
-	xlog.Info(ctx, "UpdateBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) GetBackupSchedule(
 	ctx context.Context, request *pb.GetBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
+	const methodName string = "GetBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
 
-	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -234,10 +260,12 @@ func (s *BackupScheduleService) GetBackupSchedule(
 
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
 	if len(schedules) == 0 {
 		xlog.Error(ctx, "backup schedule not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found") // TODO: Permission denied?
 	}
 
@@ -246,23 +274,27 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
-	xlog.Debug(ctx, "GetBackupSchedule", zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) ListBackupSchedules(
 	ctx context.Context, request *pb.ListBackupSchedulesRequest,
 ) (*pb.ListBackupSchedulesResponse, error) {
+	const methodName string = "ListBackupSchedules"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
-	xlog.Debug(ctx, "ListBackupSchedules", zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -293,6 +325,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
@@ -311,6 +344,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	)
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedules", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedules")
 	}
 	pbSchedules := make([]*pb.BackupSchedule, 0, len(schedules))
@@ -321,19 +355,21 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	if uint64(len(pbSchedules)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, "ListBackupSchedules success")
+	xlog.Debug(ctx, methodName, zap.Stringer("response", res))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }
 
 func (s *BackupScheduleService) ToggleBackupSchedule(
 	ctx context.Context, request *pb.ToggleBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
+	const methodName string = "ToggleBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
 
-	xlog.Debug(ctx, "ToggleBackupSchedule", zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -346,10 +382,12 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
 	if len(schedules) == 0 {
 		xlog.Error(ctx, "backup schedule not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
@@ -357,6 +395,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
@@ -364,11 +403,13 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 		Endpoint:     schedule.DatabaseEndpoint,
 		DatabaseName: schedule.DatabaseName,
 	}); err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 
 	if schedule.Status == types.BackupScheduleStateDeleted {
 		xlog.Error(ctx, "backup schedule was deleted")
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "backup schedule was deleted")
 	}
 
@@ -381,6 +422,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	if schedule.ScheduleSettings != nil {
 		err = schedule.UpdateNextLaunch(s.clock.Now())
 		if err != nil {
+			s.IncApiCallsCounter(methodName, codes.Internal)
 			return nil, status.Error(codes.Internal, "failed to update next launch time")
 		}
 	}
@@ -391,22 +433,25 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
 	}
 
-	xlog.Info(ctx, "ToggleBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
 
 func (s *BackupScheduleService) DeleteBackupSchedule(
 	ctx context.Context, request *pb.DeleteBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
+	const methodName string = "DeleteBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
 
-	xlog.Debug(ctx, "DeleteBackupSchedule", zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -419,10 +464,12 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
 	if len(schedules) == 0 {
 		xlog.Error(ctx, "backup schedule not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
@@ -431,12 +478,14 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	if schedule.Status == types.BackupScheduleStateDeleted {
 		xlog.Error(ctx, "backup schedule already deleted")
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "backup schedule already deleted")
 	}
 
@@ -447,10 +496,12 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 			ctx, "can't delete backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
+		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't delete backup schedule")
 	}
 
-	xlog.Info(ctx, "DeleteBackupSchedule was completed successfully", zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
 
@@ -462,11 +513,13 @@ func NewBackupScheduleService(
 	driver db.DBConnector,
 	clientConn client.ClientConnector,
 	auth ap.AuthProvider,
+	mon metrics.MetricsRegistry,
 ) *BackupScheduleService {
 	return &BackupScheduleService{
 		driver:     driver,
 		clientConn: clientConn,
 		auth:       auth,
 		clock:      clockwork.NewRealClock(),
+		mon:        mon,
 	}
 }

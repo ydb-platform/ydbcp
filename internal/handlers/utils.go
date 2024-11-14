@@ -4,10 +4,9 @@ import (
 	"context"
 	"fmt"
 	"time"
-	"ydbcp/internal/connectors/s3"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
+	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -80,6 +79,7 @@ func lookupYdbOperationStatus(
 
 	if !isValidStatus(opResponse.GetOperation().GetStatus()) {
 		return &LookupYdbOperationResponse{
+			opResponse:         opResponse,
 			shouldAbortHandler: true,
 			opState:            types.OperationStateError,
 			opMessage: fmt.Sprintf(
@@ -131,18 +131,18 @@ func CancelYdbOperation(
 	return nil
 }
 
-func DeleteBackupData(s3 s3.S3Connector, s3PathPrefix string, s3Bucket string) error {
-	objects, err := s3.ListObjects(s3PathPrefix, s3Bucket)
+func DeleteBackupData(s3 s3.S3Connector, s3PathPrefix string, s3Bucket string) (int64, error) {
+	objects, size, err := s3.ListObjects(s3PathPrefix, s3Bucket)
 	if err != nil {
-		return fmt.Errorf("failed to list S3 objects: %v", err)
+		return 0, fmt.Errorf("failed to list S3 objects: %v", err)
 	}
 
 	if len(objects) != 0 {
 		err = s3.DeleteObjects(objects, s3Bucket)
 		if err != nil {
-			return fmt.Errorf("failed to delete S3 objects: %v", err)
+			return 0, fmt.Errorf("failed to delete S3 objects: %v", err)
 		}
 	}
 
-	return nil
+	return size, nil
 }

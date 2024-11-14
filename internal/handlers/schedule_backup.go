@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -17,13 +18,14 @@ import (
 type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule) error
 
 func NewBackupScheduleHandler(
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	mon metrics.MetricsRegistry,
 ) BackupScheduleHandlerType {
 	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule) error {
 		return BackupScheduleHandler(
 			ctx, driver, schedule,
-			queryBuilderFactory, clock,
+			queryBuilderFactory, clock, mon,
 		)
 	}
 }
@@ -32,8 +34,9 @@ func BackupScheduleHandler(
 	ctx context.Context,
 	driver db.DBConnector,
 	schedule types.BackupSchedule,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	mon metrics.MetricsRegistry,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))

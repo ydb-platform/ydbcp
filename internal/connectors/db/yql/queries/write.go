@@ -37,7 +37,7 @@ type WriteSingleTableQueryImpl struct {
 }
 
 type WriteTableQueryImplOption func(*WriteTableQueryImpl)
-type WriteQueryBulderFactory func() WriteTableQuery
+type WriteQueryBuilderFactory func() WriteTableQuery
 
 func (d *WriteSingleTableQueryImpl) AddValueParam(name string, value table_types.Value) {
 	d.upsertFields = append(d.upsertFields, name[1:])

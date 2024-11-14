@@ -13,7 +13,7 @@ import (
 )
 
 type S3Connector interface {
-	ListObjects(pathPrefix string, bucket string) ([]string, error)
+	ListObjects(pathPrefix string, bucket string) ([]string, int64, error)
 	GetSize(pathPrefix string, bucket string) (int64, error)
 	DeleteObjects(keys []string, bucket string) error
 }
@@ -49,7 +49,8 @@ func NewS3Connector(config config.S3Config) (*ClientS3Connector, error) {
 	return &ClientS3Connector{s3: s3Client}, nil
 }
 
-func (c *ClientS3Connector) ListObjects(pathPrefix string, bucket string) ([]string, error) {
+func (c *ClientS3Connector) ListObjects(pathPrefix string, bucket string) ([]string, int64, error) {
+	var size int64
 	objects := make([]string, 0)
 	objectsPtr := &objects
 
@@ -65,6 +66,9 @@ func (c *ClientS3Connector) ListObjects(pathPrefix string, bucket string) ([]str
 		func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
 			for _, object := range p.Contents {
 				*objectsPtr = append(*objectsPtr, *object.Key)
+				if object.Size != nil {
+					size += *object.Size
+				}
 			}
 
 			return true
@@ -72,10 +76,10 @@ func (c *ClientS3Connector) ListObjects(pathPrefix string, bucket string) ([]str
 	)
 
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 
-	return *objectsPtr, nil
+	return *objectsPtr, size, nil
 }
 
 func (c *ClientS3Connector) GetSize(pathPrefix string, bucket string) (int64, error) {

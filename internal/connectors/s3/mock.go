@@ -1,53 +1,63 @@
 package s3
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
+type Bucket map[string]*s3.Object
+
 type MockS3Connector struct {
-	storage map[string][]*s3.Object
+	storage map[string]Bucket
 }
 
-func NewMockS3Connector(storage map[string][]*s3.Object) *MockS3Connector {
+func NewMockS3Connector(storage map[string]Bucket) *MockS3Connector {
 	return &MockS3Connector{
 		storage: storage,
 	}
 }
 
-func (m *MockS3Connector) ListObjects(pathPrefix string, _ string) ([]string, error) {
+func (m *MockS3Connector) ListObjects(pathPrefix string, bucketName string) ([]string, int64, error) {
 	objects := make([]string, 0)
+	var size int64
 
-	if content, ok := m.storage[pathPrefix]; ok {
-		for _, object := range content {
-			if object.Key == nil {
-				objects = append(objects, *object.Key)
+	if bucket, ok := m.storage[bucketName]; ok {
+		for key, object := range bucket {
+			if strings.HasPrefix(key, pathPrefix) {
+				objects = append(objects, key)
+
+				if object.Size != nil {
+					size += *object.Size
+				}
 			}
 		}
 	}
 
-	return objects, nil
+	return objects, size, nil
 }
 
-func (m *MockS3Connector) GetSize(pathPrefix string, _ string) (int64, error) {
-	if content, ok := m.storage[pathPrefix]; ok {
-		var size int64
-		for _, object := range content {
-			if object.Size != nil {
-				size += *object.Size
+func (m *MockS3Connector) GetSize(pathPrefix string, bucketName string) (int64, error) {
+	var size int64
+
+	if bucket, ok := m.storage[bucketName]; ok {
+		for key, object := range bucket {
+			if strings.HasPrefix(key, pathPrefix) {
+				if object.Size != nil {
+					size += *object.Size
+				}
 			}
 		}
-
-		return size, nil
 	}
 
-	return 0, fmt.Errorf("objects not found, path: %s", pathPrefix)
+	return size, nil
 }
 
-func (m *MockS3Connector) DeleteObjects(objects []string, _ string) error {
-	for _, object := range objects {
-		delete(m.storage, object)
+func (m *MockS3Connector) DeleteObjects(objects []string, bucketName string) error {
+	if bucket, ok := m.storage[bucketName]; ok {
+		for _, key := range objects {
+			delete(bucket, key)
+		}
 	}
 
 	return nil

@@ -8,6 +8,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -20,10 +21,10 @@ import (
 
 func NewTBOperationHandler(
 	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory, mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory)
+		return TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory, mon)
 	}
 }
 
@@ -34,7 +35,8 @@ func TBOperationHandler(
 	client client.ClientConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilderFactory queries.WriteQueryBulderFactory,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	mon metrics.MetricsRegistry,
 ) error {
 	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -53,35 +55,24 @@ func TBOperationHandler(
 
 	defer func() { _ = client.Close(ctx, conn) }()
 
-	ydbOpResponse, err := lookupYdbOperationStatus(
-		ctx, client, conn, operation, tb.YdbOperationId, tb.Audit.CreatedAt, config,
-	)
-	if err != nil {
+	upsertAndReportMetrics := func(
+		operation types.Operation,
+		backup types.Backup,
+		containerId string,
+		database string,
+		status Ydb.StatusIds_StatusCode,
+	) error {
+		err := db.ExecuteUpsert(
+			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backup),
+		)
+
+		if err == nil {
+			mon.ObserveOperationDuration(operation)
+			mon.IncCompletedBackupsCount(containerId, database, status)
+		}
+
 		return err
 	}
-
-	now := timestamppb.Now()
-	backupToWrite := types.Backup{
-		ID:        tb.BackupID,
-		Status:    types.BackupStateUnknown,
-		AuditInfo: &pb.AuditInfo{},
-	}
-
-	if ydbOpResponse.shouldAbortHandler {
-		operation.SetState(ydbOpResponse.opState)
-		operation.SetMessage(ydbOpResponse.opMessage)
-		operation.GetAudit().CompletedAt = now
-		backupToWrite.Status = types.BackupStateError
-		backupToWrite.Message = operation.GetMessage()
-		backupToWrite.AuditInfo.CompletedAt = now
-		return db.ExecuteUpsert(
-			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
-		)
-	}
-	if ydbOpResponse.opResponse == nil {
-		return nil
-	}
-	opResponse := ydbOpResponse.opResponse
 
 	backups, err := db.SelectBackups(
 		ctx, queries.NewReadTableQuery(
@@ -105,6 +96,51 @@ func TBOperationHandler(
 
 	backup := backups[0]
 
+	ydbOpResponse, err := lookupYdbOperationStatus(
+		ctx, client, conn, operation, tb.YdbOperationId, tb.Audit.CreatedAt, config,
+	)
+	if err != nil {
+		return err
+	}
+
+	now := timestamppb.Now()
+	backupToWrite := types.Backup{
+		ID:        tb.BackupID,
+		Status:    types.BackupStateUnknown,
+		AuditInfo: &pb.AuditInfo{},
+	}
+
+	if ydbOpResponse.shouldAbortHandler {
+		operation.SetState(ydbOpResponse.opState)
+		operation.SetMessage(ydbOpResponse.opMessage)
+		operation.GetAudit().CompletedAt = now
+		backupToWrite.Status = types.BackupStateError
+		backupToWrite.Message = operation.GetMessage()
+		backupToWrite.AuditInfo.CompletedAt = now
+
+		if ydbOpResponse.opResponse != nil {
+			return upsertAndReportMetrics(
+				operation,
+				backupToWrite,
+				backup.ContainerID,
+				backup.DatabaseName,
+				ydbOpResponse.opResponse.GetOperation().Status,
+			)
+		}
+
+		return upsertAndReportMetrics(
+			operation,
+			backupToWrite,
+			backup.ContainerID,
+			backup.DatabaseName,
+			Ydb.StatusIds_TIMEOUT,
+		)
+	}
+	if ydbOpResponse.opResponse == nil {
+		return nil
+	}
+	opResponse := ydbOpResponse.opResponse
+
 	getBackupSize := func(s3PathPrefix string, s3Bucket string) (int64, error) {
 		size, err := s3.GetSize(s3PathPrefix, s3Bucket)
 		if err != nil {
@@ -123,14 +159,15 @@ func TBOperationHandler(
 					operation.SetMessage("Operation deadline exceeded")
 				}
 				return db.UpdateOperation(ctx, operation)
-			} else if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
-				if err != nil {
-					return err
-				}
+			}
 
+			size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
+			if err != nil {
+				return err
+			}
+
+			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				backupToWrite.Status = types.BackupStateAvailable
-				backupToWrite.Size = size
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Success")
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
@@ -147,6 +184,8 @@ func TBOperationHandler(
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 			backupToWrite.Message = operation.GetMessage()
+			backupToWrite.Size = size
+			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	case types.OperationStateStartCancelling:
 		{
@@ -171,37 +210,47 @@ func TBOperationHandler(
 					operation.SetMessage("Operation deadline exceeded")
 					operation.GetAudit().CompletedAt = now
 					backupToWrite.Message = operation.GetMessage()
-					return db.ExecuteUpsert(
-						ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+					return upsertAndReportMetrics(
+						operation,
+						backupToWrite,
+						backup.ContainerID,
+						backup.DatabaseName,
+						Ydb.StatusIds_TIMEOUT,
 					)
 				}
 
 				return db.UpdateOperation(ctx, operation)
 			}
-			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
-				if err != nil {
-					return err
-				}
 
+			size, err := getBackupSize(backup.S3PathPrefix, backup.S3Bucket)
+			if err != nil {
+				return err
+			}
+
+			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
 				backupToWrite.Status = types.BackupStateAvailable
 				backupToWrite.Size = size
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Operation was completed despite cancellation: " + tb.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
-				err = DeleteBackupData(s3, backup.S3PathPrefix, backup.S3Bucket)
+				size, err = DeleteBackupData(s3, backup.S3PathPrefix, backup.S3Bucket)
 				if err != nil {
 					return err
 				}
+
+				mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
+
 				backupToWrite.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
 				operation.SetMessage(tb.Message)
 			} else {
 				backupToWrite.Status = types.BackupStateError
+				backupToWrite.Size = size
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 			backupToWrite.Message = operation.GetMessage()
+			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	default:
 		return fmt.Errorf("unexpected operation state %s", tb.State)
@@ -226,7 +275,11 @@ func TBOperationHandler(
 	}
 	backupToWrite.AuditInfo.CompletedAt = now
 	operation.GetAudit().CompletedAt = now
-	return db.ExecuteUpsert(
-		ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+	return upsertAndReportMetrics(
+		operation,
+		backupToWrite,
+		backup.ContainerID,
+		backup.DatabaseName,
+		opResponse.GetOperation().Status,
 	)
 }

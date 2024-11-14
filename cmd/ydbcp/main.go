@@ -121,9 +121,10 @@ func main() {
 		authProvider,
 		configInstance.ClientConnection.AllowedEndpointDomains,
 		configInstance.ClientConnection.AllowInsecureEndpoint,
+		metrics,
 	).Register(server)
-	operation.NewOperationService(dbConnector, authProvider).Register(server)
-	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider).Register(server)
+	operation.NewOperationService(dbConnector, authProvider, metrics).Register(server)
+	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider, metrics).Register(server)
 	if err := server.Start(ctx, &wg); err != nil {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)
@@ -133,7 +134,7 @@ func main() {
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
 		handlers.NewTBOperationHandler(
-			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery,
+			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery, metrics,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -142,7 +143,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeRB,
-		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance),
+		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance, metrics),
 	); err != nil {
 		xlog.Error(ctx, "failed to register RB handler", zap.Error(err))
 		os.Exit(1)
@@ -150,7 +151,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeDB,
-		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery, metrics),
 	); err != nil {
 		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
 		os.Exit(1)
@@ -164,7 +165,9 @@ func main() {
 			configInstance.S3,
 			configInstance.ClientConnection,
 			queries.NewWriteTableQuery,
-			clockwork.NewRealClock()),
+			clockwork.NewRealClock(),
+			metrics,
+		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TBWR handler", zap.Error(err))
 		os.Exit(1)
@@ -174,7 +177,7 @@ func main() {
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQuery, clockwork.NewRealClock(),
+		queries.NewWriteTableQuery, clockwork.NewRealClock(), metrics,
 	)
 	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler)
 	xlog.Info(ctx, "YDBCP started")
