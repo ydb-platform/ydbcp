@@ -113,32 +113,40 @@ func (c *ClientS3Connector) GetSize(pathPrefix string, bucket string) (int64, er
 }
 
 func (c *ClientS3Connector) DeleteObjects(keys []string, bucket string) error {
-	if len(keys) == 0 {
-		return nil
-	}
+	// S3 API allows to delete up to 1000 objects per request
+	const DeleteObjectsListSizeLimit = 1000
+	for begin := 0; begin < len(keys); begin += DeleteObjectsListSizeLimit {
+		var end int
 
-	objectsPtr := make([]*s3.ObjectIdentifier, len(keys))
-	for i, object := range keys {
-		objectsPtr[i] = &s3.ObjectIdentifier{
-			Key: aws.String(object),
+		if begin+DeleteObjectsListSizeLimit < len(keys) {
+			end = begin + DeleteObjectsListSizeLimit
+		} else {
+			end = len(keys)
 		}
-	}
 
-	input := s3.DeleteObjectsInput{
-		Bucket: aws.String(bucket),
-		Delete: &s3.Delete{
-			Objects: objectsPtr,
-			Quiet:   aws.Bool(true),
-		},
-	}
+		objectsPtr := make([]*s3.ObjectIdentifier, end-begin)
+		for i, object := range keys[begin:end] {
+			objectsPtr[i] = &s3.ObjectIdentifier{
+				Key: aws.String(object),
+			}
+		}
 
-	delOut, err := c.s3.DeleteObjects(&input)
-	if err != nil {
-		return err
-	}
+		input := s3.DeleteObjectsInput{
+			Bucket: aws.String(bucket),
+			Delete: &s3.Delete{
+				Objects: objectsPtr,
+				Quiet:   aws.Bool(true),
+			},
+		}
 
-	if len(delOut.Errors) > 0 {
-		return fmt.Errorf("can't delete objects: %v", delOut.Errors)
+		delOut, err := c.s3.DeleteObjects(&input)
+		if err != nil {
+			return err
+		}
+
+		if len(delOut.Errors) > 0 {
+			return fmt.Errorf("can't delete objects: %v", delOut.Errors)
+		}
 	}
 
 	return nil
