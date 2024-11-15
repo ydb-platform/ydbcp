@@ -2,6 +2,8 @@ package handlers
 
 import (
 	"context"
+	"fmt"
+	"github.com/aws/aws-sdk-go/service/s3"
 	"testing"
 	"ydbcp/internal/metrics"
 
@@ -303,4 +305,83 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, b)
 	assert.Equal(t, types.BackupStateAvailable, b.Status)
+}
+
+func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
+	const objectsListSize = 1005
+
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	dbOp := types.DeleteBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		State:               types.OperationStateRunning,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:           backupID,
+		Status:       types.BackupStateDeleting,
+		S3PathPrefix: "pathPrefix",
+		S3Bucket:     "bucket",
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
+	backupMap[backupID] = backup
+	opMap[opId] = &dbOp
+
+	s3ObjectsMap["bucket"] = make(s3Client.Bucket)
+	for i := 0; i < objectsListSize; i++ {
+		bucket := s3ObjectsMap["bucket"]
+
+		bucket[fmt.Sprintf("pathPrefix/data_%d.csv", i)] = &s3.Object{
+			Key:  aws.String(fmt.Sprintf("data_%d.csv", i)),
+			Size: aws.Int64(10),
+		}
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+
+	mon := metrics.NewMockMetricsRegistry()
+	handler := NewDBOperationHandler(
+		dbConnector, s3Connector, config.Config{
+			OperationTtlSeconds: 1000,
+		}, queries.NewWriteTableQueryMock,
+		mon,
+	)
+
+	err := handler(ctx, &dbOp)
+	assert.Empty(t, err)
+
+	// check operation status (should be done)
+	op, err := dbConnector.GetOperation(ctx, dbOp.ID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, op)
+	assert.Equal(t, types.OperationStateDone, op.GetState())
+	assert.Equal(t, "Success", op.GetMessage())
+
+	// check backup status (should be deleted)
+	b, err := dbConnector.GetBackup(ctx, backupID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, types.BackupStateDeleted, b.Status)
+
+	// check s3 objects (should be deleted)
+	objects, _, err := s3Connector.ListObjects("pathPrefix", "bucket")
+	assert.Empty(t, err)
+	assert.Empty(t, objects)
+
+	// check metrics
+	assert.Equal(t, int64(objectsListSize*10), mon.GetMetrics()["storage_bytes_deleted"])
 }
