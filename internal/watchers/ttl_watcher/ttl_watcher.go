@@ -2,7 +2,6 @@ package ttl_watcher
 
 import (
 	"context"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
@@ -28,7 +27,7 @@ func NewTtlWatcher(
 		func(ctx context.Context, period time.Duration) {
 			TtlWatcherAction(ctx, period, db, queryBuilderFactory)
 		},
-		time.Hour,
+		time.Minute,
 		"Ttl",
 		options...,
 	)
@@ -45,17 +44,7 @@ func TtlWatcherAction(
 
 	backups, err := db.SelectBackups(
 		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "status",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(types.BackupStateAvailable),
-						table_types.StringValueFromString(types.BackupStateError),
-						table_types.StringValueFromString(types.BackupStateCancelled),
-					},
-				},
-			),
+			queries.WithRawQuery(queries.GetBackupsToDeleteQuery),
 		),
 	)
 

@@ -27,4 +27,8 @@ $last_backup_id = SELECT MAX_BY(b.id, b.completed_at) AS last_backup_id FROM Bac
 SELECT s.*, $last_backup_id AS last_backup_id, $rpo_info.recovery_point AS recovery_point, $rpo_info.last_successful_backup_id AS last_successful_backup_id FROM BackupSchedules AS s WHERE s.id = $schedule_id
 `, types.BackupStateAvailable,
 	)
+	GetBackupsToDeleteQuery = fmt.Sprintf(
+		`SELECT * FROM Backups VIEW idx_expire_at WHERE status != '%s' and status != '%s' AND expire_at < CurrentUtcTimestamp() LIMIT 100`,
+		types.BackupStateDeleted,
+		types.BackupStateDeleting)
 )
