@@ -24,6 +24,7 @@ CREATE TABLE Backups (
 
     INDEX idx_container_id GLOBAL ON (container_id),
     INDEX idx_created_at GLOBAL ON (created_at),
+    INDEX idx_expire_at GLOBAL ON (status, expire_at),
     PRIMARY KEY (id)
 );
 

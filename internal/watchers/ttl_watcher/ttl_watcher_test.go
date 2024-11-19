@@ -61,7 +61,7 @@ func TestTtlWatcher(t *testing.T) {
 	case <-ctx.Done():
 		t.Error("ticker not initialized")
 	case <-tickerInitialized:
-		assert.Equal(t, fakeTicker.Period, time.Hour, "incorrect period")
+		assert.Equal(t, fakeTicker.Period, time.Minute, "incorrect period")
 	}
 
 	// Send a tick to the fake ticker
