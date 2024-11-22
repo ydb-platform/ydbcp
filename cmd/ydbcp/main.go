@@ -80,17 +80,21 @@ func main() {
 		)
 	}
 	metrics := metrics.NewMetricsRegistry(ctx, &wg, &configInstance.MetricsServer)
+	xlog.Info(ctx, "Initialized metrics registry")
 	server, err := server.NewServer(&configInstance.GRPCServer)
 	if err != nil {
 		xlog.Error(ctx, "failed to initialize GRPC server", zap.Error(err))
 		os.Exit(1)
 	}
+	xlog.Info(ctx, "created GRPC server")
 
 	dbConnector, err := db.NewYdbConnector(ctx, configInstance.DBConnection)
 	if err != nil {
 		xlog.Error(ctx, "Error init DBConnector", zap.Error(err))
 		os.Exit(1)
 	}
+	xlog.Info(ctx, "connected to YDBCP database")
+
 	defer dbConnector.Close(ctx)
 	clientConnector := client.NewClientYdbConnector(configInstance.ClientConnection)
 	s3Connector, err := s3.NewS3Connector(configInstance.S3)
@@ -98,6 +102,7 @@ func main() {
 		xlog.Error(ctx, "Error init S3Connector", zap.Error(err))
 		os.Exit(1)
 	}
+	xlog.Info(ctx, "connected to YDBCP S3 storage")
 	var authProvider ap.AuthProvider
 	if len(configInstance.Auth.PluginPath) == 0 {
 		authProvider, err = auth.NewDummyAuthProvider(ctx)
@@ -113,6 +118,7 @@ func main() {
 			xlog.Error(ctx, "Error finish auth provider", zap.Error(err))
 		}
 	}()
+	xlog.Info(ctx, "Initialized AuthProvider")
 
 	backup.NewBackupService(
 		dbConnector,
@@ -129,6 +135,8 @@ func main() {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)
 	}
+
+	xlog.Info(ctx, "Registered services and started GRPC server")
 
 	handlersRegistry := processor.NewOperationHandlerRegistry()
 	if err := handlersRegistry.Add(
@@ -174,12 +182,18 @@ func main() {
 	}
 
 	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry, metrics)
+	xlog.Info(ctx, "Initialized OperationProcessor")
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
+	xlog.Info(ctx, "Created TtlWatcher")
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQuery, clockwork.NewRealClock(), metrics,
 	)
+
 	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler)
+
+	xlog.Info(ctx, "Created ScheduleWatcher")
+
 	xlog.Info(ctx, "YDBCP started")
 	wg.Add(1)
 	go func() {

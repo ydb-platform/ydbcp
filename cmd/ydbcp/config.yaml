@@ -30,3 +30,9 @@ grpc_server:
   bind_port: 50051
   tls_certificate_path: path/to/tls.crt
   tls_key_path: path/to/tls.key
+
+metrics_server:
+  bind_port: 9090
+  bind_address: 127.0.0.1
+  #tls_certificate_path: path/to/tls.crt
+  #tls_key_path: path/to/tls.key
