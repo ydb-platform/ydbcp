@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -203,6 +204,7 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 			State:               types.OperationStateRunning,
 			Message:             "",
 			YdbConnectionParams: types.YdbConnectionParams{},
+			Audit:               &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}
@@ -263,6 +265,7 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 			State:               types.OperationStateRunning,
 			Message:             "",
 			YdbConnectionParams: types.YdbConnectionParams{},
+			Audit:               &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}
@@ -327,6 +330,7 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 			State:               types.OperationStateRunning,
 			Message:             "",
 			YdbConnectionParams: types.YdbConnectionParams{},
+			Audit:               &pb.AuditInfo{},
 		},
 		RetryConfig: &pb.RetryConfig{Retries: &pb.RetryConfig_Count{Count: 3}},
 	}
@@ -391,6 +395,7 @@ func TestTBWRHandlerError(t *testing.T) {
 			State:               types.OperationStateRunning,
 			Message:             "",
 			YdbConnectionParams: types.YdbConnectionParams{},
+			Audit:               &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}
@@ -431,7 +436,7 @@ func TestTBWRHandlerError(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
-	assert.Equal(t, "retry attempts exhausted", op.GetMessage())
+	assert.Equal(t, fmt.Sprintf("retry attempts exceeded limit: 1. Launched operations %s", ops[0].GetID()), op.GetMessage())
 }
 
 func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
@@ -448,6 +453,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 				Endpoint:     "i.valid.com",
 				DatabaseName: "/mydb",
 			},
+			Audit: &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}
@@ -514,6 +520,7 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 				Endpoint:     "i.valid.com",
 				DatabaseName: "/mydb",
 			},
+			Audit: &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}
@@ -589,6 +596,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 				Endpoint:     "i.valid.com",
 				DatabaseName: "/mydb",
 			},
+			Audit: &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
 	}

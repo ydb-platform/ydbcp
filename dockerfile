@@ -23,3 +23,6 @@ RUN go build -o ./orm ./cmd/integration/orm/main.go
 
 # Command to run the executable
 CMD ["./main", "--config=local_config.yaml"]
+
+# Healthcheck (for Github Actions only)
+HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 CMD nc -z localhost 50051 || exit 1
