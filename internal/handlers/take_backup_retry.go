@@ -7,7 +7,9 @@ import (
 	"github.com/jonboulle/clockwork"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
+	"strings"
 	"time"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -184,6 +186,9 @@ func TBWROperationHandler(
 			if err != nil {
 				tbwr.State = types.OperationStateError
 				tbwr.Message = err.Error()
+				tbwr.UpdatedAt = timestamppb.New(clock.Now())
+				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+
 				errup := db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				if errup != nil {
 					return errup
@@ -202,21 +207,34 @@ func TBWROperationHandler(
 				{
 					tbwr.State = types.OperationStateDone
 					tbwr.Message = "Success"
+					tbwr.UpdatedAt = timestamppb.New(clock.Now())
+					tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case Skip:
 				return nil
 			case Error:
 				{
+					operationIDs := strings.Join(func() []string {
+						var ids []string
+						for _, item := range ops {
+							ids = append(ids, item.GetID())
+						}
+						return ids
+					}(), ", ")
 					tbwr.State = types.OperationStateError
-					tbwr.Message = "retry attempts exhausted"
+					tbwr.UpdatedAt = timestamppb.New(clock.Now())
+					tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+
+					tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", len(ops))
 					fields := []zap.Field{
 						zap.Int("RetriesCount", len(ops)),
 					}
 					if len(ops) > 0 {
-						fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
+						tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
+						fields = append(fields, zap.String("OperationIDs", operationIDs))
 					}
-					xlog.Error(ctx, "retry attempts exhausted for TBWR operation", fields...)
+					xlog.Error(ctx, "retry attempts exceeded limit for TBWR operation", fields...)
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case RunNewTb:
@@ -240,6 +258,9 @@ func TBWROperationHandler(
 			default:
 				tbwr.State = types.OperationStateError
 				tbwr.Message = "unexpected operation state"
+				tbwr.UpdatedAt = timestamppb.New(clock.Now())
+				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+
 				_ = db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				return errors.New(tbwr.Message)
 			}
@@ -250,21 +271,22 @@ func TBWROperationHandler(
 		//if cancelled, set cancelled to itself
 		{
 			xlog.Info(ctx, "cancelling TBWR operation")
-			if len(tbOps) == 0 {
-				tbwr.State = types.OperationStateCancelled
-				tbwr.Message = "Success"
-				return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
+			var last *types.TakeBackupOperation
+			if len(tbOps) > 0 {
+				last = tbOps[len(tbOps)-1]
 			}
-			last := tbOps[len(tbOps)-1]
-			if !types.IsActive(last) {
+			if last == nil || !types.IsActive(last) {
 				tbwr.State = types.OperationStateCancelled
 				tbwr.Message = "Success"
+				tbwr.UpdatedAt = timestamppb.New(clock.Now())
+				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
 				return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			} else {
 				if last.State == types.OperationStatePending || last.State == types.OperationStateRunning {
 					xlog.Info(ctx, "cancelling TB operation", zap.String("TBOperationID", last.ID))
 					last.State = types.OperationStateStartCancelling
 					last.Message = "Cancelling by parent operation"
+					last.UpdatedAt = timestamppb.New(clock.Now())
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(last))
 				}
 			}
@@ -273,6 +295,8 @@ func TBWROperationHandler(
 		{
 			tbwr.State = types.OperationStateError
 			tbwr.Message = "unexpected operation state"
+			tbwr.UpdatedAt = timestamppb.New(clock.Now())
+			tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
 			_ = db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			return errors.New(tbwr.Message)
 		}

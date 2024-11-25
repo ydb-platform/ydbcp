@@ -132,6 +132,19 @@ func main() {
 	if !done {
 		log.Panicln("failed to complete a backup in 30 seconds")
 	}
+	time.Sleep(time.Second * 11) // to wait for operation handler
+	tbwr, err = opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
+		Id: op.Id,
+	})
+	if err != nil {
+		log.Panicf("failed to get operation: %v", err)
+	}
+	if tbwr.Status.String() != string(types.OperationStateDone) {
+		log.Panicf("unexpected operation state: %v", tbwr.Status.String())
+	}
+	if tbwr.UpdatedAt == nil || !tbwr.UpdatedAt.AsTime().Equal(tbwr.Audit.CompletedAt.AsTime()) {
+		log.Panicf("unexpected operation updatedAt/completedAt: %v, %v", tbwr.UpdatedAt, tbwr.Audit.CompletedAt)
+	}
 	restoreOperation, err := client.MakeRestore(
 		context.Background(), &pb.MakeRestoreRequest{
 			ContainerId:       containerID,

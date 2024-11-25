@@ -62,7 +62,13 @@ jobs:
         run: |
           docker compose up --build -d
       - name: run make_backup tests
-        run: docker exec local-ydbcp sh -c './make_backup'
+        run: |
+          while [ "$(docker inspect -f {{.State.Health.Status}} local-ydbcp)" != "healthy" ]; do
+            echo "Waiting for container to become healthy..."
+            sleep 1
+          done
+          echo "Starting tests!"
+          docker exec local-ydbcp sh -c './make_backup'
       - name: docker compose down
         run: |
           docker compose down
