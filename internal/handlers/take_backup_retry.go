@@ -186,8 +186,9 @@ func TBWROperationHandler(
 			if err != nil {
 				tbwr.State = types.OperationStateError
 				tbwr.Message = err.Error()
-				tbwr.UpdatedAt = timestamppb.New(clock.Now())
-				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+				now := clock.Now()
+				tbwr.UpdatedAt = timestamppb.New(now)
+				tbwr.Audit.CompletedAt = timestamppb.New(now)
 
 				errup := db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				if errup != nil {
@@ -207,8 +208,9 @@ func TBWROperationHandler(
 				{
 					tbwr.State = types.OperationStateDone
 					tbwr.Message = "Success"
-					tbwr.UpdatedAt = timestamppb.New(clock.Now())
-					tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+					now := clock.Now()
+					tbwr.UpdatedAt = timestamppb.New(now)
+					tbwr.Audit.CompletedAt = timestamppb.New(now)
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case Skip:
@@ -223,8 +225,9 @@ func TBWROperationHandler(
 						return ids
 					}(), ", ")
 					tbwr.State = types.OperationStateError
-					tbwr.UpdatedAt = timestamppb.New(clock.Now())
-					tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+					now := clock.Now()
+					tbwr.UpdatedAt = timestamppb.New(now)
+					tbwr.Audit.CompletedAt = timestamppb.New(now)
 
 					tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", len(ops))
 					fields := []zap.Field{
@@ -258,8 +261,9 @@ func TBWROperationHandler(
 			default:
 				tbwr.State = types.OperationStateError
 				tbwr.Message = "unexpected operation state"
-				tbwr.UpdatedAt = timestamppb.New(clock.Now())
-				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+				now := clock.Now()
+				tbwr.UpdatedAt = timestamppb.New(now)
+				tbwr.Audit.CompletedAt = timestamppb.New(now)
 
 				_ = db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				return errors.New(tbwr.Message)
@@ -278,8 +282,9 @@ func TBWROperationHandler(
 			if last == nil || !types.IsActive(last) {
 				tbwr.State = types.OperationStateCancelled
 				tbwr.Message = "Success"
-				tbwr.UpdatedAt = timestamppb.New(clock.Now())
-				tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+				now := clock.Now()
+				tbwr.UpdatedAt = timestamppb.New(now)
+				tbwr.Audit.CompletedAt = timestamppb.New(now)
 				return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			} else {
 				if last.State == types.OperationStatePending || last.State == types.OperationStateRunning {
@@ -295,8 +300,9 @@ func TBWROperationHandler(
 		{
 			tbwr.State = types.OperationStateError
 			tbwr.Message = "unexpected operation state"
-			tbwr.UpdatedAt = timestamppb.New(clock.Now())
-			tbwr.Audit.CompletedAt = timestamppb.New(clock.Now())
+			now := clock.Now()
+			tbwr.UpdatedAt = timestamppb.New(now)
+			tbwr.Audit.CompletedAt = timestamppb.New(now)
 			_ = db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			return errors.New(tbwr.Message)
 		}
