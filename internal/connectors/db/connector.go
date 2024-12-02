@@ -60,13 +60,17 @@ type YdbConnector struct {
 	driver *ydb.Driver
 }
 
-func select1(ctx context.Context, db *ydb.Driver) error {
+func select1(baseCtx context.Context, db *ydb.Driver, timeout time.Duration) error {
 	readTx := table.TxControl(
 		table.BeginTx(
 			table.WithOnlineReadOnly(),
 		),
 		table.CommitTx(),
 	)
+
+	ctx, cancel := context.WithTimeout(baseCtx, timeout)
+	defer cancel()
+
 	return db.Table().Do(
 		ctx, func(ctx context.Context, s table.Session) error {
 			_, res, err := s.Execute(
@@ -93,8 +97,9 @@ func select1(ctx context.Context, db *ydb.Driver) error {
 }
 
 func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*YdbConnector, error) {
+	dialTimeout := time.Second * time.Duration(config.DialTimeoutSeconds)
 	opts := []ydb.Option{
-		ydb.WithDialTimeout(time.Second * time.Duration(config.DialTimeoutSeconds)),
+		ydb.WithDialTimeout(dialTimeout),
 	}
 	if config.Insecure {
 		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
@@ -113,7 +118,7 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	if err != nil {
 		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)
 	}
-	err = select1(ctx, driver)
+	err = select1(ctx, driver, dialTimeout)
 	if err != nil {
 		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)
 	}
