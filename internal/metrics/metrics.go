@@ -80,6 +80,8 @@ func (s *MetricsRegistryImpl) ObserveOperationDuration(operation types.Operation
 
 func (s *MetricsRegistryImpl) IncHandlerRunsCount(containerId string, operationType string) {
 	s.handlerRunsCount.WithLabelValues(containerId, operationType).Inc()
+	s.handlerFailedCount.WithLabelValues(containerId, operationType).Add(0)
+	s.handlerSuccessfulCount.WithLabelValues(containerId, operationType).Add(0)
 }
 
 func (s *MetricsRegistryImpl) IncFailedHandlerRunsCount(containerId string, operationType string) {
@@ -93,7 +95,9 @@ func (s *MetricsRegistryImpl) IncSuccessfulHandlerRunsCount(containerId string, 
 func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode) {
 	if code == Ydb.StatusIds_SUCCESS {
 		s.backupsSucceededCount.WithLabelValues(containerId, database).Inc()
+		s.backupsFailedCount.WithLabelValues(containerId, database).Add(0)
 	} else {
+		s.backupsSucceededCount.WithLabelValues(containerId, database).Add(0)
 		s.backupsFailedCount.WithLabelValues(containerId, database, code.String()).Inc()
 	}
 }
