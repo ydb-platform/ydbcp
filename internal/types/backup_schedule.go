@@ -45,7 +45,7 @@ func ParseCronExpr(str string) (*cronexpr.Expression, error) {
 	return cronexpr.Parse(str)
 }
 
-func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
+func (b *BackupSchedule) GetBackupInfo(clock clockwork.Clock) *pb.ScheduledBackupInfo {
 	var backupInfo *pb.ScheduledBackupInfo
 	if b.LastSuccessfulBackupID != nil {
 		backupInfo = &pb.ScheduledBackupInfo{
@@ -61,6 +61,10 @@ func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 			}
 		}
 	}
+	return backupInfo
+}
+
+func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 	var nextLaunchTs *timestamppb.Timestamp
 	nextLaunchTs = nil
 	if b.NextLaunch != nil {
@@ -77,7 +81,7 @@ func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 		SourcePaths:              b.SourcePaths,
 		SourcePathsToExclude:     b.SourcePathsToExclude,
 		NextLaunch:               nextLaunchTs,
-		LastSuccessfulBackupInfo: backupInfo,
+		LastSuccessfulBackupInfo: b.GetBackupInfo(clock),
 	}
 	if b.Name != nil {
 		schedule.ScheduleName = *b.Name

@@ -15,17 +15,17 @@ import (
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
-type BackupScheduleHandlerType func(context.Context, db.DBConnector, types.BackupSchedule) error
+type BackupScheduleHandlerType func(context.Context, db.DBConnector, *types.BackupSchedule) error
 
 func NewBackupScheduleHandler(
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	clock clockwork.Clock,
 	mon metrics.MetricsRegistry,
+	clock clockwork.Clock,
 ) BackupScheduleHandlerType {
-	return func(ctx context.Context, driver db.DBConnector, schedule types.BackupSchedule) error {
+	return func(ctx context.Context, driver db.DBConnector, schedule *types.BackupSchedule) error {
 		return BackupScheduleHandler(
 			ctx, driver, schedule,
-			queryBuilderFactory, clock, mon,
+			queryBuilderFactory, mon, clock,
 		)
 	}
 }
@@ -33,16 +33,15 @@ func NewBackupScheduleHandler(
 func BackupScheduleHandler(
 	ctx context.Context,
 	driver db.DBConnector,
-	schedule types.BackupSchedule,
+	schedule *types.BackupSchedule,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	clock clockwork.Clock,
 	mon metrics.MetricsRegistry,
+	clock clockwork.Clock,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
 		return errors.New("backup schedule is not active")
 	}
-	// do not handle last_backup_id status = (failed | deleted) for now, just do backups on cron.
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(clock.Now()) {
 		backoff, err := schedule.GetCronDuration()
 		if err != nil {
@@ -84,13 +83,15 @@ func BackupScheduleHandler(
 			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
 		)
 
+		mon.IncScheduledBackupsCount(schedule)
+
 		err = schedule.UpdateNextLaunch(clock.Now())
 		if err != nil {
 			return err
 		}
 		return driver.ExecuteUpsert(
 			ctx,
-			queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(schedule),
+			queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(*schedule),
 		)
 	}
 	return nil

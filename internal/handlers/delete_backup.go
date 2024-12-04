@@ -25,7 +25,11 @@ func NewDBOperationHandler(
 	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory, mon)
+		err := DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory, mon)
+		if err == nil {
+			mon.ReportOperationMetrics(op)
+		}
+		return err
 	}
 }
 
@@ -52,7 +56,7 @@ func DBOperationHandler(
 		return fmt.Errorf("can't cast operation to DeleteBackupOperation %s", types.OperationToString(operation))
 	}
 
-	upsertAndReportMetrics := func(operation types.Operation, backup *types.Backup) error {
+	executeUpsert := func(operation types.Operation, backup *types.Backup) error {
 		var err error
 
 		if backup != nil {
@@ -61,10 +65,6 @@ func DBOperationHandler(
 			)
 		} else {
 			err = db.UpdateOperation(ctx, operation)
-		}
-
-		if err == nil {
-			mon.ObserveOperationDuration(operation)
 		}
 
 		return err
@@ -90,7 +90,7 @@ func DBOperationHandler(
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Backup not found")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return upsertAndReportMetrics(operation, nil)
+		return executeUpsert(operation, nil)
 	}
 
 	backup := backups[0]
@@ -100,14 +100,14 @@ func DBOperationHandler(
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Operation deadline exceeded")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return upsertAndReportMetrics(operation, backup)
+		return executeUpsert(operation, backup)
 	}
 
 	if backup.Status != types.BackupStateDeleting {
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backup.Status))
 		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return upsertAndReportMetrics(operation, nil)
+		return executeUpsert(operation, nil)
 	}
 
 	deleteBackup := func(pathPrefix string, bucket string) error {
@@ -150,5 +150,5 @@ func DBOperationHandler(
 		return fmt.Errorf("unexpected operation state %s", dbOp.State)
 	}
 
-	return upsertAndReportMetrics(operation, backup)
+	return executeUpsert(operation, backup)
 }

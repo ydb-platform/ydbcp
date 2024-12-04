@@ -41,11 +41,9 @@ func TestBackupScheduleHandler(t *testing.T) {
 	)
 
 	handler := NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock,
-		clock,
-		metrics.NewMockMetricsRegistry(),
+		queries.NewWriteTableQueryMock, metrics.NewMockMetricsRegistry(), clock,
 	)
-	err := handler(ctx, dbConnector, schedule)
+	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)
 
 	// check operation status (should be running)
