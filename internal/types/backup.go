@@ -98,3 +98,11 @@ func (o *Backup) Proto() *pb.Backup {
 func (o *Backup) CanBeDeleted() bool {
 	return o.Status == BackupStateAvailable || o.Status == BackupStateError || o.Status == BackupStateCancelled
 }
+
+func (o *Backup) SetCompletedAt(completedAt *timestamppb.Timestamp) {
+	if o.AuditInfo != nil {
+		o.AuditInfo.CompletedAt = completedAt
+	} else {
+		o.AuditInfo = &pb.AuditInfo{CompletedAt: completedAt}
+	}
+}

@@ -52,11 +52,6 @@ func DBOperationHandler(
 		return fmt.Errorf("can't cast operation to DeleteBackupOperation %s", types.OperationToString(operation))
 	}
 
-	backupToWrite := types.Backup{
-		ID:     dbOp.BackupID,
-		Status: types.BackupStateUnknown,
-	}
-
 	upsertAndReportMetrics := func(operation types.Operation, backup *types.Backup) error {
 		var err error
 
@@ -73,14 +68,6 @@ func DBOperationHandler(
 		}
 
 		return err
-	}
-
-	if deadlineExceeded(dbOp.Audit.CreatedAt, config) {
-		backupToWrite.Status = types.BackupStateError
-		operation.SetState(types.OperationStateError)
-		operation.SetMessage("Operation deadline exceeded")
-		operation.GetAudit().CompletedAt = timestamppb.Now()
-		return upsertAndReportMetrics(operation, &backupToWrite)
 	}
 
 	backups, err := db.SelectBackups(
@@ -107,6 +94,15 @@ func DBOperationHandler(
 	}
 
 	backup := backups[0]
+
+	if deadlineExceeded(dbOp.Audit.CreatedAt, config) {
+		backup.Status = types.BackupStateError
+		operation.SetState(types.OperationStateError)
+		operation.SetMessage("Operation deadline exceeded")
+		operation.GetAudit().CompletedAt = timestamppb.Now()
+		return upsertAndReportMetrics(operation, backup)
+	}
+
 	if backup.Status != types.BackupStateDeleting {
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage(fmt.Sprintf("Unexpected backup status: %s", backup.Status))
@@ -122,7 +118,7 @@ func DBOperationHandler(
 
 		mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
 
-		backupToWrite.Status = types.BackupStateDeleted
+		backup.Status = types.BackupStateDeleted
 		operation.SetState(types.OperationStateDone)
 		operation.SetMessage("Success")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
@@ -154,5 +150,5 @@ func DBOperationHandler(
 		return fmt.Errorf("unexpected operation state %s", dbOp.State)
 	}
 
-	return upsertAndReportMetrics(operation, &backupToWrite)
+	return upsertAndReportMetrics(operation, backup)
 }

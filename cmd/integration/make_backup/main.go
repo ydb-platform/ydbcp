@@ -4,6 +4,7 @@ import (
 	"context"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"log"
 	"strings"
 	"time"
@@ -145,6 +146,59 @@ func main() {
 	if tbwr.UpdatedAt == nil || !tbwr.UpdatedAt.AsTime().Equal(tbwr.Audit.CompletedAt.AsTime()) {
 		log.Panicf("unexpected operation updatedAt/completedAt: %v, %v", tbwr.UpdatedAt, tbwr.Audit.CompletedAt)
 	}
+
+	// set ttl to 1 hour
+	updatedBackup, err := client.UpdateBackupTtl(
+		context.Background(), &pb.UpdateBackupTtlRequest{
+			BackupId: backupPb.Id,
+			Ttl:      durationpb.New(time.Hour),
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to update backup ttl: %v", err)
+	}
+
+	if updatedBackup.ExpireAt == nil {
+		log.Panicln("expected expireAt to be set")
+	}
+
+	if updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
+		log.Panicln("expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+	}
+
+	updatedBackupFromDb, err := client.GetBackup(
+		context.Background(),
+		&pb.GetBackupRequest{Id: backupPb.Id},
+	)
+	if err != nil {
+		log.Panicf("failed to get backup: %v", err)
+	}
+
+	if updatedBackupFromDb.ExpireAt == nil {
+		log.Panicln("expected expireAt to be set")
+	}
+
+	if updatedBackupFromDb.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
+		log.Panicln("expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+	}
+
+	// set infinite ttl
+	updatedBackup, err = client.UpdateBackupTtl(
+		context.Background(), &pb.UpdateBackupTtlRequest{
+			BackupId: backupPb.Id,
+			Ttl:      nil,
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to update backup ttl: %v", err)
+	}
+
+	if updatedBackup.ExpireAt != nil {
+		log.Panicln("expected empty expireAt")
+	}
+
 	restoreOperation, err := client.MakeRestore(
 		context.Background(), &pb.MakeRestoreRequest{
 			ContainerId:       containerID,

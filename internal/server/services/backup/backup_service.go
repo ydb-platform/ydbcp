@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jonboulle/clockwork"
 	"strconv"
+	"time"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -220,13 +221,9 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		UpdatedAt:  now,
 	}
 
-	backupToWrite := types.Backup{
-		ID:     req.GetBackupId(),
-		Status: types.BackupStateDeleting,
-	}
-
+	backup.Status = types.BackupStateDeleting
 	err = s.driver.ExecuteUpsert(
-		ctx, queries.NewWriteTableQuery().WithCreateOperation(op).WithUpdateBackup(backupToWrite),
+		ctx, queries.NewWriteTableQuery().WithCreateOperation(op).WithUpdateBackup(*backup),
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.Error(err))
@@ -497,6 +494,78 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	xlog.Debug(ctx, methodName, zap.String("response", res.String()))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
+}
+
+func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateBackupTtlRequest) (
+	*pb.Backup, error,
+) {
+	const methodName string = "UpdateBackupTtl"
+	ctx = grpcinfo.WithGRPCInfo(ctx)
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
+	ctx = xlog.With(ctx, zap.String("BackupID", request.BackupId))
+	backupID, err := types.ParseObjectID(request.GetBackupId())
+	if err != nil {
+		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
+		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
+	}
+	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "can't select backups")
+	}
+	if len(backups) == 0 {
+		xlog.Error(ctx, "backup not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
+		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
+	}
+	backup := backups[0]
+	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+	// TODO: Need to check access to backup resource by backupID
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
+	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+
+	if backup.Status != types.BackupStateAvailable {
+		xlog.Error(ctx, "backup is not available", zap.String("BackupStatus", backup.Status))
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
+		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
+	}
+
+	var expireAt *time.Time = nil
+	if request.Ttl != nil {
+		expireAt = new(time.Time)
+		*expireAt = s.clock.Now().Add(request.Ttl.AsDuration())
+	}
+
+	backup.ExpireAt = expireAt
+	err = s.driver.ExecuteUpsert(
+		ctx, queries.NewWriteTableQuery().WithUpdateBackup(*backup),
+	)
+
+	if err != nil {
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, err.Error())
+	}
+
+	xlog.Debug(ctx, methodName, zap.Stringer("backup", backup))
+	s.IncApiCallsCounter(methodName, codes.OK)
+	return backup.Proto(), nil
 }
 
 func (s *BackupService) Register(server server.Server) {

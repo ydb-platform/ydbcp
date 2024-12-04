@@ -19,11 +19,12 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	BackupService_ListBackups_FullMethodName  = "/ydbcp.v1alpha1.BackupService/ListBackups"
-	BackupService_GetBackup_FullMethodName    = "/ydbcp.v1alpha1.BackupService/GetBackup"
-	BackupService_MakeBackup_FullMethodName   = "/ydbcp.v1alpha1.BackupService/MakeBackup"
-	BackupService_DeleteBackup_FullMethodName = "/ydbcp.v1alpha1.BackupService/DeleteBackup"
-	BackupService_MakeRestore_FullMethodName  = "/ydbcp.v1alpha1.BackupService/MakeRestore"
+	BackupService_ListBackups_FullMethodName     = "/ydbcp.v1alpha1.BackupService/ListBackups"
+	BackupService_GetBackup_FullMethodName       = "/ydbcp.v1alpha1.BackupService/GetBackup"
+	BackupService_MakeBackup_FullMethodName      = "/ydbcp.v1alpha1.BackupService/MakeBackup"
+	BackupService_DeleteBackup_FullMethodName    = "/ydbcp.v1alpha1.BackupService/DeleteBackup"
+	BackupService_MakeRestore_FullMethodName     = "/ydbcp.v1alpha1.BackupService/MakeRestore"
+	BackupService_UpdateBackupTtl_FullMethodName = "/ydbcp.v1alpha1.BackupService/UpdateBackupTtl"
 )
 
 // BackupServiceClient is the client API for BackupService service.
@@ -36,6 +37,7 @@ type BackupServiceClient interface {
 	MakeBackup(ctx context.Context, in *MakeBackupRequest, opts ...grpc.CallOption) (*Operation, error)
 	DeleteBackup(ctx context.Context, in *DeleteBackupRequest, opts ...grpc.CallOption) (*Operation, error)
 	MakeRestore(ctx context.Context, in *MakeRestoreRequest, opts ...grpc.CallOption) (*Operation, error)
+	UpdateBackupTtl(ctx context.Context, in *UpdateBackupTtlRequest, opts ...grpc.CallOption) (*Backup, error)
 }
 
 type backupServiceClient struct {
@@ -91,6 +93,15 @@ func (c *backupServiceClient) MakeRestore(ctx context.Context, in *MakeRestoreRe
 	return out, nil
 }
 
+func (c *backupServiceClient) UpdateBackupTtl(ctx context.Context, in *UpdateBackupTtlRequest, opts ...grpc.CallOption) (*Backup, error) {
+	out := new(Backup)
+	err := c.cc.Invoke(ctx, BackupService_UpdateBackupTtl_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BackupServiceServer is the server API for BackupService service.
 // All implementations must embed UnimplementedBackupServiceServer
 // for forward compatibility
@@ -101,6 +112,7 @@ type BackupServiceServer interface {
 	MakeBackup(context.Context, *MakeBackupRequest) (*Operation, error)
 	DeleteBackup(context.Context, *DeleteBackupRequest) (*Operation, error)
 	MakeRestore(context.Context, *MakeRestoreRequest) (*Operation, error)
+	UpdateBackupTtl(context.Context, *UpdateBackupTtlRequest) (*Backup, error)
 	mustEmbedUnimplementedBackupServiceServer()
 }
 
@@ -122,6 +134,9 @@ func (UnimplementedBackupServiceServer) DeleteBackup(context.Context, *DeleteBac
 }
 func (UnimplementedBackupServiceServer) MakeRestore(context.Context, *MakeRestoreRequest) (*Operation, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method MakeRestore not implemented")
+}
+func (UnimplementedBackupServiceServer) UpdateBackupTtl(context.Context, *UpdateBackupTtlRequest) (*Backup, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UpdateBackupTtl not implemented")
 }
 func (UnimplementedBackupServiceServer) mustEmbedUnimplementedBackupServiceServer() {}
 
@@ -226,6 +241,24 @@ func _BackupService_MakeRestore_Handler(srv interface{}, ctx context.Context, de
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupService_UpdateBackupTtl_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UpdateBackupTtlRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).UpdateBackupTtl(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_UpdateBackupTtl_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).UpdateBackupTtl(ctx, req.(*UpdateBackupTtlRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BackupService_ServiceDesc is the grpc.ServiceDesc for BackupService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -252,6 +285,10 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "MakeRestore",
 			Handler:    _BackupService_MakeRestore_Handler,
+		},
+		{
+			MethodName: "UpdateBackupTtl",
+			Handler:    _BackupService_UpdateBackupTtl_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

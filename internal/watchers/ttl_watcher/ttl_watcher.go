@@ -73,13 +73,9 @@ func TtlWatcherAction(
 				UpdatedAt:  now,
 			}
 
-			backupToWrite := types.Backup{
-				ID:     backup.ID,
-				Status: types.BackupStateDeleting,
-			}
-
+			backup.Status = types.BackupStateDeleting
 			err := db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(backupToWrite),
+				ctx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
 			)
 
 			if err != nil {
