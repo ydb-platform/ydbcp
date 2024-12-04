@@ -24,6 +24,8 @@ service BackupService {
     rpc DeleteBackup(DeleteBackupRequest) returns (Operation);
 
     rpc MakeRestore(MakeRestoreRequest) returns (Operation);
+
+    rpc UpdateBackupTtl(UpdateBackupTtlRequest) returns (Backup);
 }
 
 message ListBackupsRequest {
@@ -76,4 +78,9 @@ message MakeRestoreRequest {
     string destination_prefix = 5;
     // Paths to s3 objects to restore.
     repeated string source_paths = 6;
+}
+
+message UpdateBackupTtlRequest {
+    string backup_id = 1;
+    google.protobuf.Duration ttl = 2;
 }

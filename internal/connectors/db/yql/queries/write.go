@@ -279,9 +279,9 @@ func BuildUpdateBackupQuery(backup types.Backup, index int) WriteSingleTableQuer
 	d.AddUpdateId(table_types.StringValueFromString(backup.ID))
 	d.AddValueParam("$status", table_types.StringValueFromString(backup.Status))
 	d.AddValueParam("$message", table_types.StringValueFromString(backup.Message))
+	d.AddValueParam("$expire_at", table_types.NullableTimestampValueFromTime(backup.ExpireAt))
 	if backup.Size != 0 {
 		d.AddValueParam("$size", table_types.Int64Value(backup.Size))
-
 	}
 	if backup.AuditInfo != nil && backup.AuditInfo.CompletedAt != nil {
 		d.AddValueParam("$completed_at", table_types.TimestampValueFromTime(backup.AuditInfo.CompletedAt.AsTime()))

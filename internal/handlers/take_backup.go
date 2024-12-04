@@ -3,6 +3,10 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -11,12 +15,6 @@ import (
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
-
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewTBOperationHandler(
@@ -104,24 +102,18 @@ func TBOperationHandler(
 	}
 
 	now := timestamppb.Now()
-	backupToWrite := types.Backup{
-		ID:        tb.BackupID,
-		Status:    types.BackupStateUnknown,
-		AuditInfo: &pb.AuditInfo{},
-	}
-
 	if ydbOpResponse.shouldAbortHandler {
 		operation.SetState(ydbOpResponse.opState)
 		operation.SetMessage(ydbOpResponse.opMessage)
 		operation.GetAudit().CompletedAt = now
-		backupToWrite.Status = types.BackupStateError
-		backupToWrite.Message = operation.GetMessage()
-		backupToWrite.AuditInfo.CompletedAt = now
+		backup.Status = types.BackupStateError
+		backup.Message = operation.GetMessage()
+		backup.SetCompletedAt(now)
 
 		if ydbOpResponse.opResponse != nil {
 			return upsertAndReportMetrics(
 				operation,
-				backupToWrite,
+				*backup,
 				backup.ContainerID,
 				backup.DatabaseName,
 				ydbOpResponse.opResponse.GetOperation().Status,
@@ -130,7 +122,7 @@ func TBOperationHandler(
 
 		return upsertAndReportMetrics(
 			operation,
-			backupToWrite,
+			*backup,
 			backup.ContainerID,
 			backup.DatabaseName,
 			Ydb.StatusIds_TIMEOUT,
@@ -167,11 +159,11 @@ func TBOperationHandler(
 			}
 
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				backupToWrite.Status = types.BackupStateAvailable
+				backup.Status = types.BackupStateAvailable
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Success")
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
-				backupToWrite.Status = types.BackupStateError
+				backup.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
 				if opResponse.GetOperation().Issues != nil {
 					operation.SetMessage(ydbOpResponse.IssueString())
@@ -179,12 +171,12 @@ func TBOperationHandler(
 					operation.SetMessage("got CANCELLED status for running operation")
 				}
 			} else {
-				backupToWrite.Status = types.BackupStateError
+				backup.Status = types.BackupStateError
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
-			backupToWrite.Message = operation.GetMessage()
-			backupToWrite.Size = size
+			backup.Message = operation.GetMessage()
+			backup.Size = size
 			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	case types.OperationStateStartCancelling:
@@ -193,26 +185,26 @@ func TBOperationHandler(
 			if err != nil {
 				return err
 			}
-			backupToWrite.Status = types.BackupStateError
-			backupToWrite.Message = operation.GetMessage()
-			backupToWrite.AuditInfo.CompletedAt = operation.GetAudit().CompletedAt
+			backup.Status = types.BackupStateError
+			backup.Message = operation.GetMessage()
+			backup.SetCompletedAt(operation.GetAudit().CompletedAt)
 			return db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backupToWrite),
+				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(*backup),
 			)
 		}
 	case types.OperationStateCancelling:
 		{
 			if !opResponse.GetOperation().Ready {
 				if deadlineExceeded(tb.Audit.CreatedAt, config) {
-					backupToWrite.Status = types.BackupStateError
-					backupToWrite.AuditInfo.CompletedAt = now
+					backup.Status = types.BackupStateError
+					backup.SetCompletedAt(now)
 					operation.SetState(types.OperationStateError)
 					operation.SetMessage("Operation deadline exceeded")
 					operation.GetAudit().CompletedAt = now
-					backupToWrite.Message = operation.GetMessage()
+					backup.Message = operation.GetMessage()
 					return upsertAndReportMetrics(
 						operation,
-						backupToWrite,
+						*backup,
 						backup.ContainerID,
 						backup.DatabaseName,
 						Ydb.StatusIds_TIMEOUT,
@@ -228,8 +220,8 @@ func TBOperationHandler(
 			}
 
 			if opResponse.GetOperation().Status == Ydb.StatusIds_SUCCESS {
-				backupToWrite.Status = types.BackupStateAvailable
-				backupToWrite.Size = size
+				backup.Status = types.BackupStateAvailable
+				backup.Size = size
 				operation.SetState(types.OperationStateDone)
 				operation.SetMessage("Operation was completed despite cancellation: " + tb.Message)
 			} else if opResponse.GetOperation().Status == Ydb.StatusIds_CANCELLED {
@@ -240,16 +232,16 @@ func TBOperationHandler(
 
 				mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
 
-				backupToWrite.Status = types.BackupStateCancelled
+				backup.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
 				operation.SetMessage(tb.Message)
 			} else {
-				backupToWrite.Status = types.BackupStateError
-				backupToWrite.Size = size
+				backup.Status = types.BackupStateError
+				backup.Size = size
 				operation.SetState(types.OperationStateError)
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
-			backupToWrite.Message = operation.GetMessage()
+			backup.Message = operation.GetMessage()
 			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	default:
@@ -273,11 +265,11 @@ func TBOperationHandler(
 			types.IssuesToString(response.GetIssues()),
 		)
 	}
-	backupToWrite.AuditInfo.CompletedAt = now
+	backup.SetCompletedAt(now)
 	operation.GetAudit().CompletedAt = now
 	return upsertAndReportMetrics(
 		operation,
-		backupToWrite,
+		*backup,
 		backup.ContainerID,
 		backup.DatabaseName,
 		opResponse.GetOperation().Status,

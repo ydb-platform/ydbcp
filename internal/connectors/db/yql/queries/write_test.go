@@ -18,7 +18,7 @@ import (
 
 func TestQueryBuilder_UpdateUpdate(t *testing.T) {
 	const (
-		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
+		queryString = `UPDATE Backups SET status = $status_0, message = $message_0, expire_at = $expire_at_0 WHERE id = $id_0;
 UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 	)
 	opId := types.GenerateObjectID()
@@ -41,6 +41,7 @@ UPDATE Operations SET status = $status_1, message = $message_1 WHERE id = $id_1`
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("Message")),
+			table.ValueParam("$expire_at_0", table_types.NullableTimestampValueFromTime(nil)),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$status_1", table_types.StringValueFromString("Done")),
 			table.ValueParam("$message_1", table_types.StringValueFromString("Abcde")),
@@ -171,7 +172,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 
 func TestQueryBuilder_UpdateCreate(t *testing.T) {
 	const (
-		queryString = `UPDATE Backups SET status = $status_0, message = $message_0 WHERE id = $id_0;
+		queryString = `UPDATE Backups SET status = $status_0, message = $message_0, expire_at = $expire_at_0 WHERE id = $id_0;
 UPSERT INTO Operations (id, type, status, message, initiated, created_at, container_id, database, endpoint, backup_id, operation_id, paths, paths_to_exclude) VALUES ($id_1, $type_1, $status_1, $message_1, $initiated_1, $created_at_1, $container_id_1, $database_1, $endpoint_1, $backup_id_1, $operation_id_1, $paths_1, $paths_to_exclude_1)`
 	)
 	opId := types.GenerateObjectID()
@@ -206,6 +207,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam("$id_0", table_types.StringValueFromString(backupId)),
 			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("Success")),
+			table.ValueParam("$expire_at_0", table_types.NullableTimestampValueFromTime(nil)),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
 			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
 			table.ValueParam(
