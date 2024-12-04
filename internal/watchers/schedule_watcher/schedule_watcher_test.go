@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"sync"
 	"testing"
 	"time"
@@ -60,10 +61,9 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
+	metricsMock := metrics.NewMockMetricsRegistry()
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock,
-		clock,
-		metrics.NewMockMetricsRegistry(),
+		queries.NewWriteTableQueryMock, metricsMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -72,6 +72,8 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
+		metricsMock,
+		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
@@ -114,6 +116,9 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
 	assert.Equal(t, *schedules[0].NextLaunch, now.Add(time.Minute))
+
+	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
 }
 
 func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
@@ -169,10 +174,9 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
+	metricsMock := metrics.NewMockMetricsRegistry()
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock,
-		clock,
-		metrics.NewMockMetricsRegistry(),
+		queries.NewWriteTableQueryMock, metricsMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -181,6 +185,8 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
+		metricsMock,
+		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
@@ -231,6 +237,8 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	assert.Equal(t, len(schedules), 2)
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
+	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
 }
 
 func TestScheduleWatcherTwoBackups(t *testing.T) {
@@ -286,10 +294,10 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
+	metricsMock := metrics.NewMockMetricsRegistry()
+
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock,
-		clock,
-		metrics.NewMockMetricsRegistry(),
+		queries.NewWriteTableQueryMock, metricsMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -298,6 +306,8 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
+		metricsMock,
+		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
 	)
@@ -351,4 +361,118 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	assert.Equal(t, len(schedules), 2)
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
+	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+}
+
+func TestAllScheduleMetrics(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Prepare fake ticker
+	clock := clockwork.NewFakeClockAt(fourPM)
+	var fakeTicker *ticker.FakeTicker
+	tickerInitialized := make(chan struct{})
+	tickerProvider := func(duration time.Duration) ticker.Ticker {
+		assert.Empty(t, fakeTicker, "ticker reuse")
+		fakeTicker = ticker.NewFakeTicker(duration)
+		tickerInitialized <- struct{}{}
+		return fakeTicker
+	}
+
+	backupID := "1"
+	rp := fourPM.Add(time.Minute * 30)
+	nl := fourPM.Add(time.Hour)
+	clock.Advance(time.Hour + time.Minute)
+	s1 := types.BackupSchedule{
+		ID:               "1",
+		ContainerID:      "abcde",
+		Status:           types.BackupScheduleStateActive,
+		DatabaseName:     "mydb",
+		DatabaseEndpoint: "mydb.valid.com",
+		SourcePaths:      []string{"/path/to/table"},
+		ScheduleSettings: &pb.BackupScheduleSettings{
+			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * *"}, //every minute
+			RecoveryPointObjective: durationpb.New(time.Hour),
+		},
+		RecoveryPoint:          &rp,
+		LastSuccessfulBackupID: &backupID,
+		NextLaunch:             &nl,
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	scheduleMap := make(map[string]types.BackupSchedule)
+	scheduleMap[s1.ID] = s1
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+		db.WithBackupSchedules(scheduleMap),
+	)
+
+	metricsMock := metrics.NewMockMetricsRegistry()
+
+	handler := handlers.NewBackupScheduleHandler(
+		queries.NewWriteTableQueryMock, metricsMock, clock,
+	)
+
+	scheduleWatcherActionCompleted := make(chan struct{})
+	_ = NewScheduleWatcher(
+		ctx,
+		&wg,
+		dbConnector,
+		handler,
+		metricsMock,
+		clock,
+		watchers.WithTickerProvider(tickerProvider),
+		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
+	)
+
+	// Wait for the ticker to be initialized
+	select {
+	case <-ctx.Done():
+		t.Error("ticker not initialized")
+	case <-tickerInitialized:
+		assert.Equal(t, fakeTicker.Period, time.Minute, "incorrect period")
+	}
+
+	fakeTicker.Send(clock.Now())
+
+	// Wait for the watcher action to be completed
+	select {
+	case <-ctx.Done():
+		t.Error("action wasn't completed")
+	case <-scheduleWatcherActionCompleted:
+		cancel()
+	}
+
+	wg.Wait()
+
+	m := map[string]time.Time{
+		"1": clock.Now().Add(time.Minute),
+	}
+
+	// check operation status (should be pending)
+	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	assert.Empty(t, err)
+	assert.NotEmpty(t, ops)
+	assert.Equal(t, len(ops), 1)
+	for _, op := range ops {
+		assert.Equal(t, types.OperationStateRunning, op.GetState())
+		assert.Equal(t, types.OperationTypeTBWR, op.GetType())
+		_, ok := m[*op.(*types.TakeBackupWithRetryOperation).ScheduleID]
+		assert.True(t, ok)
+	}
+
+	// check schedule next launch
+	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	assert.Empty(t, err)
+	assert.NotEmpty(t, schedules)
+	assert.Equal(t, len(schedules), 1)
+	assert.Equal(t, m[schedules[0].ID], *schedules[0].NextLaunch)
+	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metricsMock.GetMetrics()["schedules_last_backup_timestamp"])
+	assert.Equal(t, 0.5166666666666667, metricsMock.GetMetrics()["schedules_recovery_point_objective"])
 }

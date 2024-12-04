@@ -31,6 +31,7 @@ type Operation interface {
 	GetAudit() *pb.AuditInfo
 	GetUpdatedAt() *timestamppb.Timestamp
 	SetUpdatedAt(t *timestamppb.Timestamp)
+	GetDatabaseName() string
 	Copy() Operation
 	Proto() *pb.Operation
 }
@@ -84,6 +85,9 @@ func (o *TakeBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
 }
 func (o *TakeBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
+}
+func (o *TakeBackupOperation) GetDatabaseName() string {
+	return o.YdbConnectionParams.DatabaseName
 }
 func (o *TakeBackupOperation) Copy() Operation {
 	copy := *o
@@ -165,6 +169,9 @@ func (o *RestoreBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
 func (o *RestoreBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
 }
+func (o *RestoreBackupOperation) GetDatabaseName() string {
+	return o.YdbConnectionParams.DatabaseName
+}
 func (o *RestoreBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -236,6 +243,9 @@ func (o *DeleteBackupOperation) GetUpdatedAt() *timestamppb.Timestamp {
 func (o *DeleteBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
 }
+func (o *DeleteBackupOperation) GetDatabaseName() string {
+	return o.YdbConnectionParams.DatabaseName
+}
 func (o *DeleteBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -301,6 +311,9 @@ func (o *TakeBackupWithRetryOperation) GetUpdatedAt() *timestamppb.Timestamp {
 }
 func (o *TakeBackupWithRetryOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
+}
+func (o *TakeBackupWithRetryOperation) GetDatabaseName() string {
+	return o.YdbConnectionParams.DatabaseName
 }
 func (o *TakeBackupWithRetryOperation) Copy() Operation {
 	copy := *o
@@ -391,6 +404,9 @@ func (o *GenericOperation) GetUpdatedAt() *timestamppb.Timestamp {
 }
 func (o *GenericOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 	o.UpdatedAt = t
+}
+func (o *GenericOperation) GetDatabaseName() string {
+	return ""
 }
 func (o *GenericOperation) Copy() Operation {
 	copy := *o

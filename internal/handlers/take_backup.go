@@ -22,7 +22,11 @@ func NewTBOperationHandler(
 	queryBuilderFactory queries.WriteQueryBuilderFactory, mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory, mon)
+		err := TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory, mon)
+		if err == nil {
+			mon.ReportOperationMetrics(op)
+		}
+		return err
 	}
 }
 
@@ -65,7 +69,6 @@ func TBOperationHandler(
 		)
 
 		if err == nil {
-			mon.ObserveOperationDuration(operation)
 			mon.IncCompletedBackupsCount(containerId, database, status)
 		}
 

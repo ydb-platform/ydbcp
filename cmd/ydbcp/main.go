@@ -186,11 +186,9 @@ func main() {
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 	xlog.Info(ctx, "Created TtlWatcher")
 
-	backupScheduleHandler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQuery, clockwork.NewRealClock(), metrics,
-	)
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, metrics, clockwork.NewRealClock())
 
-	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler)
+	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, metrics, clockwork.NewRealClock())
 
 	xlog.Info(ctx, "Created ScheduleWatcher")
 

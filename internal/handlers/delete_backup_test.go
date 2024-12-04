@@ -152,7 +152,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, int64(450), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
@@ -233,7 +233,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, int64(450), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
@@ -383,5 +383,5 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, int64(objectsListSize*10), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(objectsListSize*10), mon.GetMetrics()["storage_bytes_deleted"])
 }

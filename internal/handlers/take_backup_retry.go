@@ -32,7 +32,11 @@ func NewTBWROperationHandler(
 	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		return TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock, mon)
+		err := TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock)
+		if err == nil {
+			mon.ReportOperationMetrics(op)
+		}
+		return err
 	}
 }
 
@@ -148,7 +152,6 @@ func TBWROperationHandler(
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
-	mon metrics.MetricsRegistry,
 ) error {
 	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
 
