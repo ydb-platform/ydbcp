@@ -40,6 +40,7 @@ message UpdateBackupScheduleRequest {
 message ListBackupSchedulesRequest {
     string container_id = 1;
     string database_name_mask = 2;
+    repeated BackupSchedule.Status display_status = 3;
 
     // The maximum number of results per page that should be returned. If the number of available
     // results is larger than `page_size`, the service returns a `next_page_token` that can be used
