@@ -348,7 +348,36 @@ func main() {
 			}
 		}
 	}
-
+	{ // list inactive/deleted schedules
+		schedules, err := scheduleClient.ListBackupSchedules(
+			context.Background(), &pb.ListBackupSchedulesRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				DisplayStatus:    []pb.BackupSchedule_Status{pb.BackupSchedule_INACTIVE, pb.BackupSchedule_DELETED},
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backup schedules: %v", err)
+		}
+		if len(schedules.Schedules) != 0 {
+			log.Panicln("unexpected number of schedules")
+		}
+	}
+	{ // list active schedules
+		schedules, err := scheduleClient.ListBackupSchedules(
+			context.Background(), &pb.ListBackupSchedulesRequest{
+				ContainerId:      containerID,
+				DatabaseNameMask: "%",
+				DisplayStatus:    []pb.BackupSchedule_Status{pb.BackupSchedule_ACTIVE},
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to list backup schedules: %v", err)
+		}
+		if len(schedules.Schedules) != 4 {
+			log.Panicln("unexpected number of schedules")
+		}
+	}
 	{
 		s, err := scheduleClient.GetBackupSchedule(ctx, &pb.GetBackupScheduleRequest{Id: "1"})
 		if err != nil {

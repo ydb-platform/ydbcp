@@ -322,6 +322,19 @@ func (s *BackupScheduleService) ListBackupSchedules(
 			},
 		)
 	}
+	if len(request.GetDisplayStatus()) > 0 {
+		var statusValues []table_types.Value
+		for _, statusValue := range request.GetDisplayStatus() {
+			statusValues = append(statusValues, table_types.StringValueFromString(statusValue.String()))
+		}
+
+		queryFilters = append(
+			queryFilters, queries.QueryFilter{
+				Field:  "status",
+				Values: statusValues,
+			},
+		)
+	}
 
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
