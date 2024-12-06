@@ -30,12 +30,12 @@ type MetricsRegistry interface {
 	IncApiCallsCounter(serviceName string, methodName string, status string)
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
 	IncBytesDeletedCounter(containerId string, bucket string, database string, bytes int64)
+	IncOperationsStartedCounter(operation types.Operation)
 	ReportOperationMetrics(operation types.Operation)
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
 	IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode)
-	IncScheduledBackupsCount(schedule *types.BackupSchedule)
 	IncScheduleCounters(schedule *types.BackupSchedule, clock clockwork.Clock, err error)
 }
 
@@ -53,6 +53,8 @@ type MetricsRegistryImpl struct {
 
 	// operation metrics
 	operationsDuration *prometheus.HistogramVec
+	operationsStarted  *prometheus.CounterVec
+	operationsFinished *prometheus.CounterVec
 
 	// operation processor metrics
 	handlerRunsCount       *prometheus.CounterVec
@@ -66,8 +68,6 @@ type MetricsRegistryImpl struct {
 	// schedule metrics
 	scheduleActionFailedCount    *prometheus.CounterVec
 	scheduleActionSucceededCount *prometheus.CounterVec
-	scheduleLaunchedTBWRCount    *prometheus.CounterVec
-	scheduleFinishedTBWRCount    *prometheus.CounterVec
 	scheduleLastBackupTimestamp  *prometheus.GaugeVec
 	scheduleRPOMarginRatio       *prometheus.GaugeVec
 }
@@ -84,6 +84,22 @@ func (s *MetricsRegistryImpl) IncBytesDeletedCounter(containerId string, bucket 
 	s.bytesDeletedCounter.WithLabelValues(containerId, bucket, database).Add(float64(bytes))
 }
 
+func (s *MetricsRegistryImpl) IncOperationsStartedCounter(operation types.Operation) {
+	label := NO_SCHEDULE_ID_LABEL
+	if operation.GetType() == types.OperationTypeTBWR {
+		tbwr := operation.(*types.TakeBackupWithRetryOperation)
+		if tbwr.ScheduleID != nil {
+			label = *tbwr.ScheduleID
+		}
+	}
+	s.operationsStarted.WithLabelValues(
+		operation.GetContainerID(),
+		operation.GetDatabaseName(),
+		operation.GetType().String(),
+		label,
+	).Inc()
+}
+
 func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) {
 	if !types.IsActive(operation) {
 		if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
@@ -95,16 +111,18 @@ func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) 
 				operation.GetState().String(),
 			).Observe(duration.Seconds())
 		}
+
+		label := NO_SCHEDULE_ID_LABEL
 		if operation.GetType() == types.OperationTypeTBWR {
 			tbwr := operation.(*types.TakeBackupWithRetryOperation)
-			label := NO_SCHEDULE_ID_LABEL
 			if tbwr.ScheduleID != nil {
 				label = *tbwr.ScheduleID
 			}
-			s.scheduleFinishedTBWRCount.WithLabelValues(
-				operation.GetContainerID(), operation.GetDatabaseName(), label, operation.GetState().String(),
-			).Inc()
 		}
+
+		s.operationsFinished.WithLabelValues(
+			operation.GetContainerID(), operation.GetDatabaseName(), operation.GetType().String(), operation.GetState().String(), label,
+		).Inc()
 	}
 }
 
@@ -126,10 +144,6 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, datab
 	} else {
 		s.backupsFailedCount.WithLabelValues(containerId, database, code.String()).Inc()
 	}
-}
-
-func (s *MetricsRegistryImpl) IncScheduledBackupsCount(schedule *types.BackupSchedule) {
-	s.scheduleLaunchedTBWRCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Inc()
 }
 
 func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule, clock clockwork.Clock, err error) {
@@ -182,6 +196,18 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
 	}, []string{"container_id", "database", "type", "status"})
 
+	s.operationsStarted = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
+		Subsystem: "operations",
+		Name:      "started_counter",
+		Help:      "Total count of started operations",
+	}, []string{"container_id", "database", "type", "schedule_id"})
+
+	s.operationsFinished = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
+		Subsystem: "operations",
+		Name:      "finished_counter",
+		Help:      "Total count of finished operations",
+	}, []string{"container_id", "database", "type", "status", "schedule_id"})
+
 	s.handlerRunsCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "operation_processor",
 		Name:      "handler_runs_count",
@@ -222,18 +248,6 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "schedules",
 		Name:      "succeeded_count",
 		Help:      "Total count of successful scheduled backup runs",
-	}, []string{"container_id", "database", "schedule_id"})
-
-	s.scheduleFinishedTBWRCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "schedules",
-		Name:      "finished_take_backup_with_retry_count",
-		Help:      "Total count of TakeBackupWithRetry operations finished for this schedule",
-	}, []string{"container_id", "database", "schedule_id", "status"})
-
-	s.scheduleLaunchedTBWRCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "schedules",
-		Name:      "launched_take_backup_with_retry_count",
-		Help:      "Total count of TakeBackupWithRetry operations launched by this schedule",
 	}, []string{"container_id", "database", "schedule_id"})
 
 	s.scheduleLastBackupTimestamp = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{

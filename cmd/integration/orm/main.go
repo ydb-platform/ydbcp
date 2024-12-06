@@ -13,6 +13,7 @@ import (
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
@@ -129,6 +130,7 @@ func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operati
 }
 
 func main() {
+	metrics.InitializeMockMetricsRegistry()
 	ctx := context.Background()
 	conn := common.CreateGRPCClient(ydbcpEndpoint)
 	defer func(conn *grpc.ClientConn) {

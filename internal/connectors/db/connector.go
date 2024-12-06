@@ -7,6 +7,7 @@ import (
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -267,6 +268,11 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.Error(err))
 		return err
+	}
+	if ops := queryBuilder.GetOperations(); len(ops) > 0 {
+		for _, op := range ops {
+			metrics.GlobalMetricsRegistry.IncOperationsStartedCounter(op)
+		}
 	}
 	return nil
 }

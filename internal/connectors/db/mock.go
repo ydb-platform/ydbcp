@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -248,6 +249,7 @@ func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.
 	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
 	if queryBuilderMock.Operation != nil {
 		c.operations[(*queryBuilderMock.Operation).GetID()] = *queryBuilderMock.Operation
+		metrics.GlobalMetricsRegistry.IncOperationsStartedCounter(*queryBuilderMock.Operation)
 	}
 	if queryBuilderMock.Backup != nil {
 		c.backups[queryBuilderMock.Backup.ID] = *queryBuilderMock.Backup

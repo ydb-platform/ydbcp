@@ -9,12 +9,14 @@ import (
 	"time"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
 )
 
 func TestTtlWatcher(t *testing.T) {
+	metrics.InitializeMockMetricsRegistry()
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
