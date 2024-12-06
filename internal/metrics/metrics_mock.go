@@ -38,6 +38,13 @@ func (s *MockMetricsRegistry) IncBytesDeletedCounter(containerId string, bucket 
 	s.metrics["storage_bytes_deleted"] += float64(bytes)
 }
 
+func (s *MockMetricsRegistry) ResetOperationsInflight() {
+	s.metrics["operations_inflight"] = 0
+}
+func (s *MockMetricsRegistry) ReportOperationInflight(operation types.Operation) {
+	s.metrics["operations_inflight"]++
+}
+
 func (s *MockMetricsRegistry) ReportOperationMetrics(operation types.Operation) {
 	if !types.IsActive(operation) {
 		s.metrics["operations_duration_seconds"]++
