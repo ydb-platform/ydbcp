@@ -4,9 +4,9 @@ import (
 	"context"
 	"sync"
 	"time"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
@@ -31,8 +31,6 @@ type OperationProcessorImpl struct {
 
 	runningOperations map[string]bool
 	results           chan string
-
-	mon metrics.MetricsRegistry
 }
 
 type Option func(*OperationProcessorImpl)
@@ -58,7 +56,6 @@ func NewOperationProcessor(
 	wg *sync.WaitGroup,
 	db db.DBConnector,
 	handlers OperationHandlerRegistry,
-	mon metrics.MetricsRegistry,
 	options ...Option,
 ) *OperationProcessorImpl {
 	op := &OperationProcessorImpl{
@@ -70,7 +67,6 @@ func NewOperationProcessor(
 		tickerProvider:         ticker.NewRealTicker,
 		runningOperations:      make(map[string]bool),
 		results:                make(chan string),
-		mon:                    mon,
 	}
 	for _, opt := range options {
 		opt(op)
@@ -147,7 +143,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		)
 		return
 	}
-	o.mon.IncHandlerRunsCount(op.GetContainerID(), op.GetType().String())
+	metrics.GlobalMetricsRegistry.IncHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 	o.runningOperations[op.GetID()] = true
 	o.workersWaitGroup.Add(1)
 	go func() {
@@ -165,14 +161,14 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 				zap.String("operation", types.OperationToString(op)),
 				zap.Error(err),
 			)
-			o.mon.IncFailedHandlerRunsCount(op.GetContainerID(), op.GetType().String())
+			metrics.GlobalMetricsRegistry.IncFailedHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 		} else {
 			xlog.Debug(
 				ctx,
 				"operation handler finished successfully",
 				zap.String("operation", types.OperationToString(op)),
 			)
-			o.mon.IncSuccessfulHandlerRunsCount(op.GetContainerID(), op.GetType().String())
+			metrics.GlobalMetricsRegistry.IncSuccessfulHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 		}
 		o.results <- op.GetID()
 	}()

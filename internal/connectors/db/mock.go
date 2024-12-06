@@ -78,9 +78,9 @@ func (c *MockDBConnector) SelectBackupSchedules(
 }
 
 func (c *MockDBConnector) SelectBackupSchedulesWithRPOInfo(
-	_ context.Context, _ queries.ReadTableQuery,
+	a context.Context, b queries.ReadTableQuery,
 ) ([]*types.BackupSchedule, error) {
-	panic("not implemented")
+	return c.SelectBackupSchedules(a, b)
 }
 
 func (c *MockDBConnector) SelectBackupsByStatus(

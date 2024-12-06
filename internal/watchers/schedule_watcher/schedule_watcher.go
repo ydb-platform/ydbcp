@@ -21,7 +21,6 @@ func NewScheduleWatcher(
 	wg *sync.WaitGroup,
 	db db.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
-	mon metrics.MetricsRegistry,
 	clock clockwork.Clock,
 	options ...watchers.Option,
 ) *watchers.WatcherImpl {
@@ -29,7 +28,7 @@ func NewScheduleWatcher(
 		ctx,
 		wg,
 		func(ctx context.Context, period time.Duration) {
-			ScheduleWatcherAction(ctx, period, db, handler, clock, mon)
+			ScheduleWatcherAction(ctx, period, db, handler, clock)
 		},
 		time.Minute,
 		"BackupSchedule",
@@ -43,7 +42,6 @@ func ScheduleWatcherAction(
 	db db.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
 	clock clockwork.Clock,
-	mon metrics.MetricsRegistry,
 ) {
 	ctx, cancel := context.WithTimeout(baseCtx, period)
 	defer cancel()
@@ -70,7 +68,7 @@ func ScheduleWatcherAction(
 
 	for _, schedule := range schedules {
 		err = handler(ctx, db, schedule)
-		mon.IncScheduleCounters(schedule, clock, err)
+		metrics.GlobalMetricsRegistry.IncScheduleCounters(schedule, clock, err)
 		if err != nil {
 			xlog.Error(ctx, "error handling backup schedule", zap.String("scheduleID", schedule.ID), zap.Error(err))
 		}

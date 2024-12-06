@@ -22,12 +22,11 @@ func NewDBOperationHandler(
 	s3 s3.S3Connector,
 	config config.Config,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		err := DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory, mon)
+		err := DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory)
 		if err == nil {
-			mon.ReportOperationMetrics(op)
+			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
 		return err
 	}
@@ -40,7 +39,6 @@ func DBOperationHandler(
 	s3 s3.S3Connector,
 	config config.Config,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	mon metrics.MetricsRegistry,
 ) error {
 	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -116,7 +114,7 @@ func DBOperationHandler(
 			return fmt.Errorf("failed to delete backup data: %v", err)
 		}
 
-		mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
+		metrics.GlobalMetricsRegistry.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
 
 		backup.Status = types.BackupStateDeleted
 		operation.SetState(types.OperationStateDone)

@@ -3,11 +3,11 @@ package operation
 import (
 	"context"
 	"strconv"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
@@ -25,11 +25,10 @@ type OperationService struct {
 	pb.UnimplementedOperationServiceServer
 	driver db.DBConnector
 	auth   ap.AuthProvider
-	mon    metrics.MetricsRegistry
 }
 
 func (s *OperationService) IncApiCallsCounter(methodName string, code codes.Code) {
-	s.mon.IncApiCallsCounter("OperationService", methodName, code.String())
+	metrics.GlobalMetricsRegistry.IncApiCallsCounter("OperationService", methodName, code.String())
 }
 
 func (s *OperationService) ListOperations(
@@ -263,11 +262,9 @@ func (s *OperationService) Register(server server.Server) {
 func NewOperationService(
 	driver db.DBConnector,
 	auth ap.AuthProvider,
-	mon metrics.MetricsRegistry,
 ) *OperationService {
 	return &OperationService{
 		driver: driver,
 		auth:   auth,
-		mon:    mon,
 	}
 }

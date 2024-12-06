@@ -3,11 +3,10 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"ydbcp/internal/metrics"
-
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 
@@ -17,12 +16,12 @@ import (
 )
 
 func NewRBOperationHandler(
-	db db.DBConnector, client client.ClientConnector, config config.Config, mon metrics.MetricsRegistry,
+	db db.DBConnector, client client.ClientConnector, config config.Config,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
 		err := RBOperationHandler(ctx, op, db, client, config)
 		if err == nil {
-			mon.ReportOperationMetrics(op)
+			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
 		return err
 	}

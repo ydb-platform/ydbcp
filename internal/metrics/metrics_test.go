@@ -24,9 +24,10 @@ func TestMetricsCount(t *testing.T) {
 		BindPort:    8080,
 		BindAddress: "127.0.0.1",
 	}
-	p := NewMetricsRegistry(ctx, &wg, cfg)
+	InitializeMetricsRegistry(ctx, &wg, cfg)
 
-	p.apiCallsCounter.WithLabelValues("test_service", "test_method", "test_status").Add(123)
+	s := GlobalMetricsRegistry.(*MetricsRegistryImpl)
+	s.apiCallsCounter.WithLabelValues("test_service", "test_method", "test_status").Add(123)
 
 	repeat := 10
 	for {

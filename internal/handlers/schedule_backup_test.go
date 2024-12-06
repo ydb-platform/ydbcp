@@ -8,7 +8,6 @@ import (
 	"time"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
@@ -41,7 +40,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 	)
 
 	handler := NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, metrics.NewMockMetricsRegistry(), clock,
+		queries.NewWriteTableQueryMock, clock,
 	)
 	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)

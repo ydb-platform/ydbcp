@@ -19,12 +19,12 @@ import (
 
 func NewTBOperationHandler(
 	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
-	queryBuilderFactory queries.WriteQueryBuilderFactory, mon metrics.MetricsRegistry,
+	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		err := TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory, mon)
+		err := TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory)
 		if err == nil {
-			mon.ReportOperationMetrics(op)
+			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
 		return err
 	}
@@ -38,7 +38,6 @@ func TBOperationHandler(
 	s3 s3.S3Connector,
 	config config.Config,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	mon metrics.MetricsRegistry,
 ) error {
 	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
 
@@ -69,7 +68,7 @@ func TBOperationHandler(
 		)
 
 		if err == nil {
-			mon.IncCompletedBackupsCount(containerId, database, status)
+			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, status)
 		}
 
 		return err
@@ -180,7 +179,7 @@ func TBOperationHandler(
 			}
 			backup.Message = operation.GetMessage()
 			backup.Size = size
-			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
+			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	case types.OperationStateStartCancelling:
 		{
@@ -233,7 +232,7 @@ func TBOperationHandler(
 					return err
 				}
 
-				mon.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
+				metrics.GlobalMetricsRegistry.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
 
 				backup.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
@@ -245,7 +244,7 @@ func TBOperationHandler(
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 			backup.Message = operation.GetMessage()
-			mon.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
+			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
 		}
 	default:
 		return fmt.Errorf("unexpected operation state %s", tb.State)

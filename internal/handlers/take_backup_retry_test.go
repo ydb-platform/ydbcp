@@ -237,7 +237,7 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
@@ -245,7 +245,6 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		mon,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -254,8 +253,8 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
-	assert.Equal(t, float64(1), mon.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
 }
 
 func TestTBWRHandlerSkipRunning(t *testing.T) {
@@ -302,7 +301,7 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
@@ -310,7 +309,6 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		mon,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -322,8 +320,8 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
 	assert.Empty(t, err)
 	assert.Equal(t, 3, len(operations))
-	assert.Equal(t, float64(0), mon.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["operations_duration_seconds"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
 }
 
 func TestTBWRHandlerSkipError(t *testing.T) {
@@ -377,7 +375,6 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t3.AsTime()),
-		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -426,7 +423,7 @@ func TestTBWRHandlerError(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
@@ -434,7 +431,6 @@ func TestTBWRHandlerError(t *testing.T) {
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t2.AsTime()),
-		mon,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -444,8 +440,8 @@ func TestTBWRHandlerError(t *testing.T) {
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateError, op.GetState())
 	assert.Equal(t, fmt.Sprintf("retry attempts exceeded limit: 1. Launched operations %s", ops[0].GetID()), op.GetMessage())
-	assert.Equal(t, float64(1), mon.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
 
 }
 
@@ -491,7 +487,6 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -566,7 +561,6 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -630,7 +624,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
@@ -643,7 +637,6 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		mon,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -667,6 +660,6 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	assert.Equal(t, types.OperationStateCancelled, tb.State)
 	assert.Equal(t, types.OperationStateCancelled, tbwr.State)
 	assert.Equal(t, "Success", tbwr.Message)
-	assert.Equal(t, float64(1), mon.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
 }

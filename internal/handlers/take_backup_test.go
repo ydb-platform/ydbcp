@@ -59,7 +59,6 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		s3Connector,
 		config.Config{},
 		queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -119,7 +118,6 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 0,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &tbOp)
@@ -192,7 +190,6 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &tbOp)
@@ -277,12 +274,11 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -307,9 +303,9 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
 
 	// check metrics
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
@@ -355,12 +351,11 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -384,9 +379,9 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
 
 	// check metrics
-	assert.Equal(t, float64(0), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) {
@@ -432,12 +427,11 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 0,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -463,9 +457,9 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	assert.Equal(t, false, ydbOpStatus.GetOperation().GetReady())
 
 	// check metrics
-	assert.Equal(t, float64(0), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
@@ -516,7 +510,6 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &tbOp)
@@ -600,12 +593,11 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -630,9 +622,9 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
 
 	// check metrics
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
@@ -678,12 +670,11 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -707,9 +698,9 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	assert.Equal(t, Ydb.StatusIds_NOT_FOUND, ydbOpStatus.GetOperation().GetStatus())
 
 	// check metrics
-	assert.Equal(t, float64(0), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t *testing.T) {
@@ -771,12 +762,11 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewTBOperationHandler(
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -804,10 +794,10 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 	assert.Equal(t, 0, len(objects))
 
 	// check metrics
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_written"])
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_deleted"])
-	assert.Equal(t, float64(0), mon.GetMetrics()["backups_succeeded_count"])
-	assert.Equal(t, float64(1), mon.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_written"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
 }
 
 func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
@@ -858,7 +848,6 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 		dbConnector, clientConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 10000,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &tbOp)

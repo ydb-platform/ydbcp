@@ -19,13 +19,12 @@ type BackupScheduleHandlerType func(context.Context, db.DBConnector, *types.Back
 
 func NewBackupScheduleHandler(
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	mon metrics.MetricsRegistry,
 	clock clockwork.Clock,
 ) BackupScheduleHandlerType {
 	return func(ctx context.Context, driver db.DBConnector, schedule *types.BackupSchedule) error {
 		return BackupScheduleHandler(
 			ctx, driver, schedule,
-			queryBuilderFactory, mon, clock,
+			queryBuilderFactory, clock,
 		)
 	}
 }
@@ -35,7 +34,6 @@ func BackupScheduleHandler(
 	driver db.DBConnector,
 	schedule *types.BackupSchedule,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
-	mon metrics.MetricsRegistry,
 	clock clockwork.Clock,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
@@ -83,7 +81,7 @@ func BackupScheduleHandler(
 			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
 		)
 
-		mon.IncScheduledBackupsCount(schedule)
+		metrics.GlobalMetricsRegistry.IncScheduledBackupsCount(schedule)
 
 		err = schedule.UpdateNextLaunch(clock.Now())
 		if err != nil {
