@@ -61,9 +61,10 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metricsMock := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
+
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, metricsMock, clock,
+		queries.NewWriteTableQueryMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -72,7 +73,6 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
-		metricsMock,
 		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
@@ -117,8 +117,8 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	assert.Equal(t, len(schedules), 1)
 	assert.Equal(t, *schedules[0].NextLaunch, now.Add(time.Minute))
 
-	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
 }
 
 func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
@@ -174,9 +174,9 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metricsMock := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, metricsMock, clock,
+		queries.NewWriteTableQueryMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -185,7 +185,6 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
-		metricsMock,
 		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
@@ -237,8 +236,8 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	assert.Equal(t, len(schedules), 2)
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
-	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
 }
 
 func TestScheduleWatcherTwoBackups(t *testing.T) {
@@ -294,10 +293,10 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metricsMock := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, metricsMock, clock,
+		queries.NewWriteTableQueryMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -306,7 +305,6 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
-		metricsMock,
 		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
@@ -361,8 +359,8 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	assert.Equal(t, len(schedules), 2)
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
-	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(2), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
 }
 
 func TestAllScheduleMetrics(t *testing.T) {
@@ -411,10 +409,10 @@ func TestAllScheduleMetrics(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metricsMock := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, metricsMock, clock,
+		queries.NewWriteTableQueryMock, clock,
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -423,7 +421,6 @@ func TestAllScheduleMetrics(t *testing.T) {
 		&wg,
 		dbConnector,
 		handler,
-		metricsMock,
 		clock,
 		watchers.WithTickerProvider(tickerProvider),
 		watchers.WithActionCompletedChannel(&scheduleWatcherActionCompleted),
@@ -471,8 +468,8 @@ func TestAllScheduleMetrics(t *testing.T) {
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
 	assert.Equal(t, m[schedules[0].ID], *schedules[0].NextLaunch)
-	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metricsMock.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
-	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metricsMock.GetMetrics()["schedules_last_backup_timestamp"])
-	assert.Equal(t, 0.5166666666666667, metricsMock.GetMetrics()["schedules_recovery_point_objective"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
+	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_recovery_point_objective"])
 }

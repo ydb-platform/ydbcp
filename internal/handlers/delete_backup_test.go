@@ -20,6 +20,7 @@ import (
 )
 
 func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
+	metrics.InitializeMockMetricsRegistry()
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
@@ -54,7 +55,6 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 0,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &dbOp)
@@ -122,12 +122,11 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -152,7 +151,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
@@ -203,12 +202,11 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -233,7 +231,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, float64(450), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(450), metrics.GetMetrics()["storage_bytes_deleted"])
 }
 
 func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
@@ -287,7 +285,6 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
-		metrics.NewMockMetricsRegistry(),
 	)
 
 	err := handler(ctx, &dbOp)
@@ -353,12 +350,11 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
-	mon := metrics.NewMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry()
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config.Config{
 			OperationTtlSeconds: 1000,
 		}, queries.NewWriteTableQueryMock,
-		mon,
 	)
 
 	err := handler(ctx, &dbOp)
@@ -383,5 +379,5 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 	assert.Empty(t, objects)
 
 	// check metrics
-	assert.Equal(t, float64(objectsListSize*10), mon.GetMetrics()["storage_bytes_deleted"])
+	assert.Equal(t, float64(objectsListSize*10), metrics.GetMetrics()["storage_bytes_deleted"])
 }

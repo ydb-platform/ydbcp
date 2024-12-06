@@ -5,9 +5,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
@@ -18,6 +18,7 @@ import (
 )
 
 func TestProcessor(t *testing.T) {
+	metrics.InitializeMockMetricsRegistry()
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -56,7 +57,6 @@ func TestProcessor(t *testing.T) {
 		&wg,
 		db,
 		handlers,
-		metrics.NewMockMetricsRegistry(),
 		WithTickerProvider(tickerProvider),
 		WithPeriod(time.Second*10),
 		WithHandleOperationTimeout(time.Second*60),

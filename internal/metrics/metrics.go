@@ -20,6 +20,12 @@ import (
 	"go.uber.org/zap"
 )
 
+const (
+	NO_SCHEDULE_ID_LABEL = "without_schedule"
+)
+
+var GlobalMetricsRegistry MetricsRegistry
+
 type MetricsRegistry interface {
 	IncApiCallsCounter(serviceName string, methodName string, status string)
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
@@ -91,7 +97,7 @@ func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) 
 		}
 		if operation.GetType() == types.OperationTypeTBWR {
 			tbwr := operation.(*types.TakeBackupWithRetryOperation)
-			label := ""
+			label := NO_SCHEDULE_ID_LABEL
 			if tbwr.ScheduleID != nil {
 				label = *tbwr.ScheduleID
 			}
@@ -141,7 +147,11 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 }
 
-func NewMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig) *MetricsRegistryImpl {
+func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig) {
+	GlobalMetricsRegistry = newMetricsRegistry(ctx, wg, cfg)
+}
+
+func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig) *MetricsRegistryImpl {
 	s := &MetricsRegistryImpl{
 		reg: prometheus.NewRegistry(),
 		cfg: *cfg,

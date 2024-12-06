@@ -32,11 +32,10 @@ type BackupScheduleService struct {
 	clientConn client.ClientConnector
 	auth       ap.AuthProvider
 	clock      clockwork.Clock
-	mon        metrics.MetricsRegistry
 }
 
 func (s *BackupScheduleService) IncApiCallsCounter(methodName string, code codes.Code) {
-	s.mon.IncApiCallsCounter("BackupScheduleService", methodName, code.String())
+	metrics.GlobalMetricsRegistry.IncApiCallsCounter("BackupScheduleService", methodName, code.String())
 }
 
 func (s *BackupScheduleService) CheckClientDbAccess(
@@ -526,13 +525,11 @@ func NewBackupScheduleService(
 	driver db.DBConnector,
 	clientConn client.ClientConnector,
 	auth ap.AuthProvider,
-	mon metrics.MetricsRegistry,
 ) *BackupScheduleService {
 	return &BackupScheduleService{
 		driver:     driver,
 		clientConn: clientConn,
 		auth:       auth,
 		clock:      clockwork.NewRealClock(),
-		mon:        mon,
 	}
 }

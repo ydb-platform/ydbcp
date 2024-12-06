@@ -79,7 +79,7 @@ func main() {
 			zap.String("config", confStr),
 		)
 	}
-	metrics := metrics.NewMetricsRegistry(ctx, &wg, &configInstance.MetricsServer)
+	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer)
 	xlog.Info(ctx, "Initialized metrics registry")
 	server, err := server.NewServer(&configInstance.GRPCServer)
 	if err != nil {
@@ -127,10 +127,9 @@ func main() {
 		authProvider,
 		configInstance.ClientConnection.AllowedEndpointDomains,
 		configInstance.ClientConnection.AllowInsecureEndpoint,
-		metrics,
 	).Register(server)
-	operation.NewOperationService(dbConnector, authProvider, metrics).Register(server)
-	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider, metrics).Register(server)
+	operation.NewOperationService(dbConnector, authProvider).Register(server)
+	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider).Register(server)
 	if err := server.Start(ctx, &wg); err != nil {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)
@@ -142,7 +141,7 @@ func main() {
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
 		handlers.NewTBOperationHandler(
-			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery, metrics,
+			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -151,7 +150,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeRB,
-		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance, metrics),
+		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance),
 	); err != nil {
 		xlog.Error(ctx, "failed to register RB handler", zap.Error(err))
 		os.Exit(1)
@@ -159,7 +158,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeDB,
-		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery, metrics),
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
 	); err != nil {
 		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
 		os.Exit(1)
@@ -174,21 +173,20 @@ func main() {
 			configInstance.ClientConnection,
 			queries.NewWriteTableQuery,
 			clockwork.NewRealClock(),
-			metrics,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TBWR handler", zap.Error(err))
 		os.Exit(1)
 	}
 
-	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry, metrics)
+	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
 	xlog.Info(ctx, "Initialized OperationProcessor")
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 	xlog.Info(ctx, "Created TtlWatcher")
 
-	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, metrics, clockwork.NewRealClock())
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 
-	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, metrics, clockwork.NewRealClock())
+	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, clockwork.NewRealClock())
 
 	xlog.Info(ctx, "Created ScheduleWatcher")
 

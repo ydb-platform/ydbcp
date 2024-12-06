@@ -29,12 +29,11 @@ func NewTBWROperationHandler(
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
-	mon metrics.MetricsRegistry,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
 		err := TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock)
 		if err == nil {
-			mon.ReportOperationMetrics(op)
+			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
 		return err
 	}

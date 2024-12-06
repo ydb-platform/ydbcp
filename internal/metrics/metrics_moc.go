@@ -74,7 +74,15 @@ func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 }
 
-func NewMockMetricsRegistry() *MockMetricsRegistry {
+func InitializeMockMetricsRegistry() {
+	GlobalMetricsRegistry = newMockMetricsRegistry()
+}
+
+func GetMetrics() map[string]float64 {
+	return GlobalMetricsRegistry.(*MockMetricsRegistry).GetMetrics()
+}
+
+func newMockMetricsRegistry() *MockMetricsRegistry {
 	return &MockMetricsRegistry{
 		metrics: make(map[string]float64),
 	}

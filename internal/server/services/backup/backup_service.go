@@ -35,11 +35,10 @@ type BackupService struct {
 	allowedEndpointDomains []string
 	allowInsecureEndpoint  bool
 	clock                  clockwork.Clock
-	mon                    metrics.MetricsRegistry
 }
 
 func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
-	s.mon.IncApiCallsCounter("BackupService", methodName, code.String())
+	metrics.GlobalMetricsRegistry.IncApiCallsCounter("BackupService", methodName, code.String())
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
@@ -579,7 +578,6 @@ func NewBackupService(
 	auth ap.AuthProvider,
 	allowedEndpointDomains []string,
 	allowInsecureEndpoint bool,
-	mon metrics.MetricsRegistry,
 ) *BackupService {
 	return &BackupService{
 		driver:                 driver,
@@ -589,6 +587,5 @@ func NewBackupService(
 		allowedEndpointDomains: allowedEndpointDomains,
 		allowInsecureEndpoint:  allowInsecureEndpoint,
 		clock:                  clockwork.NewRealClock(),
-		mon:                    mon,
 	}
 }
