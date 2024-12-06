@@ -10,6 +10,10 @@ type MockMetricsRegistry struct {
 	metrics map[string]float64
 }
 
+func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operation) {
+	s.metrics["operations_started_count"]++
+}
+
 func (s *MockMetricsRegistry) IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode) {
 	if code == Ydb.StatusIds_SUCCESS {
 		s.metrics["backups_succeeded_count"]++
@@ -37,9 +41,7 @@ func (s *MockMetricsRegistry) IncBytesDeletedCounter(containerId string, bucket 
 func (s *MockMetricsRegistry) ReportOperationMetrics(operation types.Operation) {
 	if !types.IsActive(operation) {
 		s.metrics["operations_duration_seconds"]++
-		if operation.GetType() == types.OperationTypeTBWR {
-			s.metrics["schedule_finished_take_backup_with_retry_count"]++
-		}
+		s.metrics["operations_finished_count"]++
 	}
 }
 

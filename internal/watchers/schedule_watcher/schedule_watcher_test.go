@@ -118,7 +118,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	assert.Equal(t, *schedules[0].NextLaunch, now.Add(time.Minute))
 
 	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
 }
 
 func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
@@ -237,7 +237,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
 	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
 }
 
 func TestScheduleWatcherTwoBackups(t *testing.T) {
@@ -360,7 +360,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	assert.Equal(t, *schedules[0].NextLaunch, m[schedules[0].ID])
 	assert.Equal(t, *schedules[1].NextLaunch, m[schedules[1].ID])
 	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(2), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(2), metrics.GetMetrics()["operations_started_count"])
 }
 
 func TestAllScheduleMetrics(t *testing.T) {
@@ -469,7 +469,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 	assert.Equal(t, len(schedules), 1)
 	assert.Equal(t, m[schedules[0].ID], *schedules[0].NextLaunch)
 	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_launched_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
 	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
 	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_recovery_point_objective"])
 }

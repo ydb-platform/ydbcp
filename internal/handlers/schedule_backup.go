@@ -9,7 +9,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -80,8 +79,6 @@ func BackupScheduleHandler(
 			ctx, "create TakeBackupWithRetryOperation for schedule", zap.String("scheduleID", schedule.ID),
 			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
 		)
-
-		metrics.GlobalMetricsRegistry.IncScheduledBackupsCount(schedule)
 
 		err = schedule.UpdateNextLaunch(clock.Now())
 		if err != nil {

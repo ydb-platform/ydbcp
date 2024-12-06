@@ -199,10 +199,16 @@ func TBWROperationHandler(
 				return err
 			}
 			if do != Error {
+				fields := []zap.Field{
+					zap.String("decision", do.String()),
+				}
+				if len(ops) > 0 {
+					fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
+				}
 				xlog.Info(
 					ctx,
 					"TBWROperationHandler",
-					zap.String("decision", do.String()),
+					fields...,
 				)
 			}
 			switch do {

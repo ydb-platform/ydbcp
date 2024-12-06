@@ -16,6 +16,7 @@ import (
 
 type WriteTableQuery interface {
 	FormatQuery(ctx context.Context) (*FormatQueryResult, error)
+	GetOperations() []types.Operation
 	WithCreateBackup(backup types.Backup) WriteTableQuery
 	WithCreateOperation(operation types.Operation) WriteTableQuery
 	WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
@@ -26,6 +27,7 @@ type WriteTableQuery interface {
 
 type WriteTableQueryImpl struct {
 	tableQueries []WriteSingleTableQueryImpl
+	operations   []types.Operation
 }
 
 type WriteSingleTableQueryImpl struct {
@@ -425,6 +427,10 @@ func NewWriteTableQuery() WriteTableQuery {
 	return &WriteTableQueryImpl{}
 }
 
+func (d *WriteTableQueryImpl) GetOperations() []types.Operation {
+	return d.operations
+}
+
 func (d *WriteTableQueryImpl) WithCreateBackup(backup types.Backup) WriteTableQuery {
 	index := len(d.tableQueries)
 	d.tableQueries = append(d.tableQueries, BuildCreateBackupQuery(backup, index))
@@ -446,6 +452,7 @@ func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) Wri
 func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
 	index := len(d.tableQueries)
 	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
+	d.operations = append(d.operations, operation)
 	return d
 }
 

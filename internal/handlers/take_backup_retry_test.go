@@ -254,7 +254,7 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_finished_count"])
 }
 
 func TestTBWRHandlerSkipRunning(t *testing.T) {
@@ -321,7 +321,7 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 	assert.Empty(t, err)
 	assert.Equal(t, 3, len(operations))
 	assert.Equal(t, float64(0), metrics.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(0), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["operations_finished_count"])
 }
 
 func TestTBWRHandlerSkipError(t *testing.T) {
@@ -441,7 +441,7 @@ func TestTBWRHandlerError(t *testing.T) {
 	assert.Equal(t, types.OperationStateError, op.GetState())
 	assert.Equal(t, fmt.Sprintf("retry attempts exceeded limit: 1. Launched operations %s", ops[0].GetID()), op.GetMessage())
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_finished_count"])
 
 }
 
@@ -661,5 +661,5 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	assert.Equal(t, types.OperationStateCancelled, tbwr.State)
 	assert.Equal(t, "Success", tbwr.Message)
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
-	assert.Equal(t, float64(1), metrics.GetMetrics()["schedule_finished_take_backup_with_retry_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_finished_count"])
 }

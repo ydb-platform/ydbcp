@@ -18,6 +18,14 @@ func NewWriteTableQueryMock() WriteTableQuery {
 	return &WriteTableQueryMock{}
 }
 
+func (w *WriteTableQueryMock) GetOperations() []types.Operation {
+	if w.Operation == nil {
+		return nil
+	} else {
+		return []types.Operation{*w.Operation}
+	}
+}
+
 func (w *WriteTableQueryMock) FormatQuery(_ context.Context) (*FormatQueryResult, error) {
 	return &FormatQueryResult{}, nil
 }
