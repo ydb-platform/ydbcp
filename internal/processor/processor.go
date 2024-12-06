@@ -121,6 +121,7 @@ func (o *OperationProcessorImpl) processOperations() {
 		xlog.Error(ctx, "cannot get Active Operations", zap.Error(err))
 		return
 	}
+	metrics.GlobalMetricsRegistry.ResetOperationsInflight()
 	for _, op := range operations {
 		o.processOperation(op)
 	}
@@ -144,6 +145,8 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		return
 	}
 	metrics.GlobalMetricsRegistry.IncHandlerRunsCount(op.GetContainerID(), op.GetType().String())
+	metrics.GlobalMetricsRegistry.ReportOperationInflight(op)
+
 	o.runningOperations[op.GetID()] = true
 	o.workersWaitGroup.Add(1)
 	go func() {

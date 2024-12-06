@@ -99,4 +99,7 @@ func TestProcessor(t *testing.T) {
 	op, err := db.GetOperation(ctx, opID)
 	assert.Empty(t, err)
 	assert.Equal(t, op.GetState(), types.OperationStateDone, "operation state should be Done")
+	val, ok := metrics.GetMetrics()["operations_inflight"]
+	assert.True(t, ok)               // to show that it has been incremented
+	assert.Equal(t, float64(0), val) //to show it has been reset to 0
 }
