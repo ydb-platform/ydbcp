@@ -31,6 +31,8 @@ type MetricsRegistry interface {
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
 	IncBytesDeletedCounter(containerId string, bucket string, database string, bytes int64)
 	IncOperationsStartedCounter(operation types.Operation)
+	ResetOperationsInflight()
+	ReportOperationInflight(operation types.Operation)
 	ReportOperationMetrics(operation types.Operation)
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
@@ -55,6 +57,7 @@ type MetricsRegistryImpl struct {
 	operationsDuration *prometheus.HistogramVec
 	operationsStarted  *prometheus.CounterVec
 	operationsFinished *prometheus.CounterVec
+	operationsInflight *prometheus.GaugeVec
 
 	// operation processor metrics
 	handlerRunsCount       *prometheus.CounterVec
@@ -100,6 +103,28 @@ func (s *MetricsRegistryImpl) IncOperationsStartedCounter(operation types.Operat
 	).Inc()
 }
 
+func (s *MetricsRegistryImpl) ResetOperationsInflight() {
+	s.operationsInflight.Reset()
+}
+
+func (s *MetricsRegistryImpl) ReportOperationInflight(operation types.Operation) {
+	label := NO_SCHEDULE_ID_LABEL
+	if operation.GetType() == types.OperationTypeTBWR {
+		tbwr := operation.(*types.TakeBackupWithRetryOperation)
+		if tbwr.ScheduleID != nil {
+			label = *tbwr.ScheduleID
+		}
+	}
+
+	s.operationsInflight.WithLabelValues(
+		operation.GetContainerID(),
+		operation.GetDatabaseName(),
+		operation.GetType().String(),
+		operation.GetState().String(),
+		label,
+	).Inc()
+}
+
 func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) {
 	if !types.IsActive(operation) {
 		if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
@@ -123,6 +148,7 @@ func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) 
 		s.operationsFinished.WithLabelValues(
 			operation.GetContainerID(), operation.GetDatabaseName(), operation.GetType().String(), operation.GetState().String(), label,
 		).Inc()
+
 	}
 }
 
@@ -206,6 +232,12 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "operations",
 		Name:      "finished_counter",
 		Help:      "Total count of finished operations",
+	}, []string{"container_id", "database", "type", "status", "schedule_id"})
+
+	s.operationsInflight = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "operations",
+		Name:      "inflight",
+		Help:      "Total count of active operations",
 	}, []string{"container_id", "database", "type", "status", "schedule_id"})
 
 	s.handlerRunsCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
