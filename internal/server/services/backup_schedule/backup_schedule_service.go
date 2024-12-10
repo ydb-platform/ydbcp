@@ -8,6 +8,7 @@ import (
 	"time"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
+	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
@@ -32,6 +33,7 @@ type BackupScheduleService struct {
 	clientConn client.ClientConnector
 	auth       ap.AuthProvider
 	clock      clockwork.Clock
+	config     config.Config
 }
 
 func (s *BackupScheduleService) IncApiCallsCounter(methodName string, code codes.Code) {
@@ -76,6 +78,49 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
+
+	schedules, err := s.driver.SelectBackupSchedules(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("BackupSchedules"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field: "container_id",
+					Values: []table_types.Value{
+						table_types.StringValueFromString(request.ContainerId),
+					},
+				},
+				queries.QueryFilter{
+					Field: "database",
+					Values: []table_types.Value{
+						table_types.StringValueFromString(request.DatabaseName),
+					},
+				},
+			),
+		),
+	)
+
+	if err != nil {
+		xlog.Error(ctx, "error getting backup schedules", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "error getting backup schedules")
+	}
+
+	if len(schedules)+1 > s.config.SchedulesLimitPerDB {
+		xlog.Error(ctx, "can't create backup schedule, limit exceeded for database",
+			zap.String("database", request.DatabaseName),
+			zap.String("container", request.ContainerId),
+			zap.Int("limit", s.config.SchedulesLimitPerDB),
+		)
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
+		return nil, status.Errorf(
+			codes.FailedPrecondition,
+			"can't create backup schedule, limit exceeded for database: %s, container: %s, limit: %d",
+			request.DatabaseName,
+			request.ContainerId,
+			s.config.SchedulesLimitPerDB,
+		)
+	}
+
 	if request.ScheduleSettings == nil {
 		xlog.Error(
 			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String("request", request.String()),
@@ -525,11 +570,13 @@ func NewBackupScheduleService(
 	driver db.DBConnector,
 	clientConn client.ClientConnector,
 	auth ap.AuthProvider,
+	config config.Config,
 ) *BackupScheduleService {
 	return &BackupScheduleService{
 		driver:     driver,
 		clientConn: clientConn,
 		auth:       auth,
 		clock:      clockwork.NewRealClock(),
+		config:     config,
 	}
 }

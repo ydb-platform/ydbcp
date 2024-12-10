@@ -71,6 +71,7 @@ type Config struct {
 	Auth                AuthConfig             `yaml:"auth"`
 	GRPCServer          GRPCServerConfig       `yaml:"grpc_server"`
 	MetricsServer       MetricsServerConfig    `yaml:"metrics_server"`
+	SchedulesLimitPerDB int                    `yaml:"schedules_limit_per_db" default:"10"`
 }
 
 var (
