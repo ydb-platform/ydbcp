@@ -312,6 +312,23 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to create backup schedule: %v", err)
 	}
+
+	// local config has schedules_limit_per_db = 1, so we should not be able to create another schedule for this db
+	_, err = scheduleClient.CreateBackupSchedule(
+		context.Background(), &pb.CreateBackupScheduleRequest{
+			ContainerId:  containerID,
+			DatabaseName: databaseName,
+			Endpoint:     databaseEndpoint,
+			ScheduleName: "anotherSchedule",
+			ScheduleSettings: &pb.BackupScheduleSettings{
+				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"},
+			},
+		},
+	)
+	if err == nil {
+		log.Panicf("we've created more schedules than schedules_limit_per_db")
+	}
+
 	schedules, err = scheduleClient.ListBackupSchedules(
 		context.Background(), &pb.ListBackupSchedulesRequest{
 			ContainerId:      containerID,
