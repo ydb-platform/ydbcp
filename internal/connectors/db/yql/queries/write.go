@@ -155,6 +155,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 				table_types.StringValueFromString(strings.Join(tbwr.SourcePathsToExclude, ",")),
 			)
 		}
+		d.AddValueParam("$retries", table_types.Uint32Value(uint32(tbwr.Retries)))
 		if tbwr.RetryConfig != nil {
 			switch r := tbwr.RetryConfig.Retries.(type) {
 			case *pb.RetryConfig_Count:
@@ -269,6 +270,9 @@ func BuildUpdateOperationQuery(operation types.Operation, index int) WriteSingle
 			"$updated_at",
 			table_types.TimestampValueFromTime(operation.GetUpdatedAt().AsTime()),
 		)
+	}
+	if tbwr, ok := operation.(*types.TakeBackupWithRetryOperation); ok {
+		d.AddValueParam("$retries", table_types.Uint32Value(uint32(tbwr.Retries)))
 	}
 	return d
 }

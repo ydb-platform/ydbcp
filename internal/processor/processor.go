@@ -54,13 +54,14 @@ func WithHandleOperationTimeout(timeout time.Duration) Option {
 func NewOperationProcessor(
 	ctx context.Context,
 	wg *sync.WaitGroup,
+	interval int64,
 	db db.DBConnector,
 	handlers OperationHandlerRegistry,
 	options ...Option,
 ) *OperationProcessorImpl {
 	op := &OperationProcessorImpl{
 		ctx:                    ctx,
-		period:                 time.Second * 10,
+		period:                 time.Second * time.Duration(interval),
 		handleOperationTimeout: time.Second * 600,
 		handlers:               handlers,
 		db:                     db,

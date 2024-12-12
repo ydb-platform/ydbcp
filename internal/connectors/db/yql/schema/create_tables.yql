@@ -58,6 +58,7 @@ CREATE TABLE Operations (
     --used only in TBWR
     schedule_id String,
     ttl Interval,
+    retries Uint32,
     retries_count Uint32,
     retries_max_backoff Interval,
 

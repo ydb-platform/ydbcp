@@ -247,9 +247,11 @@ func (c *MockDBConnector) ExecuteUpsert(_ context.Context, queryBuilder queries.
 	defer c.guard.Unlock()
 
 	queryBuilderMock := queryBuilder.(*queries.WriteTableQueryMock)
-	if queryBuilderMock.Operation != nil {
-		c.operations[(*queryBuilderMock.Operation).GetID()] = *queryBuilderMock.Operation
-		metrics.GlobalMetricsRegistry.IncOperationsStartedCounter(*queryBuilderMock.Operation)
+	if queryBuilderMock.Operations != nil {
+		for _, op := range queryBuilderMock.Operations {
+			c.operations[op.GetID()] = op
+			metrics.GlobalMetricsRegistry.IncOperationsStartedCounter(op)
+		}
 	}
 	if queryBuilderMock.Backup != nil {
 		c.backups[queryBuilderMock.Backup.ID] = *queryBuilderMock.Backup

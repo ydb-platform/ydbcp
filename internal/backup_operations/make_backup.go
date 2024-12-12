@@ -2,6 +2,8 @@ package backup_operations
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"github.com/jonboulle/clockwork"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"path"
@@ -137,9 +139,46 @@ func ValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, cli
 
 	if len(pathsForExport) == 0 {
 		xlog.Error(ctx, "empty list of paths for export")
-		return nil, status.Error(codes.FailedPrecondition, "empty list of paths for export")
+		return nil, NewEmptyDatabaseError(codes.FailedPrecondition, "empty list of paths for export")
 	}
 	return pathsForExport, nil
+}
+
+type ClientConnectionError struct {
+	err error
+}
+
+func NewClientConnectionError(code codes.Code, message string) *ClientConnectionError {
+	return &ClientConnectionError{err: status.Errorf(code, message)}
+}
+
+func (e ClientConnectionError) Error() string {
+	return e.err.Error()
+}
+
+type EmptyDatabaseError struct {
+	err error
+}
+
+func (e EmptyDatabaseError) Error() string {
+	return e.err.Error()
+}
+
+func NewEmptyDatabaseError(code codes.Code, message string) *EmptyDatabaseError {
+	return &EmptyDatabaseError{err: status.Errorf(code, message)}
+}
+
+func ErrToStatus(err error) error {
+	var ce *ClientConnectionError
+	var ee *EmptyDatabaseError
+
+	if errors.As(err, &ce) {
+		return ce.err
+	}
+	if errors.As(err, &ee) {
+		return ee.err
+	}
+	return err
 }
 
 func MakeBackup(
@@ -161,9 +200,9 @@ func MakeBackup(
 			"endpoint of database is invalid or not allowed",
 			zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
 		)
-		return nil, nil, status.Errorf(
-			codes.InvalidArgument,
-			"endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint,
+		return nil, nil, NewClientConnectionError(
+			codes.FailedPrecondition,
+			fmt.Sprintf("endpoint of database is invalid or not allowed, endpoint %s", req.DatabaseEndpoint),
 		)
 	}
 
@@ -176,7 +215,7 @@ func MakeBackup(
 	client, err := clientConn.Open(ctx, dsn)
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
-		return nil, nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
+		return nil, nil, NewClientConnectionError(codes.Unknown, fmt.Sprintf("can't open client connection, dsn %s", dsn))
 	}
 	defer func() {
 		if err := clientConn.Close(ctx, client); err != nil {

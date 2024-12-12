@@ -120,6 +120,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 			},
 			UpdatedAt: now,
 		},
+		Retries: 0,
 		RetryConfig: &pb.RetryConfig{
 			Retries: &pb.RetryConfig_Count{Count: 3},
 		},
@@ -130,8 +131,9 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 
 	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
 	if err != nil {
-		s.IncApiCallsCounter(methodName, status.Code(err))
-		return nil, err
+		grpcError := backup_operations.ErrToStatus(err)
+		s.IncApiCallsCounter(methodName, status.Code(grpcError))
+		return nil, grpcError
 	}
 
 	err = s.driver.ExecuteUpsert(

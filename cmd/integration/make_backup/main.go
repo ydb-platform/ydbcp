@@ -2,6 +2,12 @@ package main
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -9,19 +15,123 @@ import (
 	"strings"
 	"time"
 	"ydbcp/cmd/integration/common"
-
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/grpc"
 )
 
 const (
-	containerID      = "abcde"
-	databaseName     = "/local"
-	ydbcpEndpoint    = "0.0.0.0:50051"
-	databaseEndpoint = "grpcs://local-ydb:2135"
+	containerID             = "abcde"
+	databaseName            = "/local"
+	ydbcpEndpoint           = "0.0.0.0:50051"
+	databaseEndpoint        = "grpcs://local-ydb:2135"
+	invalidDatabaseEndpoint = "xzche"
 )
+
+func OpenYdb() *ydb.Driver {
+	dialTimeout := time.Second * 5
+	opts := []ydb.Option{
+		ydb.WithDialTimeout(dialTimeout),
+		ydb.WithTLSSInsecureSkipVerify(),
+		ydb.WithBalancer(balancers.SingleConn()),
+		ydb.WithAnonymousCredentials(),
+	}
+	driver, err := ydb.Open(context.Background(), databaseEndpoint+"/"+databaseName, opts...)
+	if err != nil {
+		log.Panicf("failed to open database: %v", err)
+	}
+	return driver
+}
+
+func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
+	driver := OpenYdb()
+	opID := types.GenerateObjectID()
+	insertTBWRquery := fmt.Sprintf(`
+UPSERT INTO Operations 
+(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
+VALUES 
+("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
+`, opID, containerID, databaseName, invalidDatabaseEndpoint)
+	err := driver.Table().Do(
+		context.Background(), func(ctx context.Context, s table.Session) error {
+			_, res, err := s.Execute(
+				ctx,
+				table.TxControl(
+					table.BeginTx(
+						table.WithSerializableReadWrite(),
+					),
+					table.CommitTx(),
+				),
+				insertTBWRquery,
+				nil,
+			)
+			if err != nil {
+				return err
+			}
+			defer func(res result.Result) {
+				err = res.Close()
+				if err != nil {
+					xlog.Error(ctx, "Error closing transaction result")
+				}
+			}(res) // result must be closed
+			if res.ResultSetCount() != 0 {
+				return errors.New("expected 0 result set")
+			}
+			return res.Err()
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to initialize YDBCP db: %v", err)
+	}
+	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
+		Id: opID,
+	})
+	if err != nil {
+		log.Panicf("failed to get operation: %v", err)
+	}
+	if op.GetType() != types.OperationTypeTBWR.String() {
+		log.Panicf("unexpected operation type: %v", op.GetType())
+	}
+	time.Sleep(time.Second * 10) // to wait for four operation handlers
+
+	backups, err := client.ListBackups(
+		context.Background(), &pb.ListBackupsRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: "%",
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backups: %v", err)
+	}
+	if len(backups.Backups) != 0 {
+		log.Panicf("expected no backups by this time, got %v", backups.Backups)
+	}
+	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
+		ContainerId:      containerID,
+		DatabaseNameMask: databaseName,
+		OperationTypes:   []string{types.OperationTypeTB.String()},
+	})
+	if err != nil {
+		log.Panicf("failed to list operations: %v", err)
+	}
+	if len(ops.Operations) != 0 {
+		log.Panicf("expected zero TB operations, got %d", len(ops.Operations))
+	}
+	tbwr, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
+		Id: opID,
+	})
+	if err != nil {
+		log.Panicf("failed to list operations: %v", err)
+	}
+	if tbwr.Status != pb.Operation_ERROR {
+		log.Panicf("unexpected operation status: %v", tbwr.Status)
+	}
+	if tbwr.Message != "retry attempts exceeded limit: 3." {
+		log.Panicf("unexpected operation message: %v", tbwr.Message)
+	}
+}
 
 func main() {
 	conn := common.CreateGRPCClient(ydbcpEndpoint)
@@ -63,6 +173,8 @@ func main() {
 		log.Panicf("unexpected error code: %v", err)
 	}
 
+	TestInvalidDatabaseBackup(client, opClient)
+
 	tbwr, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,
@@ -84,7 +196,7 @@ func main() {
 	if op.GetType() != types.OperationTypeTBWR.String() {
 		log.Panicf("unexpected operation type: %v", op.GetType())
 	}
-	time.Sleep(time.Second * 11) // to wait for operation handler
+	time.Sleep(time.Second * 3) // to wait for operation handler
 	backups, err = client.ListBackups(
 		context.Background(), &pb.ListBackupsRequest{
 			ContainerId:      containerID,
@@ -133,7 +245,7 @@ func main() {
 	if !done {
 		log.Panicln("failed to complete a backup in 30 seconds")
 	}
-	time.Sleep(time.Second * 11) // to wait for operation handler
+	time.Sleep(time.Second * 3) // to wait for operation handler
 	tbwr, err = opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
 		Id: op.Id,
 	})
