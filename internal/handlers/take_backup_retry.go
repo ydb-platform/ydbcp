@@ -73,21 +73,22 @@ func exp(p int) time.Duration {
 	return time.Duration(math.Pow(BACKOFF_EXP, float64(p)))
 }
 
-func shouldRetry(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clock clockwork.Clock) *time.Time {
+func shouldRetry(config *pb.RetryConfig, count int, firstStart time.Time, lastEnd *time.Time, clock clockwork.Clock) *time.Time {
 	if config == nil {
+		if count == 0 {
+			t := clock.Now()
+			return &t
+		}
 		return nil
 	}
-	ops := len(tbOps)
-	lastEnd := tbOps[ops-1].Audit.CompletedAt.AsTime()
-	firstStart := tbOps[0].Audit.CreatedAt.AsTime()
-	if ops == INTERNAL_MAX_RETRIES {
+	if count == INTERNAL_MAX_RETRIES {
 		return nil
 	}
 
 	switch r := config.Retries.(type) {
 	case *pb.RetryConfig_Count:
 		{
-			if int(r.Count) == ops {
+			if r.Count == uint32(count) {
 				return nil
 			}
 		}
@@ -101,31 +102,42 @@ func shouldRetry(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clo
 		return nil
 	}
 
-	res := lastEnd.Add(exp(ops) * MIN_BACKOFF)
-	return &res
+	var t time.Time
+	if lastEnd != nil {
+		t = *lastEnd
+		t = t.Add(exp(count) * MIN_BACKOFF)
+	} else {
+		t = clock.Now()
+	}
+	return &t
 }
 
-func HandleTbOps(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clock clockwork.Clock) (RetryDecision, error) {
-	//select last tbOp.
-	//if nothing, run new, skip
+func MakeRetryDecision(ctx context.Context, tbwr *types.TakeBackupWithRetryOperation, tbOp *types.TakeBackupOperation, clock clockwork.Clock) (RetryDecision, error) {
+	//retrieve last tbOp run time
 	//if there is a tbOp, check its status
 	//if success: set success to itself
 	//if cancelled: set error to itself
-	//if error:
-	//if we can retry it: retry, skip
+	//if error (or no tbOp):
+	//if we can retry: retry, skip
 	//if no more retries: set error to itself
-	if len(tbOps) == 0 {
-		return RunNewTb, nil
+	lastState := types.OperationStateError //if no tbOp, same logic applies as after error
+	var lastTime time.Time
+	if tbOp != nil {
+		lastState = tbOp.State
+		lastTime = tbOp.Audit.CompletedAt.AsTime()
 	}
-	last := tbOps[len(tbOps)-1]
-	switch last.State {
+	switch lastState {
 	case types.OperationStateDone:
 		return Success, nil
 	case types.OperationStateError:
 		{
-			t := shouldRetry(config, tbOps, clock)
+			if tbwr.Audit == nil {
+				xlog.Error(ctx, "no audit for tbwr operation, unable to calculate retry need")
+				return Skip, fmt.Errorf("no audit for OperationID: %s", tbwr.ID)
+			}
+			t := shouldRetry(tbwr.RetryConfig, tbwr.Retries, tbwr.Audit.CreatedAt.AsTime(), &lastTime, clock)
 			if t != nil {
-				if clock.Now().After(*t) {
+				if clock.Now().Compare(*t) >= 0 {
 					return RunNewTb, nil
 				} else {
 					return Skip, nil
@@ -140,6 +152,35 @@ func HandleTbOps(config *pb.RetryConfig, tbOps []*types.TakeBackupOperation, clo
 		return Skip, nil
 	}
 	return Error, errors.New("unexpected tb op status")
+}
+
+func setErrorToRetryOperation(
+	ctx context.Context,
+	tbwr *types.TakeBackupWithRetryOperation,
+	ops []types.Operation,
+	clock clockwork.Clock,
+) {
+	operationIDs := strings.Join(func() []string {
+		var ids []string
+		for _, item := range ops {
+			ids = append(ids, item.GetID())
+		}
+		return ids
+	}(), ", ")
+	tbwr.State = types.OperationStateError
+	now := clock.Now()
+	tbwr.UpdatedAt = timestamppb.New(now)
+	tbwr.Audit.CompletedAt = timestamppb.New(now)
+
+	tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", tbwr.Retries)
+	fields := []zap.Field{
+		zap.Int("RetriesCount", len(ops)),
+	}
+	if len(ops) > 0 {
+		tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
+		fields = append(fields, zap.String("OperationIDs", operationIDs))
+	}
+	xlog.Error(ctx, "retry attempts exceeded limit for TBWR operation", fields...)
 }
 
 func TBWROperationHandler(
@@ -173,10 +214,16 @@ func TBWROperationHandler(
 			Field: "created_at",
 		}),
 	))
-	tbOps := make([]*types.TakeBackupOperation, len(ops))
+	var lastTbOp *types.TakeBackupOperation
+	var existingTbOps = 0
 	for i := range ops {
-		tbOps[i] = ops[i].(*types.TakeBackupOperation)
+		existingTbOps++
+		lastTbOp = ops[i].(*types.TakeBackupOperation)
 	}
+	//to update retry count for every operation that was launched before introducing
+	//persistent retry counter
+	tbwr.Retries = max(tbwr.Retries, existingTbOps)
+
 	if err != nil {
 		return fmt.Errorf("can't select Operations for TBWR op %s", tbwr.ID)
 	}
@@ -184,7 +231,7 @@ func TBWROperationHandler(
 	switch tbwr.State {
 	case types.OperationStateRunning:
 		{
-			do, err := HandleTbOps(tbwr.RetryConfig, tbOps, clock)
+			do, err := MakeRetryDecision(ctx, tbwr, lastTbOp, clock)
 			if err != nil {
 				tbwr.State = types.OperationStateError
 				tbwr.Message = err.Error()
@@ -198,19 +245,18 @@ func TBWROperationHandler(
 				}
 				return err
 			}
-			if do != Error {
-				fields := []zap.Field{
-					zap.String("decision", do.String()),
-				}
-				if len(ops) > 0 {
-					fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
-				}
-				xlog.Info(
-					ctx,
-					"TBWROperationHandler",
-					fields...,
-				)
+			fields := []zap.Field{
+				zap.String("decision", do.String()),
 			}
+			if do != Error && len(ops) > 0 {
+				fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
+			}
+			xlog.Info(
+				ctx,
+				"TBWROperationHandler",
+				fields...,
+			)
+
 			switch do {
 			case Success:
 				{
@@ -225,27 +271,8 @@ func TBWROperationHandler(
 				return nil
 			case Error:
 				{
-					operationIDs := strings.Join(func() []string {
-						var ids []string
-						for _, item := range ops {
-							ids = append(ids, item.GetID())
-						}
-						return ids
-					}(), ", ")
-					tbwr.State = types.OperationStateError
-					now := clock.Now()
-					tbwr.UpdatedAt = timestamppb.New(now)
-					tbwr.Audit.CompletedAt = timestamppb.New(now)
-
-					tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", len(ops))
-					fields := []zap.Field{
-						zap.Int("RetriesCount", len(ops)),
-					}
-					if len(ops) > 0 {
-						tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
-						fields = append(fields, zap.String("OperationIDs", operationIDs))
-					}
-					xlog.Error(ctx, "retry attempts exceeded limit for TBWR operation", fields...)
+					setErrorToRetryOperation(ctx, tbwr, ops, clock)
+					xlog.Info(ctx, tbwr.Proto().String())
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case RunNewTb:
@@ -261,10 +288,20 @@ func TBWROperationHandler(
 						clock,
 					)
 					if err != nil {
-						return err
+						var empty *backup_operations.EmptyDatabaseError
+
+						if errors.As(err, &empty) {
+							setErrorToRetryOperation(ctx, tbwr, ops, clock)
+							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
+						} else {
+							tbwr.IncRetries()
+							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
+						}
+					} else {
+						xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
+						tbwr.IncRetries()
+						return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr))
 					}
-					xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
-					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb))
 				}
 			default:
 				tbwr.State = types.OperationStateError
@@ -283,11 +320,7 @@ func TBWROperationHandler(
 		//if cancelled, set cancelled to itself
 		{
 			xlog.Info(ctx, "cancelling TBWR operation")
-			var last *types.TakeBackupOperation
-			if len(tbOps) > 0 {
-				last = tbOps[len(tbOps)-1]
-			}
-			if last == nil || !types.IsActive(last) {
+			if lastTbOp == nil || !types.IsActive(lastTbOp) {
 				tbwr.State = types.OperationStateCancelled
 				tbwr.Message = "Success"
 				now := clock.Now()
@@ -295,12 +328,12 @@ func TBWROperationHandler(
 				tbwr.Audit.CompletedAt = timestamppb.New(now)
 				return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 			} else {
-				if last.State == types.OperationStatePending || last.State == types.OperationStateRunning {
-					xlog.Info(ctx, "cancelling TB operation", zap.String("TBOperationID", last.ID))
-					last.State = types.OperationStateStartCancelling
-					last.Message = "Cancelling by parent operation"
-					last.UpdatedAt = timestamppb.New(clock.Now())
-					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(last))
+				if lastTbOp.State == types.OperationStatePending || lastTbOp.State == types.OperationStateRunning {
+					xlog.Info(ctx, "cancelling TB operation", zap.String("TBOperationID", lastTbOp.ID))
+					lastTbOp.State = types.OperationStateStartCancelling
+					lastTbOp.Message = "Cancelling by parent operation"
+					lastTbOp.UpdatedAt = timestamppb.New(clock.Now())
+					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(lastTbOp))
 				}
 			}
 		}

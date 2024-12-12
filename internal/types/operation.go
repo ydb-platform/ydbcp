@@ -274,6 +274,7 @@ type TakeBackupWithRetryOperation struct {
 	TakeBackupOperation
 	ScheduleID  *string
 	Ttl         *time.Duration
+	Retries     int
 	RetryConfig *pb.RetryConfig
 }
 
@@ -338,6 +339,10 @@ func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
 		UpdatedAt:            o.UpdatedAt,
 		RetryConfig:          o.RetryConfig,
 	}
+}
+
+func (o *TakeBackupWithRetryOperation) IncRetries() {
+	o.Retries++
 }
 
 func (o *TakeBackupWithRetryOperation) SpawnNewTBOperation(backupID string, subject string, ydbOperationId string) TakeBackupOperation {

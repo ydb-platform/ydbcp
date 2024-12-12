@@ -55,6 +55,7 @@ func TestProcessor(t *testing.T) {
 	_ = NewOperationProcessor(
 		ctx,
 		&wg,
+		10,
 		db,
 		handlers,
 		WithTickerProvider(tickerProvider),

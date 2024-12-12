@@ -64,14 +64,15 @@ type MetricsServerConfig struct {
 }
 
 type Config struct {
-	DBConnection        YDBConnectionConfig    `yaml:"db_connection"`
-	ClientConnection    ClientConnectionConfig `yaml:"client_connection"`
-	S3                  S3Config               `yaml:"s3"`
-	OperationTtlSeconds int64                  `yaml:"operation_ttl_seconds"`
-	Auth                AuthConfig             `yaml:"auth"`
-	GRPCServer          GRPCServerConfig       `yaml:"grpc_server"`
-	MetricsServer       MetricsServerConfig    `yaml:"metrics_server"`
-	SchedulesLimitPerDB int                    `yaml:"schedules_limit_per_db" default:"10"`
+	DBConnection             YDBConnectionConfig    `yaml:"db_connection"`
+	ClientConnection         ClientConnectionConfig `yaml:"client_connection"`
+	S3                       S3Config               `yaml:"s3"`
+	OperationTtlSeconds      int64                  `yaml:"operation_ttl_seconds"`
+	Auth                     AuthConfig             `yaml:"auth"`
+	GRPCServer               GRPCServerConfig       `yaml:"grpc_server"`
+	MetricsServer            MetricsServerConfig    `yaml:"metrics_server"`
+	SchedulesLimitPerDB      int                    `yaml:"schedules_limit_per_db" default:"10"`
+	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
 }
 
 var (

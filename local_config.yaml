@@ -30,3 +30,4 @@ metrics_server:
   bind_port: 9090
 
 schedules_limit_per_db: 1
+processor_interval_seconds: 2

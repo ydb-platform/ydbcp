@@ -55,6 +55,7 @@ func OperationsToInsert() []types.TakeBackupWithRetryOperation {
 			},
 			ScheduleID:  &schedule,
 			Ttl:         &ttl,
+			Retries:     0,
 			RetryConfig: &pb.RetryConfig{Retries: &pb.RetryConfig_Count{Count: 5}},
 		},
 		{
@@ -78,6 +79,7 @@ func OperationsToInsert() []types.TakeBackupWithRetryOperation {
 			},
 			ScheduleID:  &schedule,
 			Ttl:         &ttl,
+			Retries:     0,
 			RetryConfig: &pb.RetryConfig{Retries: &pb.RetryConfig_MaxBackoff{MaxBackoff: durationpb.New(ttl)}},
 		},
 	}
@@ -119,6 +121,7 @@ func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operati
 		log.Panicf("operation %v corrupted after update and read\ngot %v", operation, *tbwr)
 	}
 	operation.Message = "xxx"
+	operation.IncRetries()
 	err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(&operation))
 	if err != nil {
 		log.Panicf("failed to insert operation: %v", err)
@@ -126,6 +129,9 @@ func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operati
 	tbwr = ReadTBWROperation(ctx, ydbConn, operation.ID)
 	if "xxx" != tbwr.Message {
 		log.Panicf("operation %v did not change after update", *tbwr)
+	}
+	if tbwr.Retries != 1 {
+		log.Panicf("operation %v did not update retries", *tbwr)
 	}
 }
 

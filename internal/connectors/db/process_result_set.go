@@ -152,6 +152,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		parentOperationID    *string
 		scheduleID           *string
 		ttl                  *time.Duration
+		retries              *uint32
 		retriesCount         *uint32
 		maxBackoff           *time.Duration
 	)
@@ -176,6 +177,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		named.Optional("parent_operation_id", &parentOperationID),
 		named.Optional("schedule_id", &scheduleID),
 		named.Optional("ttl", &ttl),
+		named.Optional("retries", &retries),
 		named.Optional("retries_count", &retriesCount),
 		named.Optional("retries_max_backoff", &maxBackoff),
 	)
@@ -277,6 +279,10 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 				Retries: &pb.RetryConfig_Count{Count: *retriesCount},
 			}
 		}
+		retryNum := 0
+		if retries != nil {
+			retryNum = int(*retries)
+		}
 		return &types.TakeBackupWithRetryOperation{
 			TakeBackupOperation: types.TakeBackupOperation{
 				ID:          operationId,
@@ -294,6 +300,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 			},
 			ScheduleID:  scheduleID,
 			Ttl:         ttl,
+			Retries:     retryNum,
 			RetryConfig: retryConfig,
 		}, nil
 	}

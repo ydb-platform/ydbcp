@@ -179,7 +179,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	processor.NewOperationProcessor(ctx, &wg, dbConnector, handlersRegistry)
+	processor.NewOperationProcessor(ctx, &wg, configInstance.ProcessorIntervalSeconds, dbConnector, handlersRegistry)
 	xlog.Info(ctx, "Initialized OperationProcessor")
 	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
 	xlog.Info(ctx, "Created TtlWatcher")
