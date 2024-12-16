@@ -46,10 +46,10 @@ func ScheduleWatcherAction(
 	ctx, cancel := context.WithTimeout(baseCtx, period)
 	defer cancel()
 
-	schedules, err := db.SelectBackupSchedules(
-		//WithRPOInfo
+	//TODO: add pagination or switch to Query.Client()
+	schedules, err := db.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("BackupSchedules"),
+			queries.WithRawQuery(queries.ListSchedulesQuery),
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field: "status",
