@@ -37,7 +37,7 @@ type MetricsRegistry interface {
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
-	IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode)
+	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
 	IncScheduleCounters(schedule *types.BackupSchedule, clock clockwork.Clock, err error)
 }
 
@@ -65,8 +65,8 @@ type MetricsRegistryImpl struct {
 	handlerSuccessfulCount *prometheus.CounterVec
 
 	// backup metrics
-	backupsFailedCount    *prometheus.CounterVec
-	backupsSucceededCount *prometheus.CounterVec
+	backupsFailedCount    *prometheus.GaugeVec
+	backupsSucceededCount *prometheus.GaugeVec
 
 	// schedule metrics
 	scheduleActionFailedCount    *prometheus.CounterVec
@@ -164,11 +164,20 @@ func (s *MetricsRegistryImpl) IncSuccessfulHandlerRunsCount(containerId string, 
 	s.handlerSuccessfulCount.WithLabelValues(containerId, operationType).Inc()
 }
 
-func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode) {
-	if code == Ydb.StatusIds_SUCCESS {
-		s.backupsSucceededCount.WithLabelValues(containerId, database).Inc()
+func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode) {
+	var scheduleIdLabel string
+	if scheduleId != nil {
+		scheduleIdLabel = *scheduleId
 	} else {
-		s.backupsFailedCount.WithLabelValues(containerId, database, code.String()).Inc()
+		scheduleIdLabel = NO_SCHEDULE_ID_LABEL
+	}
+
+	if code == Ydb.StatusIds_SUCCESS {
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Inc()
+		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
+	} else {
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
+		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Inc()
 	}
 }
 
@@ -258,17 +267,17 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Help:      "Total count of successful operation handler runs",
 	}, []string{"container_id", "operation_type"})
 
-	s.backupsFailedCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
+	s.backupsFailedCount = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "backups",
 		Name:      "failed_count",
 		Help:      "Total count of failed backups",
-	}, []string{"container_id", "database", "reason"})
+	}, []string{"container_id", "database", "schedule_id"})
 
-	s.backupsSucceededCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
+	s.backupsSucceededCount = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "backups",
 		Name:      "succeeded_count",
 		Help:      "Total count of successful backups",
-	}, []string{"container_id", "database"})
+	}, []string{"container_id", "database", "schedule_id"})
 
 	s.scheduleActionFailedCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "schedules",
