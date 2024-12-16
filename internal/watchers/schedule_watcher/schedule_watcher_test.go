@@ -61,7 +61,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metrics.InitializeMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock,
@@ -174,7 +174,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metrics.InitializeMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock,
 	)
@@ -293,7 +293,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metrics.InitializeMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock,
@@ -409,7 +409,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
-	metrics.InitializeMockMetricsRegistry()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock,

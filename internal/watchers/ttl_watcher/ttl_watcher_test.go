@@ -16,13 +16,13 @@ import (
 )
 
 func TestTtlWatcher(t *testing.T) {
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClock()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	// Prepare fake clock and ticker
-	clock := clockwork.NewFakeClock()
 	var fakeTicker *ticker.FakeTicker
 	tickerInitialized := make(chan struct{})
 	tickerProvider := func(duration time.Duration) ticker.Ticker {

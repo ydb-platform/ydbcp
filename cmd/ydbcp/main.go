@@ -79,7 +79,7 @@ func main() {
 			zap.String("config", confStr),
 		)
 	}
-	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer)
+	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
 	server, err := server.NewServer(&configInstance.GRPCServer)
 	if err != nil {
