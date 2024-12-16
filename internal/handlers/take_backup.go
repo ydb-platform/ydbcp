@@ -68,7 +68,7 @@ func TBOperationHandler(
 		)
 
 		if err == nil {
-			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, status)
+			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, backup.ScheduleID, status)
 		}
 
 		return err

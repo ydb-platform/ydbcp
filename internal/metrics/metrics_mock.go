@@ -14,7 +14,7 @@ func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operat
 	s.metrics["operations_started_count"]++
 }
 
-func (s *MockMetricsRegistry) IncCompletedBackupsCount(containerId string, database string, code Ydb.StatusIds_StatusCode) {
+func (s *MockMetricsRegistry) IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode) {
 	if code == Ydb.StatusIds_SUCCESS {
 		s.metrics["backups_succeeded_count"]++
 	} else {
