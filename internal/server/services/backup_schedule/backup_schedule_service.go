@@ -2,8 +2,10 @@ package backup_schedule
 
 import (
 	"context"
+	"fmt"
 	"github.com/jonboulle/clockwork"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"strconv"
 	"time"
 	"ydbcp/internal/auth"
@@ -133,6 +135,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 	}
+
 	var scheduleName *string
 	if len(request.ScheduleName) > 0 {
 		scheduleName = &request.ScheduleName
@@ -152,6 +155,14 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Name:             scheduleName,
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
+	}
+
+	if schedule.ScheduleSettings.RecoveryPointObjective == nil {
+		duration, err := schedule.GetCronDuration()
+		if err != nil {
+			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get cron duration: %v", err))
+		}
+		schedule.ScheduleSettings.RecoveryPointObjective = durationpb.New(duration)
 	}
 
 	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn)

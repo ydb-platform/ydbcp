@@ -466,6 +466,10 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
+	if schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Minute {
+		log.Panicf("wrong recovery point objective: %v", schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective)
+	}
+
 	newScheduleName := "schedule-2.0"
 	newSourcePath := "/kv_test"
 	newSchedule, err := scheduleClient.UpdateBackupSchedule(
