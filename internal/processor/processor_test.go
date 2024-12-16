@@ -18,7 +18,8 @@ import (
 )
 
 func TestProcessor(t *testing.T) {
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClock()
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	var wg sync.WaitGroup
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -31,8 +32,6 @@ func TestProcessor(t *testing.T) {
 		tickerInitialized <- struct{}{}
 		return fakeTicker
 	}
-
-	clock := clockwork.NewFakeClock()
 
 	db := db.NewMockDBConnector()
 	handlers := NewOperationHandlerRegistry()
@@ -101,6 +100,9 @@ func TestProcessor(t *testing.T) {
 	assert.Empty(t, err)
 	assert.Equal(t, op.GetState(), types.OperationStateDone, "operation state should be Done")
 	val, ok := metrics.GetMetrics()["operations_inflight"]
+	assert.True(t, ok)               // to show that it has been incremented
+	assert.Equal(t, float64(0), val) //to show it has been reset to 0
+	val, ok = metrics.GetMetrics()["operations_inflight_duration_seconds"]
 	assert.True(t, ok)               // to show that it has been incremented
 	assert.Equal(t, float64(0), val) //to show it has been reset to 0
 }

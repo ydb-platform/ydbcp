@@ -348,14 +348,15 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
 		config.S3Config{},
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
-		clockwork.NewFakeClockAt(t1.AsTime()),
+		clock,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -412,14 +413,15 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
 		config.S3Config{},
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
-		clockwork.NewFakeClockAt(t1.AsTime()),
+		clock,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -534,14 +536,15 @@ func TestTBWRHandlerError(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClockAt(t2.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
 		config.S3Config{},
 		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
-		clockwork.NewFakeClockAt(t2.AsTime()),
+		clock,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -557,7 +560,8 @@ func TestTBWRHandlerError(t *testing.T) {
 }
 
 func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	ctx := context.Background()
 	tbwrID := types.GenerateObjectID()
 	tbwr := types.TakeBackupWithRetryOperation{
@@ -600,7 +604,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
-		clockwork.NewFakeClockAt(t1.AsTime()),
+		clock,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -851,7 +855,8 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 
 	clientConnector := client.NewMockClientConnector()
 
-	metrics.InitializeMockMetricsRegistry()
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
@@ -863,7 +868,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 			AllowInsecureEndpoint:  true,
 		},
 		queries.NewWriteTableQueryMock,
-		clockwork.NewFakeClockAt(t1.AsTime()),
+		clock,
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)

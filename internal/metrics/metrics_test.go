@@ -3,6 +3,7 @@ package metrics
 import (
 	"bytes"
 	"context"
+	"github.com/jonboulle/clockwork"
 	"io"
 	"net/http"
 	"strconv"
@@ -24,7 +25,7 @@ func TestMetricsCount(t *testing.T) {
 		BindPort:    8080,
 		BindAddress: "127.0.0.1",
 	}
-	InitializeMetricsRegistry(ctx, &wg, cfg)
+	InitializeMetricsRegistry(ctx, &wg, cfg, clockwork.NewFakeClock())
 
 	s := GlobalMetricsRegistry.(*MetricsRegistryImpl)
 	s.apiCallsCounter.WithLabelValues("test_service", "test_method", "test_status").Add(123)

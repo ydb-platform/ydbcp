@@ -38,13 +38,14 @@ type MetricsRegistry interface {
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
 	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
-	IncScheduleCounters(schedule *types.BackupSchedule, clock clockwork.Clock, err error)
+	IncScheduleCounters(schedule *types.BackupSchedule, err error)
 }
 
 type MetricsRegistryImpl struct {
 	server *http.Server
 	reg    *prometheus.Registry
 	cfg    config.MetricsServerConfig
+	clock  clockwork.Clock
 
 	// api metrics
 	apiCallsCounter *prometheus.CounterVec
@@ -54,10 +55,11 @@ type MetricsRegistryImpl struct {
 	bytesDeletedCounter *prometheus.CounterVec
 
 	// operation metrics
-	operationsDuration *prometheus.HistogramVec
-	operationsStarted  *prometheus.CounterVec
-	operationsFinished *prometheus.CounterVec
-	operationsInflight *prometheus.GaugeVec
+	completedOperationsDuration *prometheus.HistogramVec
+	inflightOperationsDuration  *prometheus.HistogramVec
+	operationsStarted           *prometheus.CounterVec
+	operationsFinished          *prometheus.CounterVec
+	operationsInflight          *prometheus.GaugeVec
 
 	// operation processor metrics
 	handlerRunsCount       *prometheus.CounterVec
@@ -105,6 +107,7 @@ func (s *MetricsRegistryImpl) IncOperationsStartedCounter(operation types.Operat
 
 func (s *MetricsRegistryImpl) ResetOperationsInflight() {
 	s.operationsInflight.Reset()
+	s.inflightOperationsDuration.Reset()
 }
 
 func (s *MetricsRegistryImpl) ReportOperationInflight(operation types.Operation) {
@@ -123,13 +126,23 @@ func (s *MetricsRegistryImpl) ReportOperationInflight(operation types.Operation)
 		operation.GetState().String(),
 		label,
 	).Inc()
+
+	if operation.GetAudit() != nil && operation.GetAudit().CreatedAt != nil {
+		duration := s.clock.Now().Sub(operation.GetAudit().CreatedAt.AsTime())
+		s.inflightOperationsDuration.WithLabelValues(
+			operation.GetContainerID(),
+			operation.GetDatabaseName(),
+			operation.GetType().String(),
+			operation.GetState().String(),
+		).Observe(duration.Seconds())
+	}
 }
 
 func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) {
 	if !types.IsActive(operation) {
 		if operation.GetAudit() != nil && operation.GetAudit().CompletedAt != nil {
 			duration := operation.GetAudit().CompletedAt.AsTime().Sub(operation.GetAudit().CreatedAt.AsTime())
-			s.operationsDuration.WithLabelValues(
+			s.completedOperationsDuration.WithLabelValues(
 				operation.GetContainerID(),
 				operation.GetDatabaseName(),
 				operation.GetType().String(),
@@ -173,15 +186,15 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, datab
 	}
 
 	if code == Ydb.StatusIds_SUCCESS {
-		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Inc()
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
 		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
 	} else {
 		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
-		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Inc()
+		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
 	}
 }
 
-func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule, clock clockwork.Clock, err error) {
+func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule, err error) {
 	if err != nil {
 		s.scheduleActionFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Inc()
 	} else {
@@ -190,20 +203,21 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 	if schedule.RecoveryPoint != nil {
 		s.scheduleLastBackupTimestamp.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(float64(schedule.RecoveryPoint.Unix()))
 	}
-	info := schedule.GetBackupInfo(clock)
+	info := schedule.GetBackupInfo(s.clock)
 	if info != nil {
 		s.scheduleRPOMarginRatio.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(info.LastBackupRpoMarginRatio)
 	}
 }
 
-func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig) {
-	GlobalMetricsRegistry = newMetricsRegistry(ctx, wg, cfg)
+func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) {
+	GlobalMetricsRegistry = newMetricsRegistry(ctx, wg, cfg, clock)
 }
 
-func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig) *MetricsRegistryImpl {
+func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) *MetricsRegistryImpl {
 	s := &MetricsRegistryImpl{
-		reg: prometheus.NewRegistry(),
-		cfg: *cfg,
+		reg:   prometheus.NewRegistry(),
+		cfg:   *cfg,
+		clock: clock,
 	}
 
 	s.apiCallsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
@@ -224,12 +238,19 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Help:      "Count of bytes deleted from storage",
 	}, []string{"container_id", "bucket", "database"})
 
-	s.operationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
+	s.completedOperationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
 		Subsystem: "operations",
 		Name:      "duration_seconds",
-		Help:      "Duration of operations in seconds",
+		Help:      "Duration of completed operations in seconds",
 		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
 	}, []string{"container_id", "database", "type", "status"})
+
+	s.inflightOperationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
+		Subsystem: "operations",
+		Name:      "inflight_duration_seconds",
+		Help:      "Duration of running operations in seconds",
+		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
+	}, []string{"container_id", "database", "type", "state"})
 
 	s.operationsStarted = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "operations",
