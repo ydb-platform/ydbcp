@@ -2,7 +2,6 @@ package db
 
 import (
 	"fmt"
-	"strings"
 	"time"
 
 	"ydbcp/internal/types"
@@ -108,7 +107,10 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 
 	sourcePathsSlice := make([]string, 0)
 	if sourcePaths != nil {
-		sourcePathsSlice = strings.Split(*sourcePaths, ",")
+		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return &types.Backup{
@@ -191,10 +193,17 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	sourcePathsSlice := make([]string, 0)
 	sourcePathsToExcludeSlice := make([]string, 0)
 	if sourcePaths != nil {
-		sourcePathsSlice = strings.Split(*sourcePaths, ",")
+		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		if err != nil {
+			return nil, err
+		}
+
 	}
 	if sourcePathsToExclude != nil {
-		sourcePathsToExcludeSlice = strings.Split(*sourcePathsToExclude, ",")
+		sourcePathsToExcludeSlice, err = types.ParseSourcePaths(*sourcePathsToExclude)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	if updatedAt != nil {
@@ -363,10 +372,16 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 	var sourcePathsSlice []string
 	var sourcePathsToExcludeSlice []string
 	if sourcePaths != nil {
-		sourcePathsSlice = strings.Split(*sourcePaths, ",")
+		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if sourcePathsToExclude != nil {
-		sourcePathsToExcludeSlice = strings.Split(*sourcePathsToExclude, ",")
+		sourcePathsToExcludeSlice, err = types.ParseSourcePaths(*sourcePathsToExclude)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	var ttlDuration *durationpb.Duration

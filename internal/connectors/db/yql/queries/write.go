@@ -118,12 +118,12 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			table_types.StringValueFromString(tb.YdbOperationId),
 		)
 		if len(tb.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tb.SourcePaths, ",")))
+			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tb.SourcePaths)))
 		}
 		if len(tb.SourcePathsToExclude) > 0 {
 			d.AddValueParam(
 				"$paths_to_exclude",
-				table_types.StringValueFromString(strings.Join(tb.SourcePathsToExclude, ",")),
+				table_types.StringValueFromString(types.SerializeSourcePaths(tb.SourcePathsToExclude)),
 			)
 		}
 		if tb.ParentOperationID != nil {
@@ -147,12 +147,12 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			table_types.StringValueFromString(tbwr.YdbConnectionParams.Endpoint),
 		)
 		if len(tbwr.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(tbwr.SourcePaths, ",")))
+			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tbwr.SourcePaths)))
 		}
 		if len(tbwr.SourcePathsToExclude) > 0 {
 			d.AddValueParam(
 				"$paths_to_exclude",
-				table_types.StringValueFromString(strings.Join(tbwr.SourcePathsToExclude, ",")),
+				table_types.StringValueFromString(types.SerializeSourcePaths(tbwr.SourcePathsToExclude)),
 			)
 		}
 		d.AddValueParam("$retries", table_types.Uint32Value(uint32(tbwr.Retries)))
@@ -205,7 +205,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		)
 
 		if len(rb.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(rb.SourcePaths, ",")))
+			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(rb.SourcePaths)))
 		}
 	} else if operation.GetType() == types.OperationTypeDB {
 		db, ok := operation.(*types.DeleteBackupOperation)
@@ -311,7 +311,9 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$status", table_types.StringValueFromString(b.Status))
 	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
 	d.AddValueParam("$size", table_types.Int64Value(b.Size))
-	d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(b.SourcePaths, ",")))
+	if len(b.SourcePaths) > 0 {
+		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(b.SourcePaths)))
+	}
 	if b.ScheduleID != nil {
 		d.AddValueParam("$schedule_id", table_types.StringValueFromString(*b.ScheduleID))
 	}
@@ -356,12 +358,12 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
 	}
 	if len(schedule.SourcePaths) > 0 {
-		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths)))
 	}
 	if len(schedule.SourcePathsToExclude) > 0 {
 		d.AddValueParam(
 			"$paths_to_exclude",
-			table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+			table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePathsToExclude)),
 		)
 	}
 	if schedule.Audit != nil {
@@ -395,14 +397,14 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 
 	if len(schedule.SourcePaths) > 0 {
-		d.AddValueParam("$paths", table_types.StringValueFromString(strings.Join(schedule.SourcePaths, ",")))
+		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths)))
 	} else {
 		d.AddValueParam("$paths", table_types.NullableStringValueFromString(nil))
 	}
 	if len(schedule.SourcePathsToExclude) > 0 {
 		d.AddValueParam(
 			"$paths_to_exclude",
-			table_types.StringValueFromString(strings.Join(schedule.SourcePathsToExclude, ",")),
+			table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePathsToExclude)),
 		)
 	} else {
 		d.AddValueParam("$paths_to_exclude", table_types.NullableStringValueFromString(nil))
