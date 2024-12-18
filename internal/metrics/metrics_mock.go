@@ -13,6 +13,12 @@ type MockMetricsRegistry struct {
 	clock   clockwork.Clock
 }
 
+func (s *MockMetricsRegistry) ReportHealthCheck() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.metrics["healthcheck_gauge"] = 1
+}
+
 func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operation) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
