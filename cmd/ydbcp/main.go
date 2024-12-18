@@ -24,6 +24,7 @@ import (
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	"ydbcp/internal/watchers/healthcheck"
 	"ydbcp/internal/watchers/schedule_watcher"
 	"ydbcp/internal/watchers/ttl_watcher"
 	ap "ydbcp/pkg/plugins/auth"
@@ -187,8 +188,10 @@ func main() {
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 
 	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, clockwork.NewRealClock())
-
 	xlog.Info(ctx, "Created ScheduleWatcher")
+
+	healthcheck.NewHealthCheck(ctx, &wg)
+	xlog.Info(ctx, "Initialized Healthcheck")
 
 	xlog.Info(ctx, "YDBCP started")
 	wg.Add(1)
