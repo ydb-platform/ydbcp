@@ -27,6 +27,7 @@ const (
 var GlobalMetricsRegistry MetricsRegistry
 
 type MetricsRegistry interface {
+	ReportHealthCheck()
 	IncApiCallsCounter(serviceName string, methodName string, status string)
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
 	IncBytesDeletedCounter(containerId string, bucket string, database string, bytes int64)
@@ -46,6 +47,9 @@ type MetricsRegistryImpl struct {
 	reg    *prometheus.Registry
 	cfg    config.MetricsServerConfig
 	clock  clockwork.Clock
+
+	// healthcheck
+	healthCheckGauge *prometheus.GaugeVec
 
 	// api metrics
 	apiCallsCounter *prometheus.CounterVec
@@ -75,6 +79,10 @@ type MetricsRegistryImpl struct {
 	scheduleActionSucceededCount *prometheus.CounterVec
 	scheduleLastBackupTimestamp  *prometheus.GaugeVec
 	scheduleRPOMarginRatio       *prometheus.GaugeVec
+}
+
+func (s *MetricsRegistryImpl) ReportHealthCheck() {
+	s.healthCheckGauge.WithLabelValues().Set(1)
 }
 
 func (s *MetricsRegistryImpl) IncApiCallsCounter(serviceName string, methodName string, code string) {
@@ -219,6 +227,12 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		cfg:   *cfg,
 		clock: clock,
 	}
+
+	s.healthCheckGauge = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "healthcheck",
+		Name:      "gauge",
+		Help:      "1 if YDBCP binary is up",
+	}, []string{})
 
 	s.apiCallsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "api",
