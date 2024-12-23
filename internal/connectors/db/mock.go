@@ -9,7 +9,7 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/ydb-platform/ydb-go-sdk/v3/query"
 )
 
 type MockDBConnector struct {
@@ -113,7 +113,7 @@ func (c *MockDBConnector) UpdateBackup(
 }
 
 func (c *MockDBConnector) Close(_ context.Context) {}
-func (c *MockDBConnector) GetTableClient() table.Client {
+func (c *MockDBConnector) GetQueryClient() query.Client {
 	return nil
 }
 

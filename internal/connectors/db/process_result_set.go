@@ -7,15 +7,14 @@ import (
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result/named"
+	"github.com/ydb-platform/ydb-go-sdk/v3/query"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type StructFromResultSet[T any] func(result result.Result) (*T, error)
+type StructFromResultSet[T any] func(result query.Row) (*T, error)
 
-type InterfaceFromResultSet[T any] func(result result.Result) (T, error)
+type InterfaceFromResultSet[T any] func(result query.Row) (T, error)
 
 func StringOrDefault(str *string, def string) string {
 	if str == nil {
@@ -59,7 +58,7 @@ func auditFromDb(initiated *string, createdAt *time.Time, completedAt *time.Time
 
 //TODO: unit test this
 
-func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
+func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 	var (
 		backupId         string
 		containerId      string
@@ -68,7 +67,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		s3endpoint       *string
 		s3region         *string
 		s3bucket         *string
-		s3pathprefix     *string
+		s3pathPrefix     *string
 		status           *string
 		message          *string
 		size             *int64
@@ -82,30 +81,30 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	)
 
 	err := res.ScanNamed(
-		named.Required("id", &backupId),
-		named.Required("container_id", &containerId),
-		named.Required("database", &databaseName),
-		named.Required("endpoint", &databaseEndpoint),
-		named.Optional("s3_endpoint", &s3endpoint),
-		named.Optional("s3_region", &s3region),
-		named.Optional("s3_bucket", &s3bucket),
-		named.Optional("s3_path_prefix", &s3pathprefix),
-		named.Optional("status", &status),
-		named.Optional("message", &message),
-		named.Optional("size", &size),
-		named.Optional("schedule_id", &scheduleId),
-		named.Optional("expire_at", &expireAt),
-		named.Optional("paths", &sourcePaths),
+		query.Named("id", &backupId),
+		query.Named("container_id", &containerId),
+		query.Named("database", &databaseName),
+		query.Named("endpoint", &databaseEndpoint),
+		query.Named("s3_endpoint", &s3endpoint),
+		query.Named("s3_region", &s3region),
+		query.Named("s3_bucket", &s3bucket),
+		query.Named("s3_path_prefix", &s3pathPrefix),
+		query.Named("status", &status),
+		query.Named("message", &message),
+		query.Named("size", &size),
+		query.Named("schedule_id", &scheduleId),
+		query.Named("expire_at", &expireAt),
+		query.Named("paths", &sourcePaths),
 
-		named.Optional("created_at", &createdAt),
-		named.Optional("completed_at", &completedAt),
-		named.Optional("initiated", &creator),
+		query.Named("created_at", &createdAt),
+		query.Named("completed_at", &completedAt),
+		query.Named("initiated", &creator),
 	)
 	if err != nil {
 		return nil, err
 	}
-
 	sourcePathsSlice := make([]string, 0)
+
 	if sourcePaths != nil {
 		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
 		if err != nil {
@@ -121,7 +120,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 		S3Endpoint:       StringOrEmpty(s3endpoint),
 		S3Region:         StringOrEmpty(s3region),
 		S3Bucket:         StringOrEmpty(s3bucket),
-		S3PathPrefix:     StringOrEmpty(s3pathprefix),
+		S3PathPrefix:     StringOrEmpty(s3pathPrefix),
 		Status:           StringOrDefault(status, types.BackupStateUnknown),
 		Message:          StringOrEmpty(message),
 		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
@@ -132,7 +131,7 @@ func ReadBackupFromResultSet(res result.Result) (*types.Backup, error) {
 	}, nil
 }
 
-func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
+func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 	var (
 		operationId      string
 		containerId      string
@@ -159,29 +158,29 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 		maxBackoff           *time.Duration
 	)
 	err := res.ScanNamed(
-		named.Required("id", &operationId),
-		named.Required("container_id", &containerId),
-		named.Required("type", &operationType),
-		named.Required("database", &databaseName),
-		named.Required("endpoint", &databaseEndpoint),
+		query.Named("id", &operationId),
+		query.Named("container_id", &containerId),
+		query.Named("type", &operationType),
+		query.Named("database", &databaseName),
+		query.Named("endpoint", &databaseEndpoint),
 
-		named.Optional("backup_id", &backupId),
-		named.Optional("operation_id", &ydbOperationId),
-		named.Optional("status", &operationStateBuf),
-		named.Optional("message", &message),
-		named.Optional("paths", &sourcePaths),
-		named.Optional("paths_to_exclude", &sourcePathsToExclude),
+		query.Named("backup_id", &backupId),
+		query.Named("operation_id", &ydbOperationId),
+		query.Named("status", &operationStateBuf),
+		query.Named("message", &message),
+		query.Named("paths", &sourcePaths),
+		query.Named("paths_to_exclude", &sourcePathsToExclude),
 
-		named.Optional("created_at", &createdAt),
-		named.Optional("completed_at", &completedAt),
-		named.Optional("initiated", &creator),
-		named.Optional("updated_at", &updatedAt),
-		named.Optional("parent_operation_id", &parentOperationID),
-		named.Optional("schedule_id", &scheduleID),
-		named.Optional("ttl", &ttl),
-		named.Optional("retries", &retries),
-		named.Optional("retries_count", &retriesCount),
-		named.Optional("retries_max_backoff", &maxBackoff),
+		query.Named("created_at", &createdAt),
+		query.Named("completed_at", &completedAt),
+		query.Named("initiated", &creator),
+		query.Named("updated_at", &updatedAt),
+		query.Named("parent_operation_id", &parentOperationID),
+		query.Named("schedule_id", &scheduleID),
+		query.Named("ttl", &ttl),
+		query.Named("retries", &retries),
+		query.Named("retries_count", &retriesCount),
+		query.Named("retries_max_backoff", &maxBackoff),
 	)
 	if err != nil {
 		return nil, err
@@ -317,7 +316,7 @@ func ReadOperationFromResultSet(res result.Result) (types.Operation, error) {
 	return &types.GenericOperation{ID: operationId}, nil
 }
 
-func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*types.BackupSchedule, error) {
+func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.BackupSchedule, error) {
 	var (
 		ID               string
 		containerID      string
@@ -340,27 +339,27 @@ func ReadBackupScheduleFromResultSet(res result.Result, withRPOInfo bool) (*type
 		nextLaunch             *time.Time
 	)
 
-	namedValues := []named.Value{
-		named.Required("id", &ID),
-		named.Required("container_id", &containerID),
-		named.Required("database", &databaseName),
-		named.Required("endpoint", &databaseEndpoint),
-		named.Required("crontab", &crontab),
+	namedValues := []query.NamedDestination{
+		query.Named("id", &ID),
+		query.Named("container_id", &containerID),
+		query.Named("database", &databaseName),
+		query.Named("endpoint", &databaseEndpoint),
+		query.Named("crontab", &crontab),
 
-		named.Optional("status", &status),
-		named.Optional("initiated", &initiated),
-		named.Optional("created_at", &createdAt),
-		named.Optional("name", &name),
-		named.Optional("ttl", &ttl),
-		named.Optional("paths", &sourcePaths),
-		named.Optional("paths_to_exclude", &sourcePathsToExclude),
-		named.Optional("recovery_point_objective", &recoveryPointObjective),
-		named.Optional("next_launch", &nextLaunch),
+		query.Named("status", &status),
+		query.Named("initiated", &initiated),
+		query.Named("created_at", &createdAt),
+		query.Named("name", &name),
+		query.Named("ttl", &ttl),
+		query.Named("paths", &sourcePaths),
+		query.Named("paths_to_exclude", &sourcePathsToExclude),
+		query.Named("recovery_point_objective", &recoveryPointObjective),
+		query.Named("next_launch", &nextLaunch),
 	}
 	if withRPOInfo {
-		namedValues = append(namedValues, named.Optional("last_backup_id", &lastBackupID))
-		namedValues = append(namedValues, named.Optional("last_successful_backup_id", &lastSuccessfulBackupID))
-		namedValues = append(namedValues, named.Optional("recovery_point", &recoveryPoint))
+		namedValues = append(namedValues, query.Named("last_backup_id", &lastBackupID))
+		namedValues = append(namedValues, query.Named("last_successful_backup_id", &lastSuccessfulBackupID))
+		namedValues = append(namedValues, query.Named("recovery_point", &recoveryPoint))
 	}
 
 	err := res.ScanNamed(namedValues...)
