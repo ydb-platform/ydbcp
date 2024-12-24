@@ -19,6 +19,7 @@ type WatcherImpl struct {
 	action          WatcherAction
 	prefixName      string
 	actionCompleted *chan struct{}
+	enableLog       bool
 }
 
 type Option func(*WatcherImpl)
@@ -32,6 +33,12 @@ func WithTickerProvider(ticketProvider ticker.TickerProvider) Option {
 func WithActionCompletedChannel(actionCompleted *chan struct{}) Option {
 	return func(o *WatcherImpl) {
 		o.actionCompleted = actionCompleted
+	}
+}
+
+func WithDisableLog() Option {
+	return func(o *WatcherImpl) {
+		o.enableLog = false
 	}
 }
 
@@ -49,6 +56,7 @@ func NewWatcher(
 		tickerProvider: ticker.NewRealTicker,
 		action:         action,
 		prefixName:     prefixName,
+		enableLog:      true,
 	}
 
 	for _, opt := range options {
@@ -71,10 +79,13 @@ func (o *WatcherImpl) run(wg *sync.WaitGroup) {
 			xlog.Debug(o.ctx, fmt.Sprintf("%s watcher stopped", o.prefixName))
 			return
 		case <-ticker.Chan():
-			xlog.Debug(o.ctx, fmt.Sprintf("Starting %s watcher action", o.prefixName))
+			if o.enableLog {
+				xlog.Debug(o.ctx, fmt.Sprintf("Starting %s watcher action", o.prefixName))
+			}
 			o.action(o.ctx, o.period)
-			xlog.Debug(o.ctx, fmt.Sprintf("%s watcher action was completed", o.prefixName))
-
+			if o.enableLog {
+				xlog.Debug(o.ctx, fmt.Sprintf("%s watcher action was completed", o.prefixName))
+			}
 			if o.actionCompleted != nil {
 				close(*o.actionCompleted)
 			}
