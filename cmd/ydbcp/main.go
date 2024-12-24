@@ -24,6 +24,7 @@ import (
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	"ydbcp/internal/watchers"
 	"ydbcp/internal/watchers/healthcheck"
 	"ydbcp/internal/watchers/schedule_watcher"
 	"ydbcp/internal/watchers/ttl_watcher"
@@ -190,7 +191,7 @@ func main() {
 	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, clockwork.NewRealClock())
 	xlog.Info(ctx, "Created ScheduleWatcher")
 
-	healthcheck.NewHealthCheck(ctx, &wg)
+	healthcheck.NewHealthCheck(ctx, &wg, watchers.WithDisableLog())
 	xlog.Info(ctx, "Initialized Healthcheck")
 
 	xlog.Info(ctx, "YDBCP started")
