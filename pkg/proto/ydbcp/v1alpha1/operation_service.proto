@@ -5,18 +5,29 @@ option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbc
 
 import "ydbcp/v1alpha1/operation.proto";
 
-// A set of methods for managing operations;.
+// A set of methods for managing operations.
+// YDB auth token can be passed via GRPC request metadata using authorization header.
 service OperationService {
+    // Lists all operations for the specified container.
+    // Required YDB permissions: `ydb.databases.list`
     rpc ListOperations(ListOperationsRequest) returns (ListOperationsResponse);
 
+    // Cancels the specified operation by its ID (only long-running operations TakeBackup/RestoreBackup can be cancelled).
+    // Required YDB permissions: `ydb.databases.backup` for TakeBackup operation, `ydb.tables.create` for RestoreBackup operation.
     rpc CancelOperation(CancelOperationRequest) returns (Operation);
 
+    // Retrieves the specified operation by its ID.
+    // Required YDB permissions: `ydb.databases.get`
     rpc GetOperation(GetOperationRequest) returns (Operation);
 }
 
 message ListOperationsRequest {
+    // The ID of the container for which to list operations.
     string container_id = 1;
+    // A mask to filter operations by database name using LIKE operator for pattern matching (ex.: "your_db_prefix%").
+    // For more information about LIKE operator, see the https://ydb.tech/docs/en/yql/reference/syntax/expressions#check-match.
     string database_name_mask = 2;
+    // A list of operation types to filter.
     repeated string operation_types = 3;
 
     // The maximum number of results per page that should be returned. If the number of available
@@ -31,14 +42,18 @@ message ListOperationsRequest {
 }
 
 message ListOperationsResponse {
+    // The list of operations.
     repeated Operation operations = 1;
+    // The token for the next page of results.
     string next_page_token = 2;
 }
 
 message CancelOperationRequest {
+    // The ID of the operation to cancel.
     string operation_id = 1;
 }
 
 message GetOperationRequest {
+    // The ID of the operation to retrieve.
     string id = 1;
 }

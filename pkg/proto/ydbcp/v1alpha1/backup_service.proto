@@ -7,31 +7,50 @@ import "ydbcp/v1alpha1/backup.proto";
 import "ydbcp/v1alpha1/operation.proto";
 import "google/protobuf/duration.proto";
 
-message ListBackupsOrder {
-    BackupField field = 1;
-    bool desc = 2;
-}
-
-// A set of methods for managing backups;.
+// A set of methods for managing backups.
+// YDB auth token can be passed via GRPC request metadata using authorization header.
 service BackupService {
+    // Returns the list of backups for the specified container.
+    // Required YDB permissions: `ydb.databases.list`
     rpc ListBackups(ListBackupsRequest) returns (ListBackupsResponse);
 
     // Returns the specified backup.
-    rpc GetBackup (GetBackupRequest) returns (Backup);
+    // Required YDB permissions: `ydb.databases.get`
+    rpc GetBackup(GetBackupRequest) returns (Backup);
 
+    // Creates a backup of the specified database.
+    // Required YDB permissions: `ydb.databases.backup`
     rpc MakeBackup(MakeBackupRequest) returns (Operation);
 
+    // Deletes the specified backup and returns DeleteBackup operation.
+    // Required YDB permissions: `ydb.databases.backup`
     rpc DeleteBackup(DeleteBackupRequest) returns (Operation);
 
+    // Restores the specified backup and returns MakeRestore operation.
+    // Required YDB permissions: `ydb.tables.create`
     rpc MakeRestore(MakeRestoreRequest) returns (Operation);
 
+    // Updates the TTL of the specified backup.
+    // Required YDB permissions: `ydb.databases.backup`
     rpc UpdateBackupTtl(UpdateBackupTtlRequest) returns (Backup);
 }
 
+message ListBackupsOrder {
+    // The field by which to order the backups.
+    BackupField field = 1;
+    // The order for the backups (true - descending, false - ascending).
+    bool desc = 2;
+}
+
 message ListBackupsRequest {
+    // The ID of the container for which to list backups.
     string container_id = 1;
+    // A mask to filter operations by database name using LIKE operator for pattern matching (ex.: "your_db_prefix%").
+    // For more information about LIKE operator, see the https://ydb.tech/docs/en/yql/reference/syntax/expressions#check-match.
     string database_name_mask = 2;
+    // A list of statuses to filter backups.
     repeated Backup.Status display_status = 3;
+    // The order in which to list the backups.
     ListBackupsOrder order = 4;
 
     // The maximum number of results per page that should be returned. If the number of available
@@ -47,40 +66,57 @@ message ListBackupsRequest {
 }
 
 message ListBackupsResponse {
+    // The list of backups.
     repeated Backup backups = 1;
+    // The token for the next page of results.
     string next_page_token = 2;
 }
 
 message GetBackupRequest {
+    // The ID of the backup to retrieve.
     string id = 1;
 }
 
 message MakeBackupRequest {
+    // An identifier of an external resource which holds the record about the backup
+    // (it can be the container id where the source database is located).
     string container_id = 1;
+    // The name of the database for which the backup will be created.
     string database_name = 2;
+    // GRPC endpoint of the database.
     string database_endpoint = 3;
-    // Full path to a table or directory. Empty source_paths means backup of root directory.
+    // List of source paths included in the backup (empty list means backup of root directory).
     repeated string source_paths = 4;  // [(size) = "<=256"];
     // Regexp for paths excluded from backup.
     repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
+    // The time-to-live for the backup.
     google.protobuf.Duration ttl = 6;
 }
 
 message DeleteBackupRequest {
+    // The ID of the backup to delete.
     string backup_id = 1;
 }
 
 message MakeRestoreRequest {
+    // An identifier of an external resource which holds the record about the backup
+    // (it can be the container id where the target database is located).
     string container_id = 1;
+    // The ID of the backup to restore.
     string backup_id = 2;
+    // The name of the database to restore.
     string database_name = 3;
+    // GRPC endpoint of the database.
     string database_endpoint = 4;
+    // The prefix for the destination path.
     string destination_prefix = 5;
     // Paths to s3 objects to restore.
     repeated string source_paths = 6;
 }
 
 message UpdateBackupTtlRequest {
+    // The ID of the backup to update.
     string backup_id = 1;
+    // The new time-to-live for the backup.
     google.protobuf.Duration ttl = 2;
 }

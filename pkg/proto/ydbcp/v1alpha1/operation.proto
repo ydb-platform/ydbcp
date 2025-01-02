@@ -18,20 +18,38 @@ message Operation {
         START_CANCELLING = 6;
         RUNNING = 7;
     }
+
+    // Unique identifier for the operation.
     string id = 1;
+    // An identifier of an external resource which holds the record about the operation
+    // (it can be the container id where the database is located).
     string container_id = 2;
+    // Type of the operation (TB - TakeBackup, RB - RestoreBackup, DB - DeleteBackup, TBWR - TakeBackupWithRetries).
     string type = 3;
+    // Name of the database associated with the operation.
     string database_name = 4;
+    // GRPC endpoint of the database.
     string database_endpoint = 5;
+    // Identifier for the YDB server export/import operation.
     string ydb_server_operation_id = 6;
+    // Identifier for the backup associated with the operation.
     string backup_id = 7;
+    // List of source paths included in the backup (only for MakeBackup operation).
     repeated string source_paths = 8;  // [(size) = "<=256"];
+    // List of source paths to exclude from the backup (only for MakeBackup operation).
     repeated string source_paths_to_exclude = 9;  // [(size) = "<=256"];
+    // List of paths included in restore (only for MakeRestore operation).
     repeated string restore_paths = 10;  // [(size) = "<=256"];
+    // Audit information for the operation.
     AuditInfo audit = 11;
+    // Current status of the operation.
     Status status = 12;
+    // Message associated with the operation status.
     string message = 13;
+    // Timestamp when the operation was last updated.
     google.protobuf.Timestamp updated_at = 14;
+    // Identifier for the parent operation, if exist.
     string parent_operation_id = 15;
+    // Retry configuration for the operation.
     RetryConfig retry_config = 16;
 }

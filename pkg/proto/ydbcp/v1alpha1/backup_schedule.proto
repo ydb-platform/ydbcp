@@ -9,19 +9,30 @@ import "google/protobuf/timestamp.proto";
 
 
 message BackupSchedulePattern {
+    // Crontab expression defining the schedule.
     string crontab = 1;
 }
 
 message BackupScheduleSettings {
+    // Pattern for scheduling backups.
     BackupSchedulePattern schedule_pattern = 1;
+    // Time-to-live for the backups created by this schedule.
     google.protobuf.Duration ttl = 2;
+    // Recovery point objective duration (maximum length of time permitted, that data can be restored).
     google.protobuf.Duration recovery_point_objective = 3;
 }
 
 message ScheduledBackupInfo {
+    // Unique identifier for the backup.
     string backup_id = 1;
+    // Current recovery point
+    // (the datetime at which the last successful backup has been taken).
     google.protobuf.Timestamp recovery_point = 2;
+    // Margin interval for the last backup's rpo
+    // (how much time was left to break the rpo at the moment when the last backup completed,
+    // negative means is has been broken).
     google.protobuf.Duration last_backup_rpo_margin_interval = 3;
+    // Margin ratio for the last backup's rpo (the same as the previous as a share of the rpo).
     double last_backup_rpo_margin_ratio = 4;
 }
 
@@ -33,22 +44,29 @@ message BackupSchedule {
         DELETED = 3;
     }
 
-    //backup settings
+    // Unique identifier for the backup schedule.
     string id = 1;
+    // An identifier of an external resource which holds the record about the backup
+    // (it can be the container id where the database is located).
     string container_id = 2;
+    // Name of the database associated with the backup schedule.
     string database_name = 3;
+    // GRPC endpoint of the database.
     string endpoint = 4;
+    // List of source paths included in the backup (empty list means backup of root directory).
     repeated string source_paths = 5;  // [(size) = "<=256"];
+    // List of source paths to exclude from the backup.
     repeated string source_paths_to_exclude = 6;  // [(size) = "<=256"];
-
+    // Audit information for the backup schedule.
     ydbcp.v1alpha1.AuditInfo audit = 7;
-
+    // Name of the backup schedule.
     string schedule_name = 8;
+    // Current status of the backup schedule.
     Status status = 9;
-
+    // Settings for the backup schedule.
     BackupScheduleSettings schedule_settings = 10;
-
+    // Timestamp for the next scheduled backup.
     google.protobuf.Timestamp next_launch = 11;
-
+    // Information about the last successful backup.
     ScheduledBackupInfo last_successful_backup_info = 12;
 }

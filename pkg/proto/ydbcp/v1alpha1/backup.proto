@@ -24,29 +24,49 @@ message Backup {
         RUNNING = 6;
         DELETING = 7;
     }
+    // Unique identifier for the backup.
     string id = 1;
+    // An identifier of an external resource which holds the record about the backup
+    // (it can be the container id where the database is located).
     string container_id = 2;
+    // Name of the database for which the backup was created.
     string database_name = 3;
+    // GRPC endpoint of the database.
     string database_endpoint = 4;
+    // S3 location where the backup is stored.
     S3Location location = 5;
+    // Audit information for the backup.
     AuditInfo audit = 6;
+    // Size of the backup in bytes.
     int64 size = 7;
+    // Current status of the backup.
     Status status = 8;
+    // Message associated with the backup status.
     string message = 9;
+    // Timestamp when the backup will expire.
     google.protobuf.Timestamp expire_at = 10;
+    // Unique identifier for the schedule that initiated the backup.
     string schedule_id = 11;
-    repeated string source_paths = 12;
+    // List of source paths included in the backup (empty list means backup of root directory).
+    repeated string source_paths = 12;  // [(size) = "<=256"];
 }
 
 message S3Location {
+    // S3 endpoint.
     string endpoint = 1;
+    // S3 bucket name.
     string bucket = 2;
+    // S3 region.
     string region = 3;
+    // Path prefix in the S3 bucket.
     string path_prefix = 4;
 }
 
 message AuditInfo {
+    // Creator of the backup, YDBCP receives this info from the IAM.
     string creator = 1;
+    // Timestamp when the TakeBackup operation was created.
     google.protobuf.Timestamp created_at = 2;
+    // Timestamp when the TakeBackup operation was completed.
     google.protobuf.Timestamp completed_at = 3;
 }
