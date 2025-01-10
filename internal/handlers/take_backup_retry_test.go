@@ -514,6 +514,7 @@ func TestTBWRHandlerError(t *testing.T) {
 			Audit:               &pb.AuditInfo{},
 		},
 		RetryConfig: nil,
+		Retries:     1,
 	}
 
 	ops := []types.Operation{
