@@ -115,7 +115,14 @@ func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule
 		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.RecoveryPoint.Unix())
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			info := schedule.GetBackupInfo(s.clock)
-			s.metrics["schedules_recovery_point_objective"] = info.LastBackupRpoMarginRatio
+			s.metrics["schedules_rpo_margin_ratio"] = info.LastBackupRpoMarginRatio
+		}
+	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
+		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
+		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
+			fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
+			fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+			s.metrics["schedules_rpo_margin_ratio"] = fakeLastBackupRpoMarginRatio
 		}
 	}
 }
