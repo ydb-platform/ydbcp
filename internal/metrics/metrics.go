@@ -210,10 +210,18 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 	if schedule.RecoveryPoint != nil {
 		s.scheduleLastBackupTimestamp.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(float64(schedule.RecoveryPoint.Unix()))
+	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
+		// Report schedule creation time as last backup time if no backups were made
+		s.scheduleLastBackupTimestamp.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(float64(schedule.Audit.CreatedAt.AsTime().Unix()))
 	}
 	info := schedule.GetBackupInfo(s.clock)
 	if info != nil {
 		s.scheduleRPOMarginRatio.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(info.LastBackupRpoMarginRatio)
+	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil && schedule.ScheduleSettings.RecoveryPointObjective != nil {
+		// Report fake LastBackupRpoMarginRatio based on schedule creation time if no backups were made
+		fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
+		fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+		s.scheduleRPOMarginRatio.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(fakeLastBackupRpoMarginRatio)
 	}
 }
 
