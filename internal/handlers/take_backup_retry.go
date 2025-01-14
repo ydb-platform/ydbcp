@@ -307,12 +307,14 @@ func TBWROperationHandler(
 
 						if errors.As(err, &empty) {
 							setErrorToRetryOperation(ctx, tbwr, ops, clock, true)
+							metrics.GlobalMetricsRegistry.ReportEmptyDatabase(tbwr)
 							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 						} else {
 							tbwr.IncRetries()
 							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 						}
 					} else {
+						metrics.GlobalMetricsRegistry.ResetEmptyDatabase(tbwr)
 						xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
 						tbwr.IncRetries()
 						return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr))

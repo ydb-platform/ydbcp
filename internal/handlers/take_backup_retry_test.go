@@ -628,6 +628,10 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 	assert.NotNil(t, tb)
 	assert.Equal(t, types.OperationStateRunning, tb.State)
 	assert.Equal(t, t1, tb.Audit.CreatedAt)
+	val, ok := metrics.GetMetrics()["empty_database"]
+	assert.True(t, ok)               // to show that it has been reset
+	assert.Equal(t, float64(0), val) //to show it has been reset to 0
+
 }
 
 func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
