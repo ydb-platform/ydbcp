@@ -40,6 +40,8 @@ type MetricsRegistry interface {
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
 	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
 	IncScheduleCounters(schedule *types.BackupSchedule, err error)
+	ReportEmptyDatabase(operation *types.TakeBackupWithRetryOperation)
+	ResetEmptyDatabase(operation *types.TakeBackupWithRetryOperation)
 }
 
 type MetricsRegistryImpl struct {
@@ -75,6 +77,7 @@ type MetricsRegistryImpl struct {
 	backupsSucceededCount *prometheus.GaugeVec
 
 	// schedule metrics
+	emptyDatabaseGauge           *prometheus.GaugeVec
 	scheduleActionFailedCount    *prometheus.CounterVec
 	scheduleActionSucceededCount *prometheus.CounterVec
 	scheduleLastBackupTimestamp  *prometheus.GaugeVec
@@ -225,6 +228,18 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 }
 
+func (s *MetricsRegistryImpl) ReportEmptyDatabase(operation *types.TakeBackupWithRetryOperation) {
+	if operation.ScheduleID != nil {
+		s.emptyDatabaseGauge.WithLabelValues(operation.ContainerID, operation.GetDatabaseName(), *operation.ScheduleID).Set(float64(1))
+	}
+}
+
+func (s *MetricsRegistryImpl) ResetEmptyDatabase(operation *types.TakeBackupWithRetryOperation) {
+	if operation.ScheduleID != nil {
+		s.emptyDatabaseGauge.WithLabelValues(operation.ContainerID, operation.GetDatabaseName(), *operation.ScheduleID).Set(float64(0))
+	}
+}
+
 func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) {
 	GlobalMetricsRegistry = newMetricsRegistry(ctx, wg, cfg, clock)
 }
@@ -326,6 +341,12 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "schedules",
 		Name:      "failed_count",
 		Help:      "Total count of failed scheduled backup runs",
+	}, []string{"container_id", "database", "schedule_id"})
+
+	s.emptyDatabaseGauge = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "schedules",
+		Name:      "empty_database",
+		Help:      "Gauge of whether database is empty",
 	}, []string{"container_id", "database", "schedule_id"})
 
 	s.scheduleActionSucceededCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
