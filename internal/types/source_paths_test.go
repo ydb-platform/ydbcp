@@ -33,7 +33,12 @@ func TestParseSourcePaths(t *testing.T) {
 			name:     "mixed",
 			input:    "L3Rlc3RpbmctZ2xvYmFsL2lhbQ==,aboba",
 			expected: nil,
-			message:  "got both encoded and plain source paths",
+			message:  "got both encoded and plain source paths: \"L3Rlc3RpbmctZ2xvYmFsL2lhbQ==,aboba\"",
+		},
+		{
+			name:     "timezones",
+			input:    "string,/dev/ydbcp/Timezones",
+			expected: []string{"string", "/dev/ydbcp/Timezones"},
 		},
 	}
 
