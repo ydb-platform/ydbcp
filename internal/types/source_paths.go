@@ -14,7 +14,7 @@ func ParseSourcePaths(str string) ([]string, error) {
 	hasEncoded, hasPlain := false, false
 	slice := make([]string, len(codedSlice))
 	for i, s := range codedSlice {
-		data, err := base64.StdEncoding.DecodeString(s)
+		data, err := base64.URLEncoding.DecodeString(s)
 		if err != nil {
 			slice[i] = s
 			hasPlain = true
@@ -24,7 +24,7 @@ func ParseSourcePaths(str string) ([]string, error) {
 		}
 	}
 	if hasEncoded && hasPlain {
-		return nil, fmt.Errorf("got both encoded and plain source paths")
+		return nil, fmt.Errorf("got both encoded and plain source paths: \"%s\"", str)
 	}
 	return slice, nil
 }
