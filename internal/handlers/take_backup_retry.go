@@ -311,6 +311,7 @@ func TBWROperationHandler(
 							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 						} else {
 							tbwr.IncRetries()
+							metrics.GlobalMetricsRegistry.ResetEmptyDatabase(tbwr)
 							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 						}
 					} else {
