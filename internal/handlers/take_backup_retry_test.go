@@ -628,9 +628,84 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 	assert.NotNil(t, tb)
 	assert.Equal(t, types.OperationStateRunning, tb.State)
 	assert.Equal(t, t1, tb.Audit.CreatedAt)
-	val, ok := metrics.GetMetrics()["empty_database"]
-	assert.True(t, ok)               // to show that it has been reset
-	assert.Equal(t, float64(0), val) //to show it has been reset to 0
+}
+
+func TestTBWRHandlerEmptyDatabase(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+	ctx := context.Background()
+	tbwrID := types.GenerateObjectID()
+	tbwr := types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{
+			ID:          tbwrID,
+			ContainerID: "abcde",
+			State:       types.OperationStateRunning,
+			Message:     "",
+			SourcePaths: []string{"path"},
+			YdbConnectionParams: types.YdbConnectionParams{
+				Endpoint:     "i.valid.com",
+				DatabaseName: "/mydb",
+			},
+			Audit: &pb.AuditInfo{
+				CreatedAt: t1,
+			},
+		},
+		RetryConfig: nil,
+	}
+
+	ops := []types.Operation{
+		&tbwr,
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithOperations(toMap(ops...)),
+	)
+	dbConnector.SetOperationsIDSelector([]string{})
+
+	clientConnector := client.NewMockClientConnector(
+		client.WithEmptyDatabases("/mydb"),
+	)
+
+	handler := NewTBWROperationHandler(
+		dbConnector,
+		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
+		queries.NewWriteTableQueryMock,
+		clock,
+	)
+	err := handler(ctx, &tbwr)
+	assert.Empty(t, err)
+
+	op, err := dbConnector.GetOperation(ctx, tbwrID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, op)
+	assert.Equal(t, types.OperationStateDone, op.GetState())
+	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	assert.Empty(t, err)
+	assert.Equal(t, 2, len(operations))
+	tbwr = *op.(*types.TakeBackupWithRetryOperation)
+	var tb *types.TakeBackupOperation
+	for _, op = range operations {
+		if op.GetType() == types.OperationTypeTB {
+			tb = op.(*types.TakeBackupOperation)
+			break
+		}
+	}
+	assert.NotNil(t, tb)
+	assert.Equal(t, types.OperationStateDone, tb.State)
+	assert.Equal(t, t1, tb.Audit.CreatedAt)
+	backups, err := dbConnector.SelectBackups(ctx, queries.NewReadTableQuery())
+	assert.Empty(t, err)
+	assert.Equal(t, 1, len(backups))
+	assert.Equal(t, types.BackupStateAvailable, backups[0].Status)
+	assert.Equal(t, tbwr.ScheduleID, backups[0].ScheduleID)
+	assert.Equal(t, tbwr.ID, *tb.ParentOperationID)
 
 }
 

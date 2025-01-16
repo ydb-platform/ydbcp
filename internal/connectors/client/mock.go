@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"strings"
 
 	"ydbcp/internal/types"
 
@@ -20,16 +21,18 @@ type ObjectPath struct {
 }
 
 type MockClientConnector struct {
-	storage    map[ObjectPath]bool
-	operations map[string]*Ydb_Operations.Operation
+	storage        map[ObjectPath]bool
+	emptyDatabases map[string]bool
+	operations     map[string]*Ydb_Operations.Operation
 }
 
 type Option func(*MockClientConnector)
 
 func NewMockClientConnector(options ...Option) *MockClientConnector {
 	connector := &MockClientConnector{
-		storage:    make(map[ObjectPath]bool),
-		operations: make(map[string]*Ydb_Operations.Operation),
+		storage:        make(map[ObjectPath]bool),
+		emptyDatabases: make(map[string]bool),
+		operations:     make(map[string]*Ydb_Operations.Operation),
 	}
 	for _, opt := range options {
 		opt(connector)
@@ -44,6 +47,14 @@ func WithOperations(operations map[string]*Ydb_Operations.Operation) Option {
 	}
 }
 
+func WithEmptyDatabases(databases ...string) Option {
+	return func(c *MockClientConnector) {
+		for _, database := range databases {
+			c.emptyDatabases[database] = true
+		}
+	}
+}
+
 func (m *MockClientConnector) Open(_ context.Context, _ string) (*ydb.Driver, error) {
 	return nil, nil
 }
@@ -55,6 +66,14 @@ func (m *MockClientConnector) Close(_ context.Context, _ *ydb.Driver) error {
 func (m *MockClientConnector) PreparePathsForExport(
 	_ context.Context, _ *ydb.Driver, sourcePaths []string, _ []string,
 ) ([]string, error) {
+	if sourcePaths == nil || len(sourcePaths) == 0 {
+		return []string{}, nil
+	}
+	for database := range m.emptyDatabases {
+		if strings.Contains(sourcePaths[0], database) {
+			return []string{}, nil
+		}
+	}
 	return sourcePaths, nil
 }
 

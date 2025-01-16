@@ -159,7 +159,6 @@ func setErrorToRetryOperation(
 	tbwr *types.TakeBackupWithRetryOperation,
 	ops []types.Operation,
 	clock clockwork.Clock,
-	isEmptyDb bool,
 ) {
 	operationIDs := strings.Join(func() []string {
 		var ids []string
@@ -176,29 +175,26 @@ func setErrorToRetryOperation(
 		zap.Int("RetriesCount", len(ops)),
 	}
 
-	if isEmptyDb {
-		tbwr.Message = "empty database"
-	} else {
-		if tbwr.RetryConfig != nil {
-			switch tbwr.RetryConfig.Retries.(type) {
-			case *pb.RetryConfig_Count:
-				{
-					tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", tbwr.Retries)
-				}
-			case *pb.RetryConfig_MaxBackoff:
-				{
-					tbwr.Message = fmt.Sprintf("retry attempts exceeded backoff duration.")
-				}
+	if tbwr.RetryConfig != nil {
+		switch tbwr.RetryConfig.Retries.(type) {
+		case *pb.RetryConfig_Count:
+			{
+				tbwr.Message = fmt.Sprintf("retry attempts exceeded limit: %d.", tbwr.Retries)
 			}
-		} else {
-			tbwr.Message = fmt.Sprint("retry attempts exceeded limit: 1.")
+		case *pb.RetryConfig_MaxBackoff:
+			{
+				tbwr.Message = fmt.Sprintf("retry attempts exceeded backoff duration.")
+			}
 		}
-
-		if len(ops) > 0 {
-			tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
-			fields = append(fields, zap.String("OperationIDs", operationIDs))
-		}
+	} else {
+		tbwr.Message = fmt.Sprint("retry attempts exceeded limit: 1.")
 	}
+
+	if len(ops) > 0 {
+		tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
+		fields = append(fields, zap.String("OperationIDs", operationIDs))
+	}
+
 	xlog.Error(ctx, tbwr.Message, fields...)
 }
 
@@ -287,7 +283,7 @@ func TBWROperationHandler(
 				return nil
 			case Error:
 				{
-					setErrorToRetryOperation(ctx, tbwr, ops, clock, false)
+					setErrorToRetryOperation(ctx, tbwr, ops, clock)
 					return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 				}
 			case RunNewTb:
@@ -302,22 +298,35 @@ func TBWROperationHandler(
 						types.OperationCreatorName,
 						clock,
 					)
+
+					tbwr.IncRetries()
+
 					if err != nil {
 						var empty *backup_operations.EmptyDatabaseError
 
 						if errors.As(err, &empty) {
-							setErrorToRetryOperation(ctx, tbwr, ops, clock, true)
-							metrics.GlobalMetricsRegistry.ReportEmptyDatabase(tbwr)
-							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
+							backup, tb = backup_operations.CreateEmptyBackup(
+								backup_operations.FromTBWROperation(tbwr),
+								clock,
+							)
+							xlog.Debug(
+								ctx,
+								"Created empty backup instance for empty db",
+								zap.String("BackupID", backup.ID),
+								zap.String("TBOperationID", tb.ID),
+							)
+							tbwr.State = types.OperationStateDone
+							tbwr.Message = "Success"
+							now := clock.Now()
+							tbwr.UpdatedAt = timestamppb.New(now)
+							tbwr.Audit.CompletedAt = timestamppb.New(now)
+							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr))
 						} else {
-							tbwr.IncRetries()
-							metrics.GlobalMetricsRegistry.ResetEmptyDatabase(tbwr)
+							//increment retries
 							return db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr))
 						}
 					} else {
-						metrics.GlobalMetricsRegistry.ResetEmptyDatabase(tbwr)
 						xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
-						tbwr.IncRetries()
 						return db.ExecuteUpsert(ctx, queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr))
 					}
 				}

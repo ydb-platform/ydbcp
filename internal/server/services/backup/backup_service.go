@@ -274,7 +274,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-
+	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 	subject, err := auth.CheckAuth(
 		ctx, s.auth, auth.PermissionBackupRestore, backup.ContainerID, "",
@@ -301,6 +301,12 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		xlog.Error(ctx, "backup is not available", zap.String("BackupStatus", backup.Status))
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
+	}
+
+	if backup.SourcePaths == nil || len(backup.SourcePaths) == 0 {
+		xlog.Info(ctx, "called restore for empty backup")
+		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
+		return nil, status.Errorf(codes.FailedPrecondition, "backup is empty, status %s", backup.Status)
 	}
 
 	clientConnectionParams := types.YdbConnectionParams{
