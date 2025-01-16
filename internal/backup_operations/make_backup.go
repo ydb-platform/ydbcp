@@ -181,6 +181,67 @@ func ErrToStatus(err error) error {
 	return err
 }
 
+func CreateS3DestinationPrefix(databaseName string, s3 config.S3Config, clock clockwork.Clock) string {
+	dbNamePath := strings.Replace(databaseName, "/", "_", -1) // TODO: checking user input
+	dbNamePath = strings.Trim(dbNamePath, "_")
+	return path.Join(
+		s3.PathPrefix,
+		dbNamePath,
+		clock.Now().Format(types.BackupTimestampFormat),
+	)
+}
+
+func CreateEmptyBackup(
+	req MakeBackupInternalRequest,
+	clock clockwork.Clock,
+) (*types.Backup, *types.TakeBackupOperation) {
+	var expireAt *time.Time
+	if req.Ttl != nil {
+		expireAt = new(time.Time)
+		*expireAt = clock.Now().Add(*req.Ttl)
+	}
+
+	now := timestamppb.New(clock.Now())
+	backup := &types.Backup{
+		ID:               types.GenerateObjectID(),
+		ContainerID:      req.ContainerID,
+		DatabaseName:     req.DatabaseName,
+		DatabaseEndpoint: req.DatabaseEndpoint,
+		Status:           types.BackupStateAvailable,
+		AuditInfo: &pb.AuditInfo{
+			CreatedAt:   now,
+			CompletedAt: now,
+			Creator:     types.OperationCreatorName,
+		},
+		ScheduleID:  req.ScheduleID,
+		ExpireAt:    expireAt,
+		SourcePaths: []string{},
+	}
+
+	op := &types.TakeBackupOperation{
+		ID:          types.GenerateObjectID(),
+		BackupID:    backup.ID,
+		ContainerID: req.ContainerID,
+		State:       types.OperationStateDone,
+		YdbConnectionParams: types.YdbConnectionParams{
+			Endpoint:     req.DatabaseEndpoint,
+			DatabaseName: req.DatabaseName,
+		},
+		SourcePaths:          req.SourcePaths,
+		SourcePathsToExclude: req.SourcePathsToExclude,
+		Audit: &pb.AuditInfo{
+			CreatedAt:   now,
+			CompletedAt: now,
+			Creator:     types.OperationCreatorName,
+		},
+		YdbOperationId:    "",
+		UpdatedAt:         now,
+		ParentOperationID: req.ParentOperationID,
+	}
+
+	return backup, op
+}
+
 func MakeBackup(
 	ctx context.Context,
 	clientConn client.ClientConnector,
@@ -234,14 +295,7 @@ func MakeBackup(
 		return nil, nil, status.Error(codes.Internal, "can't get S3SecretKey")
 	}
 
-	dbNamePath := strings.Replace(req.DatabaseName, "/", "_", -1) // TODO: checking user input
-	dbNamePath = strings.Trim(dbNamePath, "_")
-
-	destinationPrefix := path.Join(
-		s3.PathPrefix,
-		dbNamePath,
-		clock.Now().Format(types.BackupTimestampFormat),
-	)
+	destinationPrefix := CreateS3DestinationPrefix(req.DatabaseName, s3, clock)
 	ctx = xlog.With(ctx, zap.String("S3DestinationPrefix", destinationPrefix))
 
 	pathsForExport, err := ValidateSourcePaths(ctx, req, clientConn, client, dsn)

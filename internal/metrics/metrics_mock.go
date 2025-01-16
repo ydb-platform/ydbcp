@@ -127,19 +127,6 @@ func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 }
 
-func (s *MockMetricsRegistry) ReportEmptyDatabase(operation *types.TakeBackupWithRetryOperation) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.metrics["empty_database"] = 1
-}
-
-func (s *MockMetricsRegistry) ResetEmptyDatabase(operation *types.TakeBackupWithRetryOperation) {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	s.metrics["empty_database"] = 0
-
-}
-
 type Option func(*MockMetricsRegistry)
 
 func WithClock(clock clockwork.Clock) Option {
