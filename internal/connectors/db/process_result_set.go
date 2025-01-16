@@ -209,7 +209,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		updatedTs = timestamppb.New(*updatedAt)
 	}
 
-	if operationType == string(types.OperationTypeTB) {
+	if operationType == string(types.LegacyOperationTypeTB) || operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
 			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
 		}
@@ -230,7 +230,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 			UpdatedAt:            updatedTs,
 			ParentOperationID:    parentOperationID,
 		}, nil
-	} else if operationType == string(types.OperationTypeRB) {
+	} else if operationType == string(types.LegacyOperationTypeRB) || operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
 			return nil, fmt.Errorf("failed to read backup_id for RB operation: %s", operationId)
 		}
@@ -249,7 +249,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 			Audit:          auditFromDb(creator, createdAt, completedAt),
 			UpdatedAt:      updatedTs,
 		}, nil
-	} else if operationType == string(types.OperationTypeDB) {
+	} else if operationType == string(types.LegacyOperationTypeDB) || operationType == string(types.OperationTypeDB) {
 		if backupId == nil {
 			return nil, fmt.Errorf("failed to read backup_id for DB operation: %s", operationId)
 		}
@@ -273,7 +273,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 			PathPrefix: pathPrefix,
 			UpdatedAt:  updatedTs,
 		}, nil
-	} else if operationType == string(types.OperationTypeTBWR) {
+	} else if operationType == string(types.LegacyOperationTypeTBWR) || operationType == string(types.OperationTypeTBWR) {
 		var retryConfig *pb.RetryConfig = nil
 		if maxBackoff != nil {
 			retryConfig = &pb.RetryConfig{

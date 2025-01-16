@@ -123,7 +123,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			),
 
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
-			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
+			table.ValueParam("$type_1", table_types.StringValueFromString(types.OperationTypeTB.String())),
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
 			),
@@ -209,7 +209,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam("$message_0", table_types.StringValueFromString("Success")),
 			table.ValueParam("$expire_at_0", table_types.NullableTimestampValueFromTime(nil)),
 			table.ValueParam("$id_1", table_types.StringValueFromString(opId)),
-			table.ValueParam("$type_1", table_types.StringValueFromString("TB")),
+			table.ValueParam("$type_1", table_types.StringValueFromString(types.OperationTypeTB.String())),
 			table.ValueParam(
 				"$status_1", table_types.StringValueFromString(string(tbOp.State)),
 			),
