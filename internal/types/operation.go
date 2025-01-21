@@ -434,20 +434,11 @@ var (
 	OperationStateStartCancelling = OperationState(pb.Operation_START_CANCELLING.String())
 )
 
-// Deprecated: these short operation type names are unclear and will be removed in the future. Use full names instead.
 const (
-	LegacyOperationTypeTB   = OperationType("TB")
-	LegacyOperationTypeRB   = OperationType("RB")
-	LegacyOperationTypeDB   = OperationType("DB")
-	LegacyOperationTypeTBWR = OperationType("TBWR")
-)
-
-const (
-	OperationTypeTB   = OperationType("TakeBackup")
-	OperationTypeRB   = OperationType("RestoreBackup")
-	OperationTypeDB   = OperationType("DeleteBackup")
-	OperationTypeTBWR = OperationType("TakeBackupWithRetries")
-
+	OperationTypeTB       = OperationType("TB")
+	OperationTypeRB       = OperationType("RB")
+	OperationTypeDB       = OperationType("DB")
+	OperationTypeTBWR     = OperationType("TBWR")
 	BackupTimestampFormat = "20060102_150405"
 	OperationCreatorName  = "ydbcp"
 )
