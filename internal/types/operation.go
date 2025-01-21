@@ -24,6 +24,7 @@ type Operation interface {
 	GetContainerID() string
 	GetType() OperationType
 	SetType(t OperationType)
+	GetTypeDescription() string
 	GetState() OperationState
 	SetState(s OperationState)
 	GetMessage() string
@@ -64,6 +65,9 @@ func (o *TakeBackupOperation) GetType() OperationType {
 	return OperationTypeTB
 }
 func (o *TakeBackupOperation) SetType(_ OperationType) {
+}
+func (o *TakeBackupOperation) GetTypeDescription() string {
+	return "TakeBackupOperation"
 }
 func (o *TakeBackupOperation) GetState() OperationState {
 	return o.State
@@ -148,6 +152,9 @@ func (o *RestoreBackupOperation) GetType() OperationType {
 }
 func (o *RestoreBackupOperation) SetType(_ OperationType) {
 }
+func (o *RestoreBackupOperation) GetTypeDescription() string {
+	return "RestoreBackupOperation"
+}
 func (o *RestoreBackupOperation) GetState() OperationState {
 	return o.State
 }
@@ -221,6 +228,9 @@ func (o *DeleteBackupOperation) GetType() OperationType {
 	return OperationTypeDB
 }
 func (o *DeleteBackupOperation) SetType(_ OperationType) {
+}
+func (o *DeleteBackupOperation) GetTypeDescription() string {
+	return "DeleteBackupOperation"
 }
 func (o *DeleteBackupOperation) GetState() OperationState {
 	return o.State
@@ -297,6 +307,9 @@ func (o *TakeBackupWithRetryOperation) GetState() OperationState {
 }
 func (o *TakeBackupWithRetryOperation) SetState(s OperationState) {
 	o.State = s
+}
+func (o *TakeBackupWithRetryOperation) GetTypeDescription() string {
+	return "TakeBackupWithRetryOperation"
 }
 func (o *TakeBackupWithRetryOperation) GetMessage() string {
 	return o.Message
@@ -388,6 +401,9 @@ func (o *GenericOperation) GetType() OperationType {
 }
 func (o *GenericOperation) SetType(t OperationType) {
 	o.Type = t
+}
+func (o *GenericOperation) GetTypeDescription() string {
+	return "Undefined"
 }
 func (o *GenericOperation) GetState() OperationState {
 	return o.State
