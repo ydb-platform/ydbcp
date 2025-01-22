@@ -109,6 +109,7 @@ func (s *MetricsRegistryImpl) IncOperationsStartedCounter(operation types.Operat
 		operation.GetContainerID(),
 		operation.GetDatabaseName(),
 		operation.GetType().String(),
+		operation.GetTypeDescription(),
 		label,
 	).Inc()
 }
@@ -131,6 +132,7 @@ func (s *MetricsRegistryImpl) ReportOperationInflight(operation types.Operation)
 		operation.GetContainerID(),
 		operation.GetDatabaseName(),
 		operation.GetType().String(),
+		operation.GetTypeDescription(),
 		operation.GetState().String(),
 		label,
 	).Inc()
@@ -141,6 +143,7 @@ func (s *MetricsRegistryImpl) ReportOperationInflight(operation types.Operation)
 			operation.GetContainerID(),
 			operation.GetDatabaseName(),
 			operation.GetType().String(),
+			operation.GetTypeDescription(),
 			operation.GetState().String(),
 		).Observe(duration.Seconds())
 	}
@@ -154,6 +157,7 @@ func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) 
 				operation.GetContainerID(),
 				operation.GetDatabaseName(),
 				operation.GetType().String(),
+				operation.GetTypeDescription(),
 				operation.GetState().String(),
 			).Observe(duration.Seconds())
 		}
@@ -167,7 +171,12 @@ func (s *MetricsRegistryImpl) ReportOperationMetrics(operation types.Operation) 
 		}
 
 		s.operationsFinished.WithLabelValues(
-			operation.GetContainerID(), operation.GetDatabaseName(), operation.GetType().String(), operation.GetState().String(), label,
+			operation.GetContainerID(),
+			operation.GetDatabaseName(),
+			operation.GetType().String(),
+			operation.GetTypeDescription(),
+			operation.GetState().String(),
+			label,
 		).Inc()
 
 	}
@@ -203,25 +212,62 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, datab
 }
 
 func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule, err error) {
-	if err != nil {
-		s.scheduleActionFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Inc()
+	var scheduleNameLabel string
+	if schedule.Name != nil {
+		scheduleNameLabel = *schedule.Name
 	} else {
-		s.scheduleActionSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Inc()
+		scheduleNameLabel = ""
+	}
+
+	if err != nil {
+		s.scheduleActionFailedCount.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Inc()
+	} else {
+		s.scheduleActionSucceededCount.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Inc()
 	}
 	if schedule.RecoveryPoint != nil {
-		s.scheduleLastBackupTimestamp.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(float64(schedule.RecoveryPoint.Unix()))
+		s.scheduleLastBackupTimestamp.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(float64(schedule.RecoveryPoint.Unix()))
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
 		// Report schedule creation time as last backup time if no backups were made
-		s.scheduleLastBackupTimestamp.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(float64(schedule.Audit.CreatedAt.AsTime().Unix()))
+		s.scheduleLastBackupTimestamp.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(float64(schedule.Audit.CreatedAt.AsTime().Unix()))
 	}
 	info := schedule.GetBackupInfo(s.clock)
 	if info != nil {
-		s.scheduleRPOMarginRatio.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(info.LastBackupRpoMarginRatio)
+		s.scheduleRPOMarginRatio.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(info.LastBackupRpoMarginRatio)
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil && schedule.ScheduleSettings.RecoveryPointObjective != nil {
 		// Report fake LastBackupRpoMarginRatio based on schedule creation time if no backups were made
 		fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
 		fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
-		s.scheduleRPOMarginRatio.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(fakeLastBackupRpoMarginRatio)
+		s.scheduleRPOMarginRatio.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(fakeLastBackupRpoMarginRatio)
 	}
 }
 
@@ -265,32 +311,32 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Name:      "duration_seconds",
 		Help:      "Duration of completed operations in seconds",
 		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
-	}, []string{"container_id", "database", "type", "status"})
+	}, []string{"container_id", "database", "type", "type_description", "status"})
 
 	s.inflightOperationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
 		Subsystem: "operations",
 		Name:      "inflight_duration_seconds",
 		Help:      "Duration of running operations in seconds",
 		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
-	}, []string{"container_id", "database", "type", "state"})
+	}, []string{"container_id", "database", "type", "type_description", "state"})
 
 	s.operationsStarted = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "operations",
 		Name:      "started_counter",
 		Help:      "Total count of started operations",
-	}, []string{"container_id", "database", "type", "schedule_id"})
+	}, []string{"container_id", "database", "type", "type_description", "schedule_id"})
 
 	s.operationsFinished = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "operations",
 		Name:      "finished_counter",
 		Help:      "Total count of finished operations",
-	}, []string{"container_id", "database", "type", "status", "schedule_id"})
+	}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"})
 
 	s.operationsInflight = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "operations",
 		Name:      "inflight",
 		Help:      "Total count of active operations",
-	}, []string{"container_id", "database", "type", "status", "schedule_id"})
+	}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"})
 
 	s.handlerRunsCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "operation_processor",
@@ -326,25 +372,25 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "schedules",
 		Name:      "failed_count",
 		Help:      "Total count of failed scheduled backup runs",
-	}, []string{"container_id", "database", "schedule_id"})
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
 	s.scheduleActionSucceededCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
 		Subsystem: "schedules",
 		Name:      "succeeded_count",
 		Help:      "Total count of successful scheduled backup runs",
-	}, []string{"container_id", "database", "schedule_id"})
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
 	s.scheduleLastBackupTimestamp = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "schedules",
 		Name:      "last_backup_timestamp",
 		Help:      "Timestamp of last successful backup for this schedule",
-	}, []string{"container_id", "database", "schedule_id"})
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
 	s.scheduleRPOMarginRatio = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
 		Subsystem: "schedules",
 		Name:      "rpo_margin_ratio",
 		Help:      "if RPO is set for schedule, calculates a ratio to which RPO is satisfied",
-	}, []string{"container_id", "database", "schedule_id"})
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{Registry: s.reg}))
