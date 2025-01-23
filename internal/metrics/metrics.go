@@ -75,10 +75,12 @@ type MetricsRegistryImpl struct {
 	backupsSucceededCount *prometheus.GaugeVec
 
 	// schedule metrics
-	scheduleActionFailedCount    *prometheus.CounterVec
-	scheduleActionSucceededCount *prometheus.CounterVec
-	scheduleLastBackupTimestamp  *prometheus.GaugeVec
-	scheduleRPOMarginRatio       *prometheus.GaugeVec
+	scheduleActionFailedCount          *prometheus.CounterVec
+	scheduleActionSucceededCount       *prometheus.CounterVec
+	scheduleLastBackupTimestamp        *prometheus.GaugeVec
+	scheduleRPOMarginRatio             *prometheus.GaugeVec
+	scheduleElapsedTimeSinceLastBackup *prometheus.GaugeVec
+	scheduleRPODuration                *prometheus.GaugeVec
 }
 
 func (s *MetricsRegistryImpl) ReportHealthCheck() {
@@ -241,6 +243,13 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 			schedule.ID,
 			scheduleNameLabel,
 		).Set(float64(schedule.RecoveryPoint.Unix()))
+
+		s.scheduleElapsedTimeSinceLastBackup.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(s.clock.Since(*schedule.RecoveryPoint).Seconds())
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
 		// Report schedule creation time as last backup time if no backups were made
 		s.scheduleLastBackupTimestamp.WithLabelValues(
@@ -249,7 +258,24 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 			schedule.ID,
 			scheduleNameLabel,
 		).Set(float64(schedule.Audit.CreatedAt.AsTime().Unix()))
+
+		s.scheduleElapsedTimeSinceLastBackup.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds())
 	}
+
+	if schedule.ScheduleSettings.RecoveryPointObjective != nil {
+		s.scheduleRPODuration.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds))
+	}
+
 	info := schedule.GetBackupInfo(s.clock)
 	if info != nil {
 		s.scheduleRPOMarginRatio.WithLabelValues(
@@ -390,6 +416,18 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "schedules",
 		Name:      "rpo_margin_ratio",
 		Help:      "if RPO is set for schedule, calculates a ratio to which RPO is satisfied",
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+
+	s.scheduleElapsedTimeSinceLastBackup = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "schedules",
+		Name:      "elapsed_seconds_since_last_backup",
+		Help:      "Amount of time elapsed since last successful backup for this schedule",
+	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+
+	s.scheduleRPODuration = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
+		Subsystem: "schedules",
+		Name:      "rpo_duration_seconds",
+		Help:      "Maximum length of time permitted, that backup can be restored for this schedule",
 	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
 	mux := http.NewServeMux()

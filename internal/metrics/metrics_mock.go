@@ -113,16 +113,20 @@ func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 	if schedule.RecoveryPoint != nil {
 		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.RecoveryPoint.Unix())
+		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(*schedule.RecoveryPoint).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			info := schedule.GetBackupInfo(s.clock)
 			s.metrics["schedules_rpo_margin_ratio"] = info.LastBackupRpoMarginRatio
+			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
 		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
+		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
 			fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 			s.metrics["schedules_rpo_margin_ratio"] = fakeLastBackupRpoMarginRatio
+			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	}
 }
