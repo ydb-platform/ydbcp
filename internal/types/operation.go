@@ -114,6 +114,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		Status:               o.State.Enum(),
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
+		TypeDescription:      o.GetTypeDescription(),
 	}
 	if o.ParentOperationID != nil {
 		op.ParentOperationId = *o.ParentOperationID
@@ -200,6 +201,7 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		Status:               o.State.Enum(),
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
+		TypeDescription:      o.GetTypeDescription(),
 	}
 }
 
@@ -277,6 +279,7 @@ func (o *DeleteBackupOperation) Proto() *pb.Operation {
 		Status:               o.State.Enum(),
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
+		TypeDescription:      o.GetTypeDescription(),
 	}
 }
 
@@ -351,6 +354,7 @@ func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
 		RetryConfig:          o.RetryConfig,
+		TypeDescription:      o.GetTypeDescription(),
 	}
 }
 
