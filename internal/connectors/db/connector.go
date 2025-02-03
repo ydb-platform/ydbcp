@@ -158,7 +158,7 @@ func DoStructSelect[T any](
 			var (
 				res query.Result
 			)
-			_, res, err = s.Execute(
+			res, err = s.Query(
 				ctx,
 				queryFormat.QueryText,
 				query.WithParameters(queryFormat.QueryParams),
@@ -202,12 +202,13 @@ func DoStructSelect[T any](
 
 					entity, readErr := readLambda(row)
 					if readErr != nil {
-						return readErr
+						xlog.Error(ctx, "Error reading row", zap.Error(readErr))
+					} else {
+						entities = append(entities, entity)
 					}
-					entities = append(entities, entity)
 				}
 			}
-			return res.Err()
+			return nil
 		},
 	)
 	if err != nil {
@@ -235,7 +236,7 @@ func DoInterfaceSelect[T any](
 			var (
 				res query.Result
 			)
-			_, res, err = s.Execute(
+			res, err = s.Query(
 				ctx,
 				queryFormat.QueryText,
 				query.WithParameters(queryFormat.QueryParams),
@@ -279,12 +280,13 @@ func DoInterfaceSelect[T any](
 
 					entity, readErr := readLambda(row)
 					if readErr != nil {
-						return readErr
+						xlog.Error(ctx, "Error reading row", zap.Error(readErr))
+					} else {
+						entities = append(entities, entity)
 					}
-					entities = append(entities, entity)
 				}
 			}
-			return res.Err()
+			return nil
 		},
 	)
 	if err != nil {
@@ -301,7 +303,7 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	}
 	err = d.GetQueryClient().Do(
 		ctx, func(ctx context.Context, s query.Session) (err error) {
-			_, _, err = s.Execute(
+			_, err = s.Query(
 				ctx,
 				queryFormat.QueryText,
 				query.WithParameters(queryFormat.QueryParams),
