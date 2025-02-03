@@ -39,6 +39,7 @@ func TestTtlWatcher(t *testing.T) {
 		ID:       backupID,
 		Status:   types.BackupStateAvailable,
 		ExpireAt: &expireAt,
+		Size:     1,
 	}
 	backupMap := make(map[string]types.Backup)
 	backupMap[backupID] = backup
