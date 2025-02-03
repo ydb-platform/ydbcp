@@ -36,7 +36,7 @@ func BackupScheduleHandler(
 	clock clockwork.Clock,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
-		xlog.Error(ctx, "backup schedule is not active", zap.String("scheduleID", schedule.ID))
+		xlog.Error(ctx, "backup schedule is not active", zap.String("ScheduleID", schedule.ID))
 		return errors.New("backup schedule is not active")
 	}
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(clock.Now()) {
@@ -76,7 +76,7 @@ func BackupScheduleHandler(
 		}
 
 		xlog.Info(
-			ctx, "create TakeBackupWithRetryOperation for schedule", zap.String("scheduleID", schedule.ID),
+			ctx, "create TakeBackupWithRetryOperation for schedule", zap.String("ScheduleID", schedule.ID),
 			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
 		)
 
