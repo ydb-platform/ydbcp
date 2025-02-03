@@ -69,7 +69,7 @@ func ScheduleWatcherAction(
 		err = handler(ctx, db, schedule)
 		metrics.GlobalMetricsRegistry.IncScheduleCounters(schedule, err)
 		if err != nil {
-			xlog.Error(ctx, "error handling backup schedule", zap.String("scheduleID", schedule.ID), zap.Error(err))
+			xlog.Error(ctx, "error handling backup schedule", zap.String("ScheduleID", schedule.ID), zap.Error(err))
 		}
 	}
 }
