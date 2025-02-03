@@ -204,6 +204,7 @@ func CreateEmptyBackup(
 	now := timestamppb.New(clock.Now())
 	backup := &types.Backup{
 		ID:               types.GenerateObjectID(),
+		Message:          "empty backup",
 		ContainerID:      req.ContainerID,
 		DatabaseName:     req.DatabaseName,
 		DatabaseEndpoint: req.DatabaseEndpoint,
@@ -240,6 +241,10 @@ func CreateEmptyBackup(
 	}
 
 	return backup, op
+}
+
+func IsEmptyBackup(backup *types.Backup) bool {
+	return backup.Size == 0 && backup.S3Endpoint == ""
 }
 
 func MakeBackup(

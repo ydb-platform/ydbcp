@@ -6,6 +6,7 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
+	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -56,35 +57,48 @@ func TtlWatcherAction(
 	for _, backup := range backups {
 		if backup.ExpireAt != nil && backup.ExpireAt.Before(time.Now()) {
 			now := timestamppb.Now()
-			dbOp := &types.DeleteBackupOperation{
-				ID:          types.GenerateObjectID(),
-				ContainerID: backup.ContainerID,
-				BackupID:    backup.ID,
-				State:       types.OperationStatePending,
-				YdbConnectionParams: types.YdbConnectionParams{
-					DatabaseName: backup.DatabaseName,
-					Endpoint:     backup.DatabaseEndpoint,
-				},
-				Audit: &pb.AuditInfo{
-					CreatedAt: now,
-					Creator:   types.OperationCreatorName,
-				},
-				PathPrefix: backup.S3PathPrefix,
-				UpdatedAt:  now,
-			}
-
-			backup.Status = types.BackupStateDeleting
-			err := db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
-			)
-
-			if err != nil {
-				xlog.Error(
-					ctx, "can't create DeleteBackup operation", zap.String("BackupID", backup.ID), zap.Error(err),
+			if backup_operations.IsEmptyBackup(backup) {
+				backup.Status = types.BackupStateDeleted
+				err = db.ExecuteUpsert(
+					ctx, queryBuilderFactory().WithUpdateBackup(*backup),
 				)
-			}
+				if err != nil {
+					xlog.Error(
+						ctx, "can't update backup status", zap.String("BackupID", backup.ID), zap.Error(err),
+					)
+				}
+				xlog.Debug(ctx, "Marked empty backup as deleted", zap.String("BackupID", backup.ID))
+			} else {
+				dbOp := &types.DeleteBackupOperation{
+					ID:          types.GenerateObjectID(),
+					ContainerID: backup.ContainerID,
+					BackupID:    backup.ID,
+					State:       types.OperationStatePending,
+					YdbConnectionParams: types.YdbConnectionParams{
+						DatabaseName: backup.DatabaseName,
+						Endpoint:     backup.DatabaseEndpoint,
+					},
+					Audit: &pb.AuditInfo{
+						CreatedAt: now,
+						Creator:   types.OperationCreatorName,
+					},
+					PathPrefix: backup.S3PathPrefix,
+					UpdatedAt:  now,
+				}
 
-			xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String("BackupID", backup.ID))
+				backup.Status = types.BackupStateDeleting
+				err := db.ExecuteUpsert(
+					ctx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
+				)
+
+				if err != nil {
+					xlog.Error(
+						ctx, "can't create DeleteBackup operation", zap.String("BackupID", backup.ID), zap.Error(err),
+					)
+				}
+
+				xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String("BackupID", backup.ID))
+			}
 		}
 	}
 }
