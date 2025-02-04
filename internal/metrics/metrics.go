@@ -40,6 +40,7 @@ type MetricsRegistry interface {
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
 	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
 	IncScheduleCounters(schedule *types.BackupSchedule, err error)
+	ResetScheduleCounters(schedule *types.BackupSchedule)
 }
 
 type MetricsRegistryImpl struct {
@@ -295,6 +296,43 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 			scheduleNameLabel,
 		).Set(fakeLastBackupRpoMarginRatio)
 	}
+}
+
+func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule) {
+	var scheduleNameLabel string
+	if schedule.Name != nil {
+		scheduleNameLabel = *schedule.Name
+	} else {
+		scheduleNameLabel = ""
+	}
+
+	s.scheduleLastBackupTimestamp.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
+	s.scheduleRPOMarginRatio.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
+	s.scheduleElapsedTimeSinceLastBackup.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
+	s.scheduleRPODuration.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
 }
 
 func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) {
