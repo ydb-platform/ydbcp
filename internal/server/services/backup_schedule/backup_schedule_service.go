@@ -505,6 +505,10 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
 	}
 
+	if schedule.Status == types.BackupScheduleStateInactive {
+		metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedule)
+	}
+
 	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
@@ -567,6 +571,8 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't delete backup schedule")
 	}
+
+	metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedule)
 
 	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
