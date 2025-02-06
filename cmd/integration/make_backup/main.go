@@ -466,7 +466,7 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
-	if schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Minute {
+	if schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Minute+time.Hour {
 		log.Panicf("wrong recovery point objective: %v", schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective)
 	}
 
