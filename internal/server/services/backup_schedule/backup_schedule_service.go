@@ -162,7 +162,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		if err != nil {
 			return nil, status.Error(codes.Internal, fmt.Sprintf("failed to get cron duration: %v", err))
 		}
-		schedule.ScheduleSettings.RecoveryPointObjective = durationpb.New(duration)
+		schedule.ScheduleSettings.RecoveryPointObjective = durationpb.New(duration + time.Hour)
 	}
 
 	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn)
