@@ -165,7 +165,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		schedule.ScheduleSettings.RecoveryPointObjective = durationpb.New(duration + time.Hour)
 	}
 
-	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn)
+	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn)
 	if err != nil {
 		return nil, err
 	}
@@ -273,7 +273,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		}
 	}
 
-	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(schedule), s.clientConn)
+	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromBackupSchedule(schedule), s.clientConn)
 	if err != nil {
 		return nil, err
 	}

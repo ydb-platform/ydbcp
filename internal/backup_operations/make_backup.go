@@ -97,7 +97,7 @@ func IsAllowedEndpoint(e string, allowedEndpointDomains []string, allowInsecureE
 	return false
 }
 
-func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector) ([]string, error) {
+func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector) error {
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.DatabaseEndpoint,
 		DatabaseName: req.DatabaseName,
@@ -107,14 +107,20 @@ func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalR
 	client, err := clientConn.Open(ctx, dsn)
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
-		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
+		return status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
 	}
 	defer func() {
 		if err := clientConn.Close(ctx, client); err != nil {
 			xlog.Error(ctx, "can't close client connection", zap.Error(err))
 		}
 	}()
-	return ValidateSourcePaths(ctx, req, clientConn, client, dsn)
+	_, err = ValidateSourcePaths(ctx, req, clientConn, client, dsn)
+	var empty *EmptyDatabaseError
+	if errors.As(err, &empty) {
+		return nil
+	} else {
+		return err
+	}
 }
 
 func ValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector, client *ydb.Driver, dsn string) ([]string, error) {

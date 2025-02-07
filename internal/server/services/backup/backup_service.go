@@ -129,7 +129,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		tbwr.Ttl = &d
 	}
 
-	_, err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
+	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
 	if err != nil {
 		grpcError := backup_operations.ErrToStatus(err)
 		s.IncApiCallsCounter(methodName, status.Code(grpcError))
