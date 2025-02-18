@@ -131,6 +131,13 @@ func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 }
 
+func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule) {
+	delete(s.metrics, "schedules_last_backup_timestamp")
+	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup")
+	delete(s.metrics, "schedules_rpo_margin_ratio")
+	delete(s.metrics, "schedules_rpo_duration_seconds")
+}
+
 type Option func(*MockMetricsRegistry)
 
 func WithClock(clock clockwork.Clock) Option {
