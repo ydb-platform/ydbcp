@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	ydbPrometheus "github.com/ydb-platform/ydb-go-sdk-prometheus/v2"
 	"io"
 	"time"
 	"ydbcp/internal/config"
@@ -114,6 +115,9 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(config.OAuth2KeyFile))
 	} else {
 		opts = append(opts, ydb.WithAnonymousCredentials())
+	}
+	if config.EnableSDKMetrics {
+		opts = append(opts, ydbPrometheus.WithTraces(metrics.GlobalMetricsRegistry.GetReg()))
 	}
 
 	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", config.ConnectionString))

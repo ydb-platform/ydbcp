@@ -2,6 +2,7 @@ package metrics
 
 import (
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"sync"
 	"ydbcp/internal/types"
@@ -11,6 +12,10 @@ type MockMetricsRegistry struct {
 	mutex   sync.Mutex
 	metrics map[string]float64
 	clock   clockwork.Clock
+}
+
+func (s *MockMetricsRegistry) GetReg() *prometheus.Registry {
+	return nil
 }
 
 func (s *MockMetricsRegistry) ReportHealthCheck() {
