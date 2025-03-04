@@ -4,6 +4,7 @@ db_connection:
   connection_string: "grpcs://${YDB_NAME}:2135/local"
   insecure: true
   discovery: false
+  enable_sdk_metrics: false
 
 client_connection:
   insecure: true

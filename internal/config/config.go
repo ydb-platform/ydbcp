@@ -32,6 +32,7 @@ type YDBConnectionConfig struct {
 	Discovery          bool   `yaml:"discovery" default:"true"`
 	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
 	OAuth2KeyFile      string `yaml:"oauth2_key_file"`
+	EnableSDKMetrics   bool   `yaml:"enable_sdk_metrics"`
 }
 
 type ClientConnectionConfig struct {

@@ -27,6 +27,7 @@ const (
 var GlobalMetricsRegistry MetricsRegistry
 
 type MetricsRegistry interface {
+	GetReg() *prometheus.Registry
 	ReportHealthCheck()
 	IncApiCallsCounter(serviceName string, methodName string, status string)
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
@@ -82,6 +83,10 @@ type MetricsRegistryImpl struct {
 	scheduleRPOMarginRatio             *prometheus.GaugeVec
 	scheduleElapsedTimeSinceLastBackup *prometheus.GaugeVec
 	scheduleRPODuration                *prometheus.GaugeVec
+}
+
+func (s *MetricsRegistryImpl) GetReg() *prometheus.Registry {
+	return s.reg
 }
 
 func (s *MetricsRegistryImpl) ReportHealthCheck() {
