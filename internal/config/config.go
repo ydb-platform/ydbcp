@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -64,6 +65,10 @@ type MetricsServerConfig struct {
 	TLSKeyPath         string `yaml:"tls_key_path"`
 }
 
+type Validatable interface {
+	Validate() error
+}
+
 type Config struct {
 	DBConnection             YDBConnectionConfig    `yaml:"db_connection"`
 	ClientConnection         ClientConnectionConfig `yaml:"client_connection"`
@@ -76,48 +81,96 @@ type Config struct {
 	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
 }
 
+type ControlPlaneConnectionConfig struct {
+	Endpoint string `yaml:"endpoint"`
+}
+
+type DBExceptionsConfig struct {
+	DatabaseNames []string `yaml:"database_names"`
+}
+
+type WatcherConfig struct {
+	DBConnection           YDBConnectionConfig          `yaml:"ydb"`
+	ControlPlaneConnection ControlPlaneConnectionConfig `yaml:"ydbcp"`
+	DBExceptions           DBExceptionsConfig           `yaml:"db_exceptions"`
+	Auth                   AuthConfig                   `yaml:"auth"`
+	MetricsServer          MetricsServerConfig          `yaml:"metrics_server"`
+}
+
 var (
 	validDomainFilter = regexp.MustCompile(`^[A-Za-z\.][A-Za-z0-9\-\.]+[A-Za-z]$`)
 )
 
-func (config Config) ToString() (string, error) {
-	data, err := yaml.Marshal(&config)
+func (c Config) ToString() (string, error) {
+	data, err := yaml.Marshal(&c)
 	if err != nil {
 		return "", err
 	}
 	return string(data), nil
 }
 
-func InitConfig(ctx context.Context, confPath string) (Config, error) {
+func (c WatcherConfig) ToString() (string, error) {
+	data, err := yaml.Marshal(&c)
+	if err != nil {
+		return "", err
+	}
+	return string(data), nil
+}
+
+func InitConfig[Conf Validatable](ctx context.Context, confPath string) (*Conf, error) {
 	if len(confPath) == 0 {
-		return Config{}, errors.New("configuration file path is empty")
+		return nil, errors.New("configuration file path is empty")
 	}
 	ctx = xlog.With(ctx, zap.String("ConfigPath", confPath))
 	confTxt, err := os.ReadFile(confPath)
 	if err != nil {
 		xlog.Error(ctx, "Unable to read configuration file", zap.Error(err))
-		return Config{}, err
+		return nil, err
 	}
 	confTxt = []byte(os.ExpandEnv(string(confTxt)))
-	var config Config
+	var config Conf
 	if err = defaults.Set(&config); err != nil {
 		xlog.Error(ctx, "Unable to set default configuration parameters", zap.Error(err))
-		return Config{}, err
+		return nil, err
 	}
 
 	err = yaml.Unmarshal(confTxt, &config)
 	if err != nil {
 		xlog.Error(ctx, "Unable to parse configuration file", zap.Error(err))
-		return Config{}, err
+		return nil, err
 	}
-	return config, config.Validate()
+	if val := config.Validate(); val != nil {
+		err = json.Unmarshal(confTxt, &config)
+		if err != nil {
+			xlog.Error(ctx, "Unable to parse configuration file", zap.Error(err))
+			return nil, err
+		}
+		if config.Validate() != nil {
+			return nil, val
+		} else {
+			return &config, nil
+		}
+	}
+	return &config, nil
 }
 
-func (c *Config) Validate() error {
+func (c Config) Validate() error {
+	emp := YDBConnectionConfig{}
+	if c.DBConnection == emp {
+		return errors.New("empty config")
+	}
 	for _, domain := range c.ClientConnection.AllowedEndpointDomains {
 		if !validDomainFilter.MatchString(domain) {
 			return fmt.Errorf("incorrect domain filter in allowed_endpoint_domains: %s", domain)
 		}
+	}
+	return nil
+}
+
+func (c WatcherConfig) Validate() error {
+	emp := YDBConnectionConfig{}
+	if c.DBConnection == emp {
+		return errors.New("empty config")
 	}
 	return nil
 }

@@ -1,0 +1,13 @@
+ydb:
+  connection_string: "grpcs://storage-grpc.ydb-dev.svc.cluster.local:2135"
+  insecure:
+  discovery:
+  oauth2_key_file: key.json
+ydbcp:
+  endpoint: "ydbcp.ydb.ydb-dev.ik8s.man.nbhost.net:443"
+metrics_server:
+  bind_port: 9090
+auth:
+  configuration:
+    access_service_endpoint: grpcs://access.iam.private-api.tst.man.nbhost.net:443
+  plugin_path: auth_nebius.so

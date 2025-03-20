@@ -211,6 +211,10 @@ func (p *authProviderNebius) Authorize(
 	return results, subject, err
 }
 
+func (p *authProviderNebius) GetTLSOption() (grpc.DialOption, error) {
+	return p.loadTLSCredentials()
+}
+
 func main() {}
 
 var AuthProvider authProviderNebius
