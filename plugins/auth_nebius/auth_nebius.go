@@ -2,12 +2,10 @@ package main
 
 import (
 	"context"
-	"crypto/tls"
-	"crypto/x509"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
+	"ydbcp/internal/util/tls_setup"
 
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
@@ -15,7 +13,6 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/credentials/insecure"
 	"gopkg.in/yaml.v3"
 )
@@ -46,32 +43,7 @@ func (p *authProviderNebius) loadTLSCredentials() (grpc.DialOption, error) {
 	if !p.tls {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 	}
-	var certPool *x509.CertPool
-	if len(p.config.RootCAPath) > 0 {
-		caBundle, err := os.ReadFile(p.config.RootCAPath)
-		if err != nil {
-			return nil, fmt.Errorf("unable to read root ca bundle from file %s: %w", p.config.RootCAPath, err)
-		}
-		certPool = x509.NewCertPool()
-		if ok := certPool.AppendCertsFromPEM(caBundle); !ok {
-			return nil, errors.New("failed to parse CA bundle")
-		}
-	} else {
-		var err error
-		certPool, err = x509.SystemCertPool()
-		if err != nil {
-			return nil, fmt.Errorf("failed to get system cert pool: %w", err)
-		}
-	}
-
-	tlsConfig := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-		RootCAs:    certPool,
-	}
-	if p.config.Insecure {
-		tlsConfig.InsecureSkipVerify = true
-	}
-	return grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)), nil
+	return tls_setup.LoadTLSCredentials(&p.config.RootCAPath, p.config.Insecure)
 }
 
 func (p *authProviderNebius) Init(ctx context.Context, config string) error {

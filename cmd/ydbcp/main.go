@@ -47,7 +47,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	configInstance, err := config.InitConfig(ctx, confPath)
+	configInstance, err := config.InitConfig[config.Config](ctx, confPath)
 
 	if err != nil {
 		log.Error(fmt.Errorf("unable to initialize config: %w", err))
@@ -131,7 +131,7 @@ func main() {
 		configInstance.ClientConnection.AllowInsecureEndpoint,
 	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
-	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider, configInstance).Register(server)
+	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider, *configInstance).Register(server)
 	if err := server.Start(ctx, &wg); err != nil {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)
@@ -143,7 +143,7 @@ func main() {
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
 		handlers.NewTBOperationHandler(
-			dbConnector, clientConnector, s3Connector, configInstance, queries.NewWriteTableQuery,
+			dbConnector, clientConnector, s3Connector, *configInstance, queries.NewWriteTableQuery,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -152,7 +152,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeRB,
-		handlers.NewRBOperationHandler(dbConnector, clientConnector, configInstance),
+		handlers.NewRBOperationHandler(dbConnector, clientConnector, *configInstance),
 	); err != nil {
 		xlog.Error(ctx, "failed to register RB handler", zap.Error(err))
 		os.Exit(1)
@@ -160,7 +160,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeDB,
-		handlers.NewDBOperationHandler(dbConnector, s3Connector, configInstance, queries.NewWriteTableQuery),
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, *configInstance, queries.NewWriteTableQuery),
 	); err != nil {
 		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
 		os.Exit(1)

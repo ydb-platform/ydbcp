@@ -2,10 +2,10 @@
 FROM golang:1.22-alpine as builder
 
 # Set the Current Working Directory inside the container
-WORKDIR ./ydbcp
+WORKDIR /ydbcp
 
 # Copy source code into the container
-COPY ./ ./
+COPY . .
 
 # Download all dependencies
 RUN go mod download
