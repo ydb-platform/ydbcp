@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc"
 
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
@@ -53,6 +54,10 @@ func (p *authProviderDummy) Authorize(
 		zap.String("SubjectID", anonymousSubject),
 	)
 	return results, subject, nil
+}
+
+func (p *authProviderDummy) GetTLSOption() (grpc.DialOption, error) {
+	return nil, errors.New("not implemented")
 }
 
 func NewDummyAuthProvider(ctx context.Context) (auth.AuthProvider, error) {

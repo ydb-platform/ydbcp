@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+	"unicode/utf8"
 )
 
 func ParseSourcePaths(str string) ([]string, error) {
@@ -19,8 +20,13 @@ func ParseSourcePaths(str string) ([]string, error) {
 			slice[i] = s
 			hasPlain = true
 		} else {
-			slice[i] = string(data)
-			hasEncoded = true
+			if utf8.ValidString(string(data)) {
+				slice[i] = string(data)
+				hasEncoded = true
+			} else {
+				slice[i] = s
+				hasPlain = true
+			}
 		}
 	}
 	if hasEncoded && hasPlain {

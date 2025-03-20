@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc"
 	"strings"
 )
 
@@ -30,6 +31,7 @@ type AuthorizeResult struct {
 type AuthProvider interface {
 	Init(ctx context.Context, config string) error
 	Finish(ctx context.Context) error
+	GetTLSOption() (grpc.DialOption, error)
 	Authorize(ctx context.Context, token string, checks ...AuthorizeCheck) (results []AuthorizeResult, subjectID string, err error)
 }
 

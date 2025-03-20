@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	ydbPrometheus "github.com/ydb-platform/ydb-go-sdk-prometheus/v2"
+	"google.golang.org/grpc"
 	"io"
 	"time"
 	"ydbcp/internal/config"
@@ -131,6 +132,10 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	}
 
 	return &YdbConnector{driver: driver}, nil
+}
+
+func (d *YdbConnector) GRPCConn() grpc.ClientConnInterface {
+	return ydb.GRPCConn(d.driver)
 }
 
 func (d *YdbConnector) GetQueryClient() query.Client {

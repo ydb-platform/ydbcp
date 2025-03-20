@@ -20,3 +20,15 @@ func CreateGRPCClient(endpoint string) *grpc.ClientConn {
 	log.Panicln("failed to dial")
 	return nil
 }
+
+func CreateGRPCClientWithOpts(endpoint string, opts []grpc.DialOption) *grpc.ClientConn {
+	for range 5 {
+		conn, err := grpc.NewClient(endpoint, opts...)
+		if err == nil {
+			return conn
+		}
+		time.Sleep(time.Second) // Wait before retrying
+	}
+	log.Panicln("failed to dial")
+	return nil
+}

@@ -347,16 +347,18 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
-	if err != nil {
-		s.IncApiCallsCounter(methodName, status.Code(err))
-		return nil, err
-	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
-
 	queryFilters := make([]queries.QueryFilter, 0)
-	//TODO: forbid empty containerId
+	checkEveryCID := false
+	subjectLabel := true
+
 	if request.GetContainerId() != "" {
+		subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
+		if err != nil {
+			s.IncApiCallsCounter(methodName, status.Code(err))
+			return nil, err
+		}
+		ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+
 		queryFilters = append(
 			queryFilters, queries.QueryFilter{
 				Field: "container_id",
@@ -365,7 +367,11 @@ func (s *BackupScheduleService) ListBackupSchedules(
 				},
 			},
 		)
+	} else {
+		checkEveryCID = true
+		subjectLabel = false
 	}
+
 	if request.GetDatabaseNameMask() != "" {
 		queryFilters = append(
 			queryFilters, queries.QueryFilter{
@@ -416,7 +422,21 @@ func (s *BackupScheduleService) ListBackupSchedules(
 		return nil, status.Error(codes.Internal, "error getting backup schedules")
 	}
 	pbSchedules := make([]*pb.BackupSchedule, 0, len(schedules))
+	checkedCIDs := make(map[string]bool)
 	for _, schedule := range schedules {
+		if checkEveryCID && !checkedCIDs[schedule.ContainerID] {
+			checkedCIDs[schedule.ContainerID] = true
+			subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, schedule.ContainerID, "")
+			if !subjectLabel {
+				ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+				subjectLabel = true
+			}
+			if err != nil {
+				s.IncApiCallsCounter(methodName, status.Code(err))
+				return nil, err
+			}
+		}
+
 		pbSchedules = append(pbSchedules, schedule.Proto(s.clock))
 	}
 	res := &pb.ListBackupSchedulesResponse{Schedules: pbSchedules}
