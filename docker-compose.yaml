@@ -95,7 +95,7 @@ services:
         condition: service_completed_successfully
     build:
       context: .
-      dockerfile: ./dockerfile
+      dockerfile: Dockerfile
     ports:
       - "50051:50051"
       - "50052:50052"
