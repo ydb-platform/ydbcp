@@ -207,6 +207,7 @@ func DoStructSelect[T any](
 					entity, readErr := readLambda(row)
 					if readErr != nil {
 						xlog.Error(ctx, "Error reading row", zap.Error(readErr))
+						metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 					} else {
 						entities = append(entities, entity)
 					}
@@ -217,6 +218,7 @@ func DoStructSelect[T any](
 	)
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.Error(err))
+		metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 		return nil, err
 	}
 	return entities, nil
@@ -285,6 +287,7 @@ func DoInterfaceSelect[T any](
 					entity, readErr := readLambda(row)
 					if readErr != nil {
 						xlog.Error(ctx, "Error reading row", zap.Error(readErr))
+						metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 					} else {
 						entities = append(entities, entity)
 					}
@@ -295,6 +298,7 @@ func DoInterfaceSelect[T any](
 	)
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.Error(err))
+		metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 		return nil, err
 	}
 	return entities, nil
@@ -321,6 +325,7 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	)
 	if err != nil {
 		xlog.Error(ctx, "Error executing query", zap.Error(err))
+		metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 		return err
 	}
 	if ops := queryBuilder.GetOperations(); len(ops) > 0 {

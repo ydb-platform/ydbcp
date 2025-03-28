@@ -24,6 +24,12 @@ func (s *MockMetricsRegistry) ReportHealthCheck() {
 	s.metrics["healthcheck_gauge"] = 1
 }
 
+func (s *MockMetricsRegistry) IncYdbErrorsCounter() {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.metrics["ydb_errors_counter"]++
+}
+
 func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operation) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()

@@ -98,6 +98,7 @@ services:
       dockerfile: ./dockerfile
     ports:
       - "50051:50051"
+      - "50052:50052"
     networks:
       - ydbcp-net
 

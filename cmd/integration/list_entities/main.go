@@ -1,17 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"io"
 	"log"
+	"net/http"
 	"strconv"
+	"sync"
 	"time"
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -212,6 +218,58 @@ func SchedulesToInsert() []types.BackupSchedule {
 	}
 }
 
+func ParseMetric() {
+	var res *http.Response
+	var err error
+	for {
+		res, err = http.Get("http://0.0.0.0:50052/metrics")
+		if err != nil {
+			time.Sleep(time.Second)
+		} else {
+			break
+		}
+	}
+
+	resBody, err := io.ReadAll(res.Body)
+
+	if err != nil {
+		log.Panicf(err.Error())
+	}
+
+	pattern := []byte("healthcheck_ydb_errors")
+	val := 0
+	for _, line := range bytes.Split(resBody, []byte("\n")) {
+		if len(line) == 0 {
+			continue
+		}
+		if line[0] == byte('#') {
+			continue
+		}
+
+		i := bytes.Index(line, pattern)
+		if i < 0 {
+			continue
+		}
+		i += len(pattern)
+		val, _ = strconv.Atoi(string(line[i+1:]))
+		break
+	}
+
+	if val != 1 {
+		log.Panicf("wrong ydb errors metric")
+	}
+}
+
+func NewMetricsServer() {
+	var wg sync.WaitGroup
+
+	cfg := &config.MetricsServerConfig{
+		BindPort:    50052,
+		BindAddress: "0.0.0.0",
+	}
+	metrics.InitializeMetricsRegistry(context.Background(), &wg, cfg, clockwork.NewFakeClock())
+}
+
 func main() {
 	ctx := context.Background()
 	conn := common.CreateGRPCClient(ydbcpEndpoint)
@@ -230,9 +288,19 @@ func main() {
 			DialTimeoutSeconds: 10,
 		},
 	)
+
 	if err != nil {
 		log.Panicf("failed to create ydb connector: %v", err)
 	}
+
+	//test errors metric
+	NewMetricsServer()
+	err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQueryMock())
+	if err == nil {
+		log.Panicf("error should be present")
+	}
+	ParseMetric()
+
 	backups, err := BackupsToInsert()
 	if err != nil {
 		log.Panicf("failed to create backups to insert: %v", err)

@@ -29,6 +29,7 @@ var GlobalMetricsRegistry MetricsRegistry
 type MetricsRegistry interface {
 	GetReg() *prometheus.Registry
 	ReportHealthCheck()
+	IncYdbErrorsCounter()
 	IncApiCallsCounter(serviceName string, methodName string, status string)
 	IncBytesWrittenCounter(containerId string, bucket string, database string, bytes int64)
 	IncBytesDeletedCounter(containerId string, bucket string, database string, bytes int64)
@@ -52,6 +53,7 @@ type MetricsRegistryImpl struct {
 
 	// healthcheck
 	healthCheckGauge *prometheus.GaugeVec
+	ydbErrorsCounter *prometheus.CounterVec
 
 	// api metrics
 	apiCallsCounter *prometheus.CounterVec
@@ -91,6 +93,10 @@ func (s *MetricsRegistryImpl) GetReg() *prometheus.Registry {
 
 func (s *MetricsRegistryImpl) ReportHealthCheck() {
 	s.healthCheckGauge.WithLabelValues().Set(1)
+}
+
+func (s *MetricsRegistryImpl) IncYdbErrorsCounter() {
+	s.ydbErrorsCounter.WithLabelValues().Inc()
 }
 
 func (s *MetricsRegistryImpl) IncApiCallsCounter(serviceName string, methodName string, code string) {
@@ -355,6 +361,12 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Subsystem: "healthcheck",
 		Name:      "gauge",
 		Help:      "1 if YDBCP binary is up",
+	}, []string{})
+
+	s.ydbErrorsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
+		Subsystem: "healthcheck",
+		Name:      "ydb_errors",
+		Help:      "Total count of received errors from YDB (or YDB Go SDK)",
 	}, []string{})
 
 	s.apiCallsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
