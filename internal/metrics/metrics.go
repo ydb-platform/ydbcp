@@ -485,11 +485,17 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 		Help:      "Maximum length of time permitted, that backup can be restored for this schedule",
 	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
 
-	mux := http.NewServeMux()
-	mux.Handle("/metrics", promhttp.HandlerFor(s.reg, promhttp.HandlerOpts{Registry: s.reg}))
+	s.server = CreateMetricsServer(ctx, wg, s.reg, &s.cfg)
 
-	s.server = &http.Server{
-		Addr:     fmt.Sprintf("%s:%d", s.cfg.BindAddress, s.cfg.BindPort),
+	return s
+}
+
+func CreateMetricsServer(ctx context.Context, wg *sync.WaitGroup, registry *prometheus.Registry, cfg *config.MetricsServerConfig) *http.Server {
+	mux := http.NewServeMux()
+	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
+
+	server := &http.Server{
+		Addr:     fmt.Sprintf("%s:%d", cfg.BindAddress, cfg.BindPort),
 		Handler:  mux,
 		ErrorLog: zap.NewStdLog(xlog.Logger(ctx)),
 	}
@@ -497,12 +503,12 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		xlog.Info(ctx, "Starting metrics server", zap.String("address", s.server.Addr))
+		xlog.Info(ctx, "Starting metrics server", zap.String("address", server.Addr))
 		var err error
-		if len(s.cfg.TLSCertificatePath) > 0 && len(s.cfg.TLSKeyPath) > 0 {
-			err = s.server.ListenAndServeTLS(s.cfg.TLSCertificatePath, s.cfg.TLSKeyPath)
+		if len(cfg.TLSCertificatePath) > 0 && len(cfg.TLSKeyPath) > 0 {
+			err = server.ListenAndServeTLS(cfg.TLSCertificatePath, cfg.TLSKeyPath)
 		} else {
-			err = s.server.ListenAndServe()
+			err = server.ListenAndServe()
 		}
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {
 			xlog.Fatal(ctx, "metrics server failed to serve ", zap.Error(err))
@@ -517,9 +523,10 @@ func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.Met
 
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 		defer cancel()
-		if err := s.server.Shutdown(shutdownCtx); err != nil {
+		if err := server.Shutdown(shutdownCtx); err != nil {
 			xlog.Error(ctx, "metrics server shutdown error", zap.Error(err))
 		}
 	}()
-	return s
+
+	return server
 }
