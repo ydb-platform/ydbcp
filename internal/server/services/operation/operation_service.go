@@ -114,7 +114,6 @@ func (s *OperationService) ListOperations(
 	if uint64(len(pbOperations)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, methodName, zap.Stringer("response", res))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }
