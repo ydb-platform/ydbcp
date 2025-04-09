@@ -344,7 +344,6 @@ func (s *BackupScheduleService) ListBackupSchedules(
 ) (*pb.ListBackupSchedulesResponse, error) {
 	const methodName string = "ListBackupSchedules"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
-	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 
 	queryFilters := make([]queries.QueryFilter, 0)
@@ -352,6 +351,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	subjectLabel := true
 
 	if request.GetContainerId() != "" {
+		ctx = xlog.With(ctx, zap.String("ContainerID", request.GetContainerId()))
 		subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 		if err != nil {
 			s.IncApiCallsCounter(methodName, status.Code(err))
@@ -432,18 +432,15 @@ func (s *BackupScheduleService) ListBackupSchedules(
 				subjectLabel = true
 			}
 			if err != nil {
-				s.IncApiCallsCounter(methodName, status.Code(err))
-				return nil, err
+				continue
 			}
 		}
-
 		pbSchedules = append(pbSchedules, schedule.Proto(s.clock))
 	}
 	res := &pb.ListBackupSchedulesResponse{Schedules: pbSchedules}
 	if uint64(len(pbSchedules)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, methodName, zap.Stringer("response", res))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }

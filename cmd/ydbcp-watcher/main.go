@@ -173,9 +173,10 @@ func performExchangeTokenRequest(ctx context.Context, oauth2 *Oauth2Config, toke
 	return processTokenExchangeResponse(result, now)
 }
 
-var iamToken atomic.Pointer[string]
+var ydbToken atomic.Pointer[string]
+var ydbcpToken atomic.Pointer[string]
 
-func TokenInterceptor(header string) grpc.UnaryClientInterceptor {
+func TokenInterceptor(header string, tokenPtr *atomic.Pointer[string]) grpc.UnaryClientInterceptor {
 	return func(
 		ctx context.Context,
 		method string,
@@ -184,7 +185,7 @@ func TokenInterceptor(header string) grpc.UnaryClientInterceptor {
 		invoker grpc.UnaryInvoker,
 		opts ...grpc.CallOption,
 	) error {
-		token := iamToken.Load()
+		token := tokenPtr.Load()
 		if token != nil {
 			ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
 				header: *token,
@@ -194,7 +195,7 @@ func TokenInterceptor(header string) grpc.UnaryClientInterceptor {
 	}
 }
 
-func getToken(ctx context.Context, key *rsa.PrivateKey, oauth2 *Oauth2Config) {
+func getToken(ctx context.Context, key *rsa.PrivateKey, oauth2 *Oauth2Config, pointer *atomic.Pointer[string]) {
 	claims := jwt.RegisteredClaims{
 		Issuer:    oauth2.SubjectCreds.Issuer,
 		Subject:   oauth2.SubjectCreds.Subject,
@@ -215,18 +216,20 @@ func getToken(ctx context.Context, key *rsa.PrivateKey, oauth2 *Oauth2Config) {
 	} else {
 		newToken := "Bearer " + result.AccessToken
 		xlog.Info(ctx, "Token exchanged")
-		iamToken.Store(&newToken)
+		pointer.Store(&newToken)
 	}
 }
 
-func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, oauth2 *Oauth2Config) {
+func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile string, tokenPtr *atomic.Pointer[string]) {
+	oauth2, _ := config.InitConfig[Oauth2Config](ctx, keyFile)
+
 	key, err := jwt.ParseRSAPrivateKeyFromPEM([]byte(oauth2.SubjectCreds.PrivateKey))
 	if err != nil {
 		xlog.Error(ctx, "Failed to parse private key", zap.Error(err))
 		os.Exit(1)
 	}
 
-	getToken(ctx, key, oauth2)
+	getToken(ctx, key, oauth2, tokenPtr)
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
@@ -236,10 +239,39 @@ func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, oauth2 *Oau
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				getToken(ctx, key, oauth2)
+				getToken(ctx, key, oauth2, tokenPtr)
 			}
 		}
 	}()
+}
+
+func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupScheduleServiceClient) map[string]bool {
+	schedules := make(map[string]bool)
+	statusFilter := []pb.BackupSchedule_Status{pb.BackupSchedule_ACTIVE}
+	pageToken := ""
+	for {
+		pbSchedules, err := scheduleClient.ListBackupSchedules(
+			ctx, &pb.ListBackupSchedulesRequest{
+				DatabaseNameMask: "%",
+				DisplayStatus:    statusFilter,
+				PageSize:         1000,
+				PageToken:        pageToken,
+			},
+		)
+		if err != nil {
+			xlog.Error(ctx, "Error listing backup schedules", zap.Error(err))
+		} else {
+			xlog.Info(ctx, "Got schedules from YDBCP", zap.String("proto", pbSchedules.String()))
+			for _, pbSchedule := range pbSchedules.Schedules {
+				schedules[pbSchedule.DatabaseName] = true
+			}
+			if pbSchedules.NextPageToken == "" {
+				break
+			}
+			pageToken = pbSchedules.NextPageToken
+		}
+	}
+	return schedules
 }
 
 func main() {
@@ -257,7 +289,6 @@ func main() {
 
 	if err != nil {
 		log.Error(fmt.Errorf("unable to initialize config: %w", err))
-		time.Sleep(time.Second * 100)
 		os.Exit(1)
 	}
 
@@ -295,13 +326,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	oauth2, _ := config.InitConfig[Oauth2Config](ctx, configInstance.ClusterConnection.OAuth2KeyFile)
-
-	StartCredentialsHelper(ctx, &wg, oauth2)
+	StartCredentialsHelper(ctx, &wg, configInstance.ClusterConnection.OAuth2KeyFile, &ydbToken)
+	StartCredentialsHelper(ctx, &wg, configInstance.ControlPlaneConnection.OAuth2KeyFile, &ydbcpToken)
 
 	var opts []grpc.DialOption
 	opts = append(opts, opt)
-	opts = append(opts, grpc.WithUnaryInterceptor(TokenInterceptor("authorization")))
+	opts = append(opts, grpc.WithUnaryInterceptor(TokenInterceptor("authorization", &ydbcpToken)))
 	conn := common.CreateGRPCClientWithOpts(configInstance.ControlPlaneConnection.Endpoint, opts)
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
@@ -313,7 +343,7 @@ func main() {
 
 	//connect to YDB cluster
 	opts = []grpc.DialOption{opt}
-	opts = append(opts, grpc.WithUnaryInterceptor(TokenInterceptor("x-ydb-auth-ticket")))
+	opts = append(opts, grpc.WithUnaryInterceptor(TokenInterceptor("x-ydb-auth-ticket", &ydbToken)))
 	ydb := common.CreateGRPCClientWithOpts(configInstance.ClusterConnection.Endpoint, opts)
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
@@ -368,22 +398,8 @@ LOOP:
 		case <-ticker.C:
 			{
 				cnt := 0
-				statusFilter := []pb.BackupSchedule_Status{pb.BackupSchedule_ACTIVE}
-				pbSchedules, err := scheduleClient.ListBackupSchedules(
-					ctx, &pb.ListBackupSchedulesRequest{
-						DatabaseNameMask: "%",
-						DisplayStatus:    statusFilter,
-					},
-				)
-				if err != nil {
-					xlog.Error(ctx, "Error listing backup schedules", zap.Error(err))
-				} else {
-					xlog.Info(ctx, "Got schedules from YDBCP", zap.String("proto", pbSchedules.String()))
-				}
-				schedules := make(map[string]bool, len(pbSchedules.Schedules))
-				for _, pbSchedule := range pbSchedules.Schedules {
-					schedules[pbSchedule.DatabaseName] = true
-				}
+				schedules := GetSchedulesFromYDBCP(ctx, scheduleClient)
+
 				op, err := cmsService.ListDatabases(ctx, &Ydb_Cms.ListDatabasesRequest{
 					OperationParams: &Ydb_Operations.OperationParams{
 						OperationTimeout: durationpb.New(time.Second * 10),

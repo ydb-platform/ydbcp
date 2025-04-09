@@ -3,9 +3,8 @@ ydb:
   oauth2_key_file: key.json
 ydbcp:
   endpoint: "cpl endpoint"
+  oauth2_key_file: key.json
 metrics_server:
   bind_port: 9090
-auth:
-  access_service_endpoint: grpcs://access.iam.private-api.tst.man.nbhost.net:443
 db_exceptions:
   - /dev/database

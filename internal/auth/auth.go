@@ -54,6 +54,7 @@ func NewAuthProvider(ctx context.Context, cfg config.AuthConfig) (auth.AuthProvi
 }
 
 func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, containerID, resourceID string) (string, error) {
+	ctx = xlog.With(ctx, zap.String("ContainerID", containerID), zap.String("ResourceID", resourceID))
 	token, err := TokenFromGRPCContext(ctx)
 	if err != nil {
 		xlog.Debug(ctx, "can't get auth token", zap.Error(err))
