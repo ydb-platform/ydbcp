@@ -87,7 +87,8 @@ type ClusterConnectionConfig struct {
 }
 
 type ControlPlaneConnectionConfig struct {
-	Endpoint string `yaml:"endpoint"`
+	Endpoint      string `yaml:"endpoint"`
+	OAuth2KeyFile string `yaml:"oauth2_key_file"`
 }
 
 type WatcherConfig struct {
