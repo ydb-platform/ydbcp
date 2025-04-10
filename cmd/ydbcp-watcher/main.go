@@ -260,6 +260,7 @@ func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupSchedule
 		)
 		if err != nil {
 			xlog.Error(ctx, "Error listing backup schedules", zap.Error(err))
+			break
 		} else {
 			xlog.Info(ctx, "Got schedules from YDBCP", zap.String("proto", pbSchedules.String()))
 			for _, pbSchedule := range pbSchedules.Schedules {
