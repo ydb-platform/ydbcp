@@ -1,5 +1,5 @@
 # Use the official Golang image as the base image
-FROM golang:1.22-alpine as builder
+FROM golang:1.23-alpine as builder
 
 # Set the Current Working Directory inside the container
 WORKDIR /ydbcp
