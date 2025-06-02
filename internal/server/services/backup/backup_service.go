@@ -374,7 +374,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	if err != nil {
 		xlog.Error(ctx, "can't start import operation", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Unknown)
-		return nil, status.Errorf(codes.Unknown, "can't start import operation, dsn %s", dsn)
+		return nil, status.Errorf(codes.Unknown, "can't start import operation: %v, dsn %s", err, dsn)
 	}
 	ctx = xlog.With(ctx, zap.String("ClientOperationID", clientOperationID))
 	xlog.Debug(ctx, "import operation started")
