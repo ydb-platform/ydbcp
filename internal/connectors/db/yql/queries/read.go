@@ -188,11 +188,12 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 	for i := 0; i < len(d.filterFields); i++ {
 		fieldFilterStrings := make([]string, 0, len(d.filters[i]))
 		op := "="
-		if d.isLikeFilter[d.filterFields[i]] {
-			op = "LIKE"
-		}
 		for _, value := range d.filters[i] {
 			paramName := d.AddTableQueryParam(value)
+			if d.isLikeFilter[d.filterFields[i]] {
+				op = "LIKE"
+				paramName = fmt.Sprintf("\"%%\" || %s || \"%%\"", paramName)
+			}
 			fieldFilterStrings = append(fieldFilterStrings, fmt.Sprintf("%s %s %s", d.filterFields[i], op, paramName))
 		}
 		filterStrings = append(filterStrings, fmt.Sprintf("(%s)", strings.Join(fieldFilterStrings, " OR ")))
