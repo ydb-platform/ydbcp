@@ -52,6 +52,45 @@ func TestQueryBuilderRead(t *testing.T) {
 	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
 }
 
+func TestQueryBuilderLike(t *testing.T) {
+	const (
+		queryString = `SELECT * FROM table1 WHERE (database LIKE "%" || $param0 || "%") AND (column2 = $param1)`
+	)
+	var (
+		queryParams = table.NewQueryParameters(
+			table.ValueParam("$param0", table_types.StringValueFromString("value1")),
+			table.ValueParam("$param1", table_types.StringValueFromString("value2")),
+		)
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithQueryFilters(
+			QueryFilter{
+				Field:  "database",
+				IsLike: true,
+				Values: []table_types.Value{
+					table_types.StringValueFromString("value1"),
+				},
+			},
+		),
+		WithQueryFilters(
+			QueryFilter{
+				Field: "column2",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("value2"),
+				},
+			},
+		),
+	)
+	query, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, queryString, query.QueryText,
+		"bad query format",
+	)
+	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
+}
+
 func TestQueryBuilderOrderBy(t *testing.T) {
 	const (
 		q1 = `SELECT * FROM table1 ORDER BY field`
