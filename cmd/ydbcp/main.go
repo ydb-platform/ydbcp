@@ -5,6 +5,8 @@ import (
 	"flag"
 	"fmt"
 	"github.com/ydb-platform/ydb-go-sdk/v3/log"
+	"net/http"
+	_ "net/http/pprof"
 	"os"
 	"os/signal"
 	"sync"
@@ -73,6 +75,14 @@ func main() {
 	if err != nil {
 		xlog.Error(ctx, "Can't set maxprocs", zap.Error(err))
 	}
+
+	go func() {
+		xlog.Info(ctx, "Starting pprof server at :6060")
+		err := http.ListenAndServe("localhost:6060", nil)
+		if err != nil {
+			xlog.Error(ctx, "Failed to start pprof server", zap.Error(err))
+		}
+	}()
 
 	if confStr, err := configInstance.ToString(); err == nil {
 		xlog.Debug(
