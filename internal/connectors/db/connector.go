@@ -316,7 +316,7 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 	}
 	err = d.GetQueryClient().Do(
 		ctx, func(ctx context.Context, s query.Session) (err error) {
-			_, err = s.Query(
+			res, err := s.Query(
 				ctx,
 				queryFormat.QueryText,
 				query.WithParameters(queryFormat.QueryParams),
@@ -325,6 +325,12 @@ func (d *YdbConnector) ExecuteUpsert(ctx context.Context, queryBuilder queries.W
 			if err != nil {
 				return err
 			}
+			defer func(res query.Result) {
+				err = res.Close(ctx)
+				if err != nil {
+					xlog.Error(ctx, "Error closing transaction result")
+				}
+			}(res) // result must be closed
 			return nil
 		},
 	)

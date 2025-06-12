@@ -104,17 +104,19 @@ func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalR
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
 	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
-	client, err := clientConn.Open(ctx, dsn)
+	connCtx, cancel := context.WithTimeout(ctx, time.Second*5)
+	driver, err := clientConn.Open(connCtx, dsn)
+	cancel()
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
 		return status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
 	}
 	defer func() {
-		if err := clientConn.Close(ctx, client); err != nil {
+		if err := clientConn.Close(ctx, driver); err != nil {
 			xlog.Error(ctx, "can't close client connection", zap.Error(err))
 		}
 	}()
-	_, err = ValidateSourcePaths(ctx, req, clientConn, client, dsn)
+	_, err = ValidateSourcePaths(ctx, req, clientConn, driver, dsn)
 	var empty *EmptyDatabaseError
 	if errors.As(err, &empty) {
 		return nil
