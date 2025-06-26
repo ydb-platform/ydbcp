@@ -1,6 +1,6 @@
 services:
   ydb:
-    image: cr.yandex/yc/yandex-docker-local-ydb:24.1
+    image: artifactory.nebius.dev/common-cr/ydb/local-ydb:stream-nb-25-1
     platform: linux/amd64
     hostname: ${YDB_NAME}
     container_name: ${YDB_NAME}
@@ -13,7 +13,7 @@ services:
       - MON_PORT=8765
       - YDB_ANONYMOUS_CREDENTIALS=true
       - YDB_USE_IN_MEMORY_PDISKS=true
-      - YDB_FEATURE_FLAGS=enable_uuid_as_primary_key,enable_implicit_query_parameter_types
+      - YDB_FEATURE_FLAGS=enable_uuid_as_primary_key,enable_implicit_query_parameter_types,enable_encrypted_export
     ports:
       - "8765:8765"
       #- "2135:2135"
