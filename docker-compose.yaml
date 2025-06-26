@@ -1,6 +1,11 @@
 services:
   ydb:
-    image: cr.yandex/yc/yandex-docker-local-ydb:24.1
+    # local-ydb image that was built from main
+    # Image: https://github.com/ydb-platform/ydb/pkgs/container/local-ydb/451750046
+    # Built from revision e52872a0c51f24dc566d4368364ed9aa849947ca
+    # https://github.com/ydb-platform/ydb/tree/e52872a0c51f24dc566d4368364ed9aa849947ca
+    # Build time: 2025-07-02T03:30:35.406Z
+    image: ghcr.io/ydb-platform/local-ydb@sha256:6a0b21ab6490365de6da266311c81ab1f476159c8b84da966a2bced7caf1f88c
     platform: linux/amd64
     hostname: ${YDB_NAME}
     container_name: ${YDB_NAME}
@@ -13,7 +18,7 @@ services:
       - MON_PORT=8765
       - YDB_ANONYMOUS_CREDENTIALS=true
       - YDB_USE_IN_MEMORY_PDISKS=true
-      - YDB_FEATURE_FLAGS=enable_uuid_as_primary_key,enable_implicit_query_parameter_types
+      - YDB_FEATURE_FLAGS=enable_uuid_as_primary_key,enable_implicit_query_parameter_types,enable_encrypted_export
     ports:
       - "8765:8765"
       #- "2135:2135"
