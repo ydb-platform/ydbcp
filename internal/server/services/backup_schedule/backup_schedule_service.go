@@ -18,6 +18,7 @@ import (
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -42,24 +43,6 @@ func (s *BackupScheduleService) IncApiCallsCounter(methodName string, code codes
 	metrics.GlobalMetricsRegistry.IncApiCallsCounter("BackupScheduleService", methodName, code.String())
 }
 
-func (s *BackupScheduleService) CheckClientDbAccess(
-	ctx context.Context, clientConnectionParams types.YdbConnectionParams) error {
-	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
-	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-	defer cancel()
-	clientDriver, err := s.clientConn.Open(connCtx, dsn)
-	if err != nil {
-		return status.Errorf(codes.NotFound, err.Error())
-	}
-	_, err = s.clientConn.ListExportOperations(connCtx, clientDriver)
-	if err != nil {
-		xlog.Error(ctx, "can't list export operations", zap.Error(err))
-		return status.Errorf(codes.PermissionDenied, "user has no access to database %s", dsn)
-	}
-	return nil
-}
-
 func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx context.Context, request *pb.CreateBackupScheduleRequest,
 ) (*pb.BackupSchedule, error) {
@@ -73,7 +56,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
-	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+	if err = helpers.CheckClientDbAccess(ctx, s.clientConn, types.YdbConnectionParams{
 		Endpoint:     request.Endpoint,
 		DatabaseName: request.DatabaseName,
 	}); err != nil {
@@ -230,7 +213,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
-	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+	if err = helpers.CheckClientDbAccess(ctx, s.clientConn, types.YdbConnectionParams{
 		Endpoint:     schedule.DatabaseEndpoint,
 		DatabaseName: schedule.DatabaseName,
 	}); err != nil {
@@ -484,7 +467,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 		return nil, err
 	}
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
-	if err = s.CheckClientDbAccess(ctx, types.YdbConnectionParams{
+	if err = helpers.CheckClientDbAccess(ctx, s.clientConn, types.YdbConnectionParams{
 		Endpoint:     schedule.DatabaseEndpoint,
 		DatabaseName: schedule.DatabaseName,
 	}); err != nil {
