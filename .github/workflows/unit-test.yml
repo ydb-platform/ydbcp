@@ -15,19 +15,27 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Cache go modules
         uses: magnetikonline/action-golang-cache@v5
         with:
           go-version-file: go.mod
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install proto plugins
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.34.2
           go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@v1.5.1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Compile protos
         run: make proto
