@@ -15,6 +15,7 @@ import (
 	"ydbcp/internal/server"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -314,16 +315,16 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
-	client, err := s.clientConn.Open(ctx, dsn)
+
+	clientDriver, err := helpers.GetClientDbAccess(ctx, s.clientConn, clientConnectionParams)
 	if err != nil {
-		xlog.Error(ctx, "can't open client connection", zap.Error(err))
-		s.IncApiCallsCounter(methodName, codes.Unknown)
-		return nil, status.Errorf(codes.Unknown, "can't open client connection, dsn %s", dsn)
+		s.IncApiCallsCounter(methodName, status.Code(err))
+		return nil, err
 	}
 	defer func() {
-		if err := s.clientConn.Close(ctx, client); err != nil {
-			xlog.Error(ctx, "can't close client connection", zap.Error(err))
+		err := clientDriver.Close(ctx)
+		if err != nil {
+			xlog.Error(ctx, "failed to close client driver", zap.Error(err))
 		}
 	}()
 
@@ -370,7 +371,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		DestinationPrefix: req.GetDestinationPrefix(),
 	}
 
-	clientOperationID, err := s.clientConn.ImportFromS3(ctx, client, s3Settings)
+	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings)
 	if err != nil {
 		xlog.Error(ctx, "can't start import operation", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Unknown)
