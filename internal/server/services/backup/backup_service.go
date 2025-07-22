@@ -315,12 +315,12 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-
 	clientDriver, err := helpers.GetClientDbAccess(ctx, s.clientConn, clientConnectionParams)
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
+	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
 	defer func() {
 		err := clientDriver.Close(ctx)
 		if err != nil {
