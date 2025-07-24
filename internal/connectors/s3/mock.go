@@ -12,6 +12,23 @@ type MockS3Connector struct {
 	storage map[string]Bucket
 }
 
+func (m *MockS3Connector) ListObjectsPages(input *s3.ListObjectsInput, fn func(*s3.ListObjectsOutput, bool) bool) error {
+	objects, _, err := m.ListObjects(*input.Prefix, *input.Bucket)
+	if err != nil {
+		return err
+	}
+
+	var s3objs []*s3.Object
+	for i := 0; i < len(objects); i++ {
+		s3objs = append(s3objs, &s3.Object{
+			Key: &objects[i],
+		})
+	}
+
+	_ = fn(&s3.ListObjectsOutput{Contents: s3objs}, true)
+	return nil
+}
+
 func NewMockS3Connector(storage map[string]Bucket) *MockS3Connector {
 	return &MockS3Connector{
 		storage: storage,

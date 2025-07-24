@@ -341,20 +341,15 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Error(codes.Internal, "can't get S3SecretKey")
 	}
 
-	var sourcePaths []string
-	if len(req.SourcePaths) == 0 {
-		sourcePaths = []string{backup.S3PathPrefix}
-	} else {
-		sourcePaths = make([]string, 0, len(req.SourcePaths))
-		for _, p := range req.SourcePaths {
-			fullPath, ok := backup_operations.SafePathJoin(backup.S3PathPrefix, p)
-			if !ok {
-				xlog.Error(ctx, "incorrect source path", zap.String("path", p))
-				s.IncApiCallsCounter(methodName, codes.InvalidArgument)
-				return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
-			}
-			sourcePaths = append(sourcePaths, fullPath)
+	sourcePaths := make(map[string]bool, 0)
+	for _, p := range req.SourcePaths {
+		fullPath, ok := backup_operations.SafePathJoin(backup.S3PathPrefix, p)
+		if !ok {
+			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
+			s.IncApiCallsCounter(methodName, codes.InvalidArgument)
+			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
 		}
+		sourcePaths[fullPath] = true
 	}
 
 	s3Settings := types.ImportSettings{
@@ -366,6 +361,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		Description:       "ydbcp restore", // TODO: write description
 		NumberOfRetries:   10,              // TODO: get value from configuration
 		BackupID:          backupID,
+		BucketDbRoot:      backup.S3PathPrefix,
 		SourcePaths:       sourcePaths,
 		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
 		DestinationPrefix: req.GetDestinationPrefix(),

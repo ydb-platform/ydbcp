@@ -32,7 +32,8 @@ type ImportSettings struct {
 	Description       string
 	NumberOfRetries   uint32
 	BackupID          string
-	SourcePaths       []string
+	BucketDbRoot      string
+	SourcePaths       map[string]bool
 	S3ForcePathStyle  bool
 	DestinationPrefix string
 }
