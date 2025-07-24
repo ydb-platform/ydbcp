@@ -103,7 +103,7 @@ func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Set
 }
 
 func (m *MockClientConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
-	for _, source := range s3Settings.SourcePaths {
+	for source := range s3Settings.SourcePaths {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: source}
 		if !m.storage[objectPath] {
 			return "", fmt.Errorf("object %v doesn't exist", objectPath)

@@ -278,13 +278,78 @@ func (d *ClientYdbConnector) ExportToS3(
 	return response.GetOperation().GetId(), nil
 }
 
-func prepareItemsForImport(clientDb *ydb.Driver, s3Settings types.ImportSettings) ([]*Ydb_Import.ImportFromS3Settings_Item, error) {
-	if len(s3Settings.SourcePaths) == 0 {
-		return nil, fmt.Errorf("empty list of source paths for import")
+type S3API interface {
+	ListObjectsPages(input *s3.ListObjectsInput, fn func(*s3.ListObjectsOutput, bool) bool) error
+}
+
+func addSlashes(m map[string]bool) map[string]bool {
+	res := make(map[string]bool, len(m))
+	for el := range m {
+		if !strings.HasSuffix(el, "/") {
+			res[el+"/"] = true
+		} else {
+			res[el] = true
+		}
+	}
+	return res
+}
+
+func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.ImportSettings) ([]*Ydb_Import.ImportFromS3Settings_Item, error) {
+	backupEverything := len(s3Settings.SourcePaths) == 0
+
+	items := make([]*Ydb_Import.ImportFromS3Settings_Item, 0)
+	itemsPtr := &items
+
+	backupRoot := s3Settings.BucketDbRoot
+	if !strings.HasSuffix(backupRoot, "/") {
+		backupRoot = backupRoot + "/"
+	}
+
+	pathPrefixes := addSlashes(s3Settings.SourcePaths)
+
+	err := s3Client.ListObjectsPages(
+		&s3.ListObjectsInput{
+			Bucket: &s3Settings.Bucket,
+			Prefix: &backupRoot,
+		},
+		func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
+			for _, object := range p.Contents {
+
+				key, found := strings.CutSuffix(*object.Key, "scheme.pb")
+				if found {
+					shouldRestore := backupEverything || pathPrefixes[key]
+					if shouldRestore {
+						*itemsPtr = append(
+							*itemsPtr,
+							&Ydb_Import.ImportFromS3Settings_Item{
+								SourcePrefix: key,
+								DestinationPath: path.Join(
+									dbName,
+									s3Settings.DestinationPrefix,
+									key[len(backupRoot):],
+								),
+							},
+						)
+					}
+				}
+			}
+
+			return true
+		},
+	)
+
+	if err != nil {
+		return nil, err
+	}
+	return *itemsPtr, nil
+}
+
+func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
+	if clientDb == nil {
+		return "", fmt.Errorf("unititialized client db driver")
 	}
 
 	s := session.Must(session.NewSession())
-
 	s3Client := s3.New(s,
 		&aws.Config{
 			Region:           &s3Settings.Region,
@@ -294,56 +359,7 @@ func prepareItemsForImport(clientDb *ydb.Driver, s3Settings types.ImportSettings
 		},
 	)
 
-	items := make([]*Ydb_Import.ImportFromS3Settings_Item, 0)
-	itemsPtr := &items
-
-	for _, sourcePath := range s3Settings.SourcePaths {
-		if !strings.HasSuffix(sourcePath, "/") {
-			sourcePath = sourcePath + "/"
-		}
-
-		err := s3Client.ListObjectsPages(
-			&s3.ListObjectsInput{
-				Bucket: &s3Settings.Bucket,
-				Prefix: &sourcePath,
-			},
-			func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
-				for _, object := range p.Contents {
-
-					key, found := strings.CutSuffix(*object.Key, "scheme.pb")
-					if found {
-						*itemsPtr = append(
-							*itemsPtr,
-							&Ydb_Import.ImportFromS3Settings_Item{
-								SourcePrefix: key,
-								DestinationPath: path.Join(
-									clientDb.Name(),
-									s3Settings.DestinationPrefix,
-									key[len(sourcePath):],
-								),
-							},
-						)
-					}
-				}
-
-				return true
-			},
-		)
-
-		if err != nil {
-			return nil, err
-		}
-	}
-
-	return *itemsPtr, nil
-}
-
-func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
-	if clientDb == nil {
-		return "", fmt.Errorf("unititialized client db driver")
-	}
-
-	items, err := prepareItemsForImport(clientDb, s3Settings)
+	items, err := prepareItemsForImport(clientDb.Name(), s3Client, s3Settings)
 	if err != nil {
 		return "", fmt.Errorf("error preparing list of items for import: %s", err.Error())
 	}

@@ -61,6 +61,10 @@ if [[ "MakeBackup" == "$1" ]]; then
   doneflag=1
   $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "database_endpoint": "'"${YDB_ENDPOINT}"'", "containerId": "'"$CONTAINER_ID"'"}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupService.MakeBackup
 fi
+if [[ "MakeRestore" == "$1" ]]; then
+  doneflag=1
+  $GRPCURL "${ARGS[@]}" -d '{"containerId": "'"$CONTAINER_ID"'", "database_name": "'"${YDB_DBNAME}"'", "database_endpoint": "'"${YDB_ENDPOINT}"'", "destination_prefix": "restore-prefix", "source_paths": "Backups", "source_paths": "BackupSchedules", "backup_id": "'"$BACKUP_ID"'"}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupService.MakeRestore
+fi
 if [[ "CreateBackupSchedule" == "$1" ]]; then
   $GRPCURL "${ARGS[@]}" -d '{"database_name": "'"${YDB_DBNAME}"'", "endpoint": "'"${YDB_ENDPOINT}"'", "containerId": "'"$CONTAINER_ID"'", "schedule_settings": {"schedule_pattern": {"crontab": "* * * * *"}}}' ${YDBCP_ENDPOINT} ydbcp.v1alpha1.BackupScheduleService.CreateBackupSchedule
   doneflag=1
