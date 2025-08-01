@@ -193,8 +193,13 @@ func main() {
 
 	processor.NewOperationProcessor(ctx, &wg, configInstance.ProcessorIntervalSeconds, dbConnector, handlersRegistry)
 	xlog.Info(ctx, "Initialized OperationProcessor")
-	ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
-	xlog.Info(ctx, "Created TtlWatcher")
+
+	if configInstance.DisableTTLDeletion {
+		xlog.Info(ctx, "TtlWatcher is disabled, old backups won't be deleted")
+	} else {
+		ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
+		xlog.Info(ctx, "Created TtlWatcher")
+	}
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 

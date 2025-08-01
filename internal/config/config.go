@@ -79,6 +79,7 @@ type Config struct {
 	MetricsServer            MetricsServerConfig    `yaml:"metrics_server"`
 	SchedulesLimitPerDB      int                    `yaml:"schedules_limit_per_db" default:"10"`
 	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
+	DisableTTLDeletion       bool                   `yaml:"disable_ttl_deletion" default:"false"`
 }
 
 type ClusterConnectionConfig struct {
