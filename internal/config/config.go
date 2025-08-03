@@ -80,6 +80,7 @@ type Config struct {
 	SchedulesLimitPerDB      int                    `yaml:"schedules_limit_per_db" default:"10"`
 	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
 	DisableTTLDeletion       bool                   `yaml:"disable_ttl_deletion" default:"false"`
+	AuditEventsDestination   string                 `yaml:"audit_events_destination"`
 }
 
 type ClusterConnectionConfig struct {

@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"strconv"
 	"time"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -45,7 +46,8 @@ func (s *BackupScheduleService) IncApiCallsCounter(methodName string, code codes
 
 func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx context.Context, request *pb.CreateBackupScheduleRequest,
-) (*pb.BackupSchedule, error) {
+) (_ *pb.BackupSchedule, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_CreateBackupSchedule_FullMethodName, responseErr)
 	const methodName string = "CreateBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -175,7 +177,9 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 
 func (s *BackupScheduleService) UpdateBackupSchedule(
 	ctx context.Context, request *pb.UpdateBackupScheduleRequest,
-) (*pb.BackupSchedule, error) {
+) (_ *pb.BackupSchedule, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_UpdateBackupSchedule_FullMethodName, responseErr)
+
 	const methodName string = "UpdateBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
@@ -278,8 +282,10 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 
 func (s *BackupScheduleService) GetBackupSchedule(
 	ctx context.Context, request *pb.GetBackupScheduleRequest,
-) (*pb.BackupSchedule, error) {
+) (_ *pb.BackupSchedule, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, responseErr)
 	const methodName string = "GetBackupSchedule"
+	ctx = xlog.With(ctx, zap.String("GRPCCall", pb.BackupScheduleService_GetBackupSchedule_FullMethodName))
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
@@ -324,7 +330,8 @@ func (s *BackupScheduleService) GetBackupSchedule(
 
 func (s *BackupScheduleService) ListBackupSchedules(
 	ctx context.Context, request *pb.ListBackupSchedulesRequest,
-) (*pb.ListBackupSchedulesResponse, error) {
+) (_ *pb.ListBackupSchedulesResponse, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ListBackupSchedules_FullMethodName, responseErr)
 	const methodName string = "ListBackupSchedules"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -430,7 +437,8 @@ func (s *BackupScheduleService) ListBackupSchedules(
 
 func (s *BackupScheduleService) ToggleBackupSchedule(
 	ctx context.Context, request *pb.ToggleBackupScheduleRequest,
-) (*pb.BackupSchedule, error) {
+) (_ *pb.BackupSchedule, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ToggleBackupSchedule_FullMethodName, responseErr)
 	const methodName string = "ToggleBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
@@ -516,7 +524,8 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 
 func (s *BackupScheduleService) DeleteBackupSchedule(
 	ctx context.Context, request *pb.DeleteBackupScheduleRequest,
-) (*pb.BackupSchedule, error) {
+) (_ *pb.BackupSchedule, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_DeleteBackupSchedule_FullMethodName, responseErr)
 	const methodName string = "DeleteBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 

@@ -11,6 +11,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
@@ -91,6 +92,7 @@ func main() {
 			zap.String("config", confStr),
 		)
 	}
+	audit.EventsDestination = configInstance.AuditEventsDestination
 	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
 	server, err := server.NewServer(&configInstance.GRPCServer)
