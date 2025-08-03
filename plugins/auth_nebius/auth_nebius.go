@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/protobuf/types/known/anypb"
 	"strings"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/util/tls_setup"
 
 	"ydbcp/internal/util/xlog"
@@ -94,6 +96,23 @@ func authorizeRequest(token string, checks []auth.AuthorizeCheck) *pb.AuthorizeR
 	return &authReq
 }
 
+func sanitize(message *pb.AuthorizeRequest) *pb.AuthorizeRequest {
+	sanitized := message
+	for i, c := range sanitized.Checks {
+		if c.GetIamToken() != "" {
+			sanitized.Checks[i] = &pb.AuthorizeCheck{
+				Identifier: &pb.AuthorizeCheck_IamToken{
+					IamToken: auth.MaskToken(c.GetIamToken()),
+				},
+				Permission:   c.Permission,
+				ContainerId:  c.ContainerId,
+				ResourcePath: c.ResourcePath,
+			}
+		}
+	}
+	return sanitized
+}
+
 func accountToString(account *pb.Account) string {
 	switch v := account.Type.(type) {
 	case *pb.Account_UserAccount_:
@@ -170,6 +189,18 @@ func (p *authProviderNebius) Authorize(
 	client := pb.NewAccessServiceClient(conn)
 	authReq := authorizeRequest(token, checks)
 	resp, err := client.Authorize(ctx, authReq)
+	sanitizedRequest := sanitize(authReq)
+	reqAny, errc := anypb.New(sanitizedRequest)
+	if errc != nil {
+		xlog.Error(ctx, "fail to report audit event", zap.Error(err))
+	}
+	respAny, errc := anypb.New(resp)
+	if errc != nil {
+		xlog.Error(ctx, "fail to report audit event", zap.Error(err))
+	}
+
+	audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(reqAny, respAny, err))
+
 	if err != nil {
 		xlog.Error(ctx, "fail to call AccessService.Authorize", zap.Error(err))
 		return nil, "", fmt.Errorf("access service call error: %w", err)

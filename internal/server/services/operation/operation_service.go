@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"strconv"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/metrics"
 
 	"ydbcp/internal/auth"
@@ -34,7 +35,8 @@ func (s *OperationService) IncApiCallsCounter(methodName string, code codes.Code
 func (s *OperationService) ListOperations(
 	ctx context.Context,
 	request *pb.ListOperationsRequest,
-) (*pb.ListOperationsResponse, error) {
+) (_ *pb.ListOperationsResponse, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, responseErr)
 	const methodName string = "ListOperations"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -122,7 +124,8 @@ func (s *OperationService) ListOperations(
 func (s *OperationService) CancelOperation(
 	ctx context.Context,
 	request *pb.CancelOperationRequest,
-) (*pb.Operation, error) {
+) (_ *pb.Operation, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, responseErr)
 	const methodName string = "CancelOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -206,7 +209,10 @@ func (s *OperationService) CancelOperation(
 	return operation.Proto(), nil
 }
 
-func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (*pb.Operation, error) {
+func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (
+	_ *pb.Operation, responseErr error,
+) {
+	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, responseErr)
 	const methodName string = "GetOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))

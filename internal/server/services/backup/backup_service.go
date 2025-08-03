@@ -5,6 +5,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"strconv"
 	"time"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
@@ -42,7 +43,8 @@ func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 	metrics.GlobalMetricsRegistry.IncApiCallsCounter("BackupService", methodName, code.String())
 }
 
-func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (*pb.Backup, error) {
+func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (_ *pb.Backup, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_GetBackup_FullMethodName, responseErr)
 	const methodName string = "GetBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -90,7 +92,8 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	return backups[0].Proto(), nil
 }
 
-func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (*pb.Operation, error) {
+func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (_ *pb.Operation, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeBackup_FullMethodName, responseErr)
 	const methodName string = "MakeBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -151,7 +154,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	return tbwr.Proto(), nil
 }
 
-func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (*pb.Operation, error) {
+func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (_ *pb.Operation, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_DeleteBackup_FullMethodName, responseErr)
 	const methodName string = "DeleteBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -239,7 +243,8 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	return op.Proto(), nil
 }
 
-func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (*pb.Operation, error) {
+func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (operationPb *pb.Operation, responseErr error) {
+	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeRestore_FullMethodName, responseErr)
 	const methodName string = "MakeRestore"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -410,8 +415,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 }
 
 func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (
-	*pb.ListBackupsResponse, error,
+	_ *pb.ListBackupsResponse, responseErr error,
 ) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_ListBackups_FullMethodName, responseErr)
 	const methodName string = "ListBackups"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -501,8 +507,9 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 }
 
 func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateBackupTtlRequest) (
-	*pb.Backup, error,
+	_ *pb.Backup, responseErr error,
 ) {
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_UpdateBackupTtl_FullMethodName, responseErr)
 	const methodName string = "UpdateBackupTtl"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
