@@ -49,32 +49,34 @@ func marshalProtoMessage(msg proto.Message) json.RawMessage {
 }
 
 func (e *Event) MarshalJSON() ([]byte, error) {
-	type Alias Event
 	return json.Marshal(&struct {
-		GRPCRequest  json.RawMessage `json:"grpc_request,omitempty"`
-		AuthRequest  json.RawMessage `json:"auth_request,omitempty"`
-		AuthResponse json.RawMessage `json:"auth_response,omitempty"`
-		Status       json.RawMessage `json:"status,omitempty"`
+		Resource     string
+		Action       Action
+		Component    string
+		MethodName   string
+		GRPCRequest  json.RawMessage `json:"grpc_request"`
+		AuthRequest  json.RawMessage `json:"auth_request"`
+		AuthResponse json.RawMessage `json:"auth_response"`
+		Status       json.RawMessage `json:"status"`
 		Timestamp    string          `json:"timestamp"`
-		*Alias
 	}{
+		Resource:     e.Resource,
+		Action:       e.Action,
+		Component:    e.Component,
+		MethodName:   e.MethodName,
 		GRPCRequest:  marshalProtoMessage(e.GRPCRequest),
 		AuthRequest:  marshalProtoMessage(e.AuthRequest),
 		AuthResponse: marshalProtoMessage(e.AuthResponse),
 		Status:       marshalProtoMessage(e.Status.Proto()),
 		Timestamp:    e.Timestamp.Format(time.RFC3339Nano),
-		Alias:        (*Alias)(e),
 	})
 }
 
 func (ej *EventJson) MarshalJSON() ([]byte, error) {
-	type Alias EventJson
 	return json.Marshal(&struct {
 		Event *Event `json:"event,omitempty"`
-		*Alias
 	}{
 		Event: ej.Event,
-		Alias: (*Alias)(ej),
 	})
 }
 func getGRPCStatus(err error) *status.Status {
