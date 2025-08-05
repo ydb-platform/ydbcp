@@ -516,7 +516,6 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	if uint64(len(pbBackups)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, methodName, zap.String("response", res.String()))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }

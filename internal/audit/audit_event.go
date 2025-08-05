@@ -55,12 +55,12 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		Resource     string          `json:"resource"`
 		Action       Action          `json:"action"`
 		Component    string          `json:"component"`
-		MethodName   string          `json:"method_name"`
+		MethodName   string          `json:"method_name,omitempty"`
 		Subject      string          `json:"subject"`
-		GRPCRequest  json.RawMessage `json:"grpc_request"`
-		AuthRequest  json.RawMessage `json:"auth_request"`
-		AuthResponse json.RawMessage `json:"auth_response"`
-		Status       json.RawMessage `json:"status"`
+		GRPCRequest  json.RawMessage `json:"grpc_request,omitempty"`
+		AuthRequest  json.RawMessage `json:"auth_request,omitempty"`
+		AuthResponse json.RawMessage `json:"auth_response,omitempty"`
+		Status       json.RawMessage `json:"status,omitempty"`
 		Timestamp    string          `json:"timestamp"`
 	}{
 		Resource:     e.Resource,
