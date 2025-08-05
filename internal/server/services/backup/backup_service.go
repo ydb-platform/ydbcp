@@ -44,7 +44,10 @@ func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 }
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (_ *pb.Backup, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_GetBackup_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.BackupService_GetBackup_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "GetBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -80,7 +83,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "")
+	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
@@ -93,7 +96,10 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 }
 
 func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (_ *pb.Operation, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeBackup_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeBackup_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "MakeBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -155,7 +161,10 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 }
 
 func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (_ *pb.Operation, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_DeleteBackup_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, req, pb.BackupService_DeleteBackup_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "DeleteBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -196,7 +205,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
+	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
@@ -244,7 +253,10 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 }
 
 func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (operationPb *pb.Operation, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeRestore_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeRestore_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "MakeRestore"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
@@ -282,7 +294,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
-	subject, err := auth.CheckAuth(
+	subject, err = auth.CheckAuth(
 		ctx, s.auth, auth.PermissionBackupRestore, backup.ContainerID, "",
 	) // TODO: check access to backup as resource
 	if err != nil {
@@ -417,7 +429,10 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackupsRequest) (
 	_ *pb.ListBackupsResponse, responseErr error,
 ) {
-	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_ListBackups_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.BackupService_ListBackups_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "ListBackups"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -509,7 +524,10 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateBackupTtlRequest) (
 	_ *pb.Backup, responseErr error,
 ) {
-	defer audit.ReportGRPCCall(ctx, request, pb.BackupService_UpdateBackupTtl_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.BackupService_UpdateBackupTtl_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "UpdateBackupTtl"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -545,7 +563,7 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
+	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err

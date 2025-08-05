@@ -21,6 +21,7 @@ type Event struct { //flat event struct for everything
 	Action       Action
 	Component    string
 	MethodName   string
+	Subject      string
 	GRPCRequest  proto.Message
 	AuthRequest  proto.Message
 	AuthResponse proto.Message
@@ -54,6 +55,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		Action       Action
 		Component    string
 		MethodName   string
+		Subject      string
 		GRPCRequest  json.RawMessage `json:"grpc_request"`
 		AuthRequest  json.RawMessage `json:"auth_request"`
 		AuthResponse json.RawMessage `json:"auth_response"`
@@ -64,6 +66,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		Action:       e.Action,
 		Component:    e.Component,
 		MethodName:   e.MethodName,
+		Subject:      e.Subject,
 		GRPCRequest:  marshalProtoMessage(e.GRPCRequest),
 		AuthRequest:  marshalProtoMessage(e.AuthRequest),
 		AuthResponse: marshalProtoMessage(e.AuthResponse),
@@ -86,28 +89,30 @@ func getGRPCStatus(err error) *status.Status {
 	return status.Convert(err)
 }
 
-func GRPCCallAuditEvent(ctx context.Context, methodName string, req proto.Message, err error) *Event {
+func GRPCCallAuditEvent(ctx context.Context, methodName string, req proto.Message, subject string, err error) *Event {
 	return &Event{
 		Resource:    "testresource",
 		Component:   "grpc_api",
 		MethodName:  methodName,
 		GRPCRequest: req,
+		Subject:     subject,
 		Action:      FromMethodName(ctx, methodName),
 		Status:      getGRPCStatus(err),
 	}
 }
 
-func AuthCallAuditEvent(req proto.Message, resp proto.Message, err error) *Event {
+func AuthCallAuditEvent(req proto.Message, resp proto.Message, subject string, err error) *Event {
 	return &Event{
 		Component:    "iam_auth",
 		AuthRequest:  req,
 		AuthResponse: resp,
+		Subject:      subject,
 		Status:       getGRPCStatus(err),
 	}
 }
 
-func ReportGRPCCall(ctx context.Context, req proto.Message, methodName string, err error) {
-	event := GRPCCallAuditEvent(ctx, methodName, req, err)
+func ReportGRPCCall(ctx context.Context, req proto.Message, methodName string, subject string, err error) {
+	event := GRPCCallAuditEvent(ctx, methodName, req, subject, err)
 	ReportAuditEvent(ctx, event)
 }
 
