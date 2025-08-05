@@ -144,7 +144,7 @@ func ReportAuditEvent(ctx context.Context, event *Event) {
 		return
 	}
 
-	_, err = fmt.Fprintln(os.Stderr, string(jsonData))
+	_, err = fmt.Fprintln(os.Stdout, string(jsonData))
 	if err != nil {
 		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
 	}
