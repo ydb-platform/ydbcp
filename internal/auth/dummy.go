@@ -29,13 +29,12 @@ func (p *authProviderDummy) Finish(ctx context.Context) error {
 
 func (p *authProviderDummy) Authorize(
 	ctx context.Context,
-	token string,
+	_ string,
 	checks ...auth.AuthorizeCheck,
 ) (results []auth.AuthorizeResult, subject string, err error) {
 	xlog.Info(
 		ctx,
 		"AuthProviderDummy Authorize",
-		zap.String("Token", auth.MaskToken(token)),
 		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
 	)
 	if len(checks) == 0 {

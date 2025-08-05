@@ -57,7 +57,3 @@ func (c *AuthorizeCheck) String() string {
 		c.Permission, c.ContainerID, strings.Join(c.ResourceID, ", "),
 	)
 }
-
-func MaskToken(token string) string {
-	return strings.Split(token, ".")[0]
-}

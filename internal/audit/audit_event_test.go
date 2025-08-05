@@ -36,7 +36,7 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	}
 	err := status.Error(codes.PermissionDenied, "denied")
 
-	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "some-token", "user1", err)
+	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "user1", err)
 
 	assert.Equal(t, "grpc_api", event.Component)
 	assert.Equal(t, "user1", event.Subject)
