@@ -53,6 +53,7 @@ func lookupYdbOperationStatus(
 	)
 	opResponse, err := client.GetOperationStatus(ctx, conn, ydbOperationId)
 	if err != nil {
+		xlog.Error(ctx, "GetOperationStatus error", zap.Error(err))
 		if deadlineExceeded(createdAt, config) {
 			return &LookupYdbOperationResponse{
 				shouldAbortHandler: true,
@@ -78,6 +79,13 @@ func lookupYdbOperationStatus(
 	}
 
 	if !isValidStatus(opResponse.GetOperation().GetStatus()) {
+		xlog.Info(
+			ctx, "received error status",
+			zap.String("id", operation.GetID()),
+			zap.String("type", string(operation.GetType())),
+			zap.String("ydb_operation_id", ydbOperationId),
+			zap.String("operation_status", string(opResponse.GetOperation().GetStatus())),
+		)
 		return &LookupYdbOperationResponse{
 			opResponse:         opResponse,
 			shouldAbortHandler: true,
@@ -90,6 +98,12 @@ func lookupYdbOperationStatus(
 		}, nil
 	}
 
+	xlog.Info(ctx, "got operation status from server",
+		zap.String("id", operation.GetID()),
+		zap.String("type", string(operation.GetType())),
+		zap.String("ydb_operation_id", ydbOperationId),
+		zap.String("operation_status", string(opResponse.GetOperation().GetStatus())),
+	)
 	return &LookupYdbOperationResponse{
 		opResponse: opResponse,
 	}, nil
