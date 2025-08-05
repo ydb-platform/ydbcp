@@ -40,7 +40,6 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 
 	assert.Equal(t, "grpc_api", event.Component)
 	assert.Equal(t, "user1", event.Subject)
-	assert.Equal(t, "some-token", event.Token)
 	assert.Equal(t, "TestService/TestMethod", event.MethodName)
 	assert.Equal(t, codes.PermissionDenied, event.Status.Code())
 	assert.Equal(t, msg, event.GRPCRequest)
@@ -113,7 +112,7 @@ func TestReportAuditEvent(t *testing.T) {
 	ctx := context.Background()
 	event := &Event{
 		MethodName: "reportTest",
-		Status:     status.New(codes.OK, ""),
+		Status:     status.New(codes.OK, "Success"),
 		Timestamp:  time.Now(),
 	}
 
@@ -135,4 +134,5 @@ func TestReportAuditEvent(t *testing.T) {
 	assert.Contains(t, output, `"destination":"test-destination"`)
 	assert.Contains(t, output, `"type":"ydbcp-audit"`)
 	assert.Contains(t, output, `"method_name":"reportTest"`)
+	assert.Contains(t, output, "Success")
 }

@@ -90,7 +90,7 @@ func (ej *EventJson) MarshalJSON() ([]byte, error) {
 
 func getGRPCStatus(err error) *status.Status {
 	if err == nil {
-		return status.New(codes.OK, "")
+		return status.New(codes.OK, "Success")
 	}
 	return status.Convert(err)
 }
