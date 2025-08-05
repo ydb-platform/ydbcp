@@ -11,7 +11,9 @@ import (
 	"google.golang.org/protobuf/proto"
 	"os"
 	"time"
+	"ydbcp/internal/auth"
 	"ydbcp/internal/util/xlog"
+	auth2 "ydbcp/pkg/plugins/auth"
 )
 
 var EventsDestination string
@@ -22,6 +24,7 @@ type Event struct { //flat event struct for everything
 	Component    string
 	MethodName   string
 	Subject      string
+	Token        string
 	GRPCRequest  proto.Message
 	AuthRequest  proto.Message
 	AuthResponse proto.Message
@@ -51,11 +54,12 @@ func marshalProtoMessage(msg proto.Message) json.RawMessage {
 
 func (e *Event) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Resource     string
-		Action       Action
-		Component    string
-		MethodName   string
-		Subject      string
+		Resource     string          `json:"resource"`
+		Action       Action          `json:"action"`
+		Component    string          `json:"component"`
+		MethodName   string          `json:"method_name"`
+		Subject      string          `json:"subject"`
+		Token        string          `json:"token"`
 		GRPCRequest  json.RawMessage `json:"grpc_request"`
 		AuthRequest  json.RawMessage `json:"auth_request"`
 		AuthResponse json.RawMessage `json:"auth_response"`
@@ -67,6 +71,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 		Component:    e.Component,
 		MethodName:   e.MethodName,
 		Subject:      e.Subject,
+		Token:        e.Token,
 		GRPCRequest:  marshalProtoMessage(e.GRPCRequest),
 		AuthRequest:  marshalProtoMessage(e.AuthRequest),
 		AuthResponse: marshalProtoMessage(e.AuthResponse),
@@ -77,11 +82,16 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 
 func (ej *EventJson) MarshalJSON() ([]byte, error) {
 	return json.Marshal(&struct {
-		Event *Event `json:"event,omitempty"`
+		Destination string `json:"destination"`
+		Event       *Event `json:"event"`
+		Type        string `json:"type"`
 	}{
-		Event: ej.Event,
+		Destination: ej.Destination,
+		Event:       ej.Event,
+		Type:        ej.Type,
 	})
 }
+
 func getGRPCStatus(err error) *status.Status {
 	if err == nil {
 		return status.New(codes.OK, "")
@@ -89,13 +99,14 @@ func getGRPCStatus(err error) *status.Status {
 	return status.Convert(err)
 }
 
-func GRPCCallAuditEvent(ctx context.Context, methodName string, req proto.Message, subject string, err error) *Event {
+func GRPCCallAuditEvent(ctx context.Context, methodName string, req proto.Message, token, subject string, err error) *Event {
 	return &Event{
 		Resource:    "testresource",
 		Component:   "grpc_api",
 		MethodName:  methodName,
 		GRPCRequest: req,
 		Subject:     subject,
+		Token:       token,
 		Action:      FromMethodName(ctx, methodName),
 		Status:      getGRPCStatus(err),
 	}
@@ -112,7 +123,11 @@ func AuthCallAuditEvent(req proto.Message, resp proto.Message, subject string, e
 }
 
 func ReportGRPCCall(ctx context.Context, req proto.Message, methodName string, subject string, err error) {
-	event := GRPCCallAuditEvent(ctx, methodName, req, subject, err)
+	token, err := auth.TokenFromGRPCContext(ctx)
+	if err == nil {
+		token = auth2.MaskToken(token)
+	}
+	event := GRPCCallAuditEvent(ctx, methodName, req, token, subject, err)
 	ReportAuditEvent(ctx, event)
 }
 
