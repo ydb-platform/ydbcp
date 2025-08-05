@@ -59,9 +59,5 @@ func (c *AuthorizeCheck) String() string {
 }
 
 func MaskToken(token string) string {
-	r := []rune(token)
-	if len(r) < 6 {
-		return "***"
-	}
-	return fmt.Sprintf("%s...%s", string(r[0:3]), string(r[len(r)-3:]))
+	return strings.Split(token, ".")[0]
 }

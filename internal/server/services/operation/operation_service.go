@@ -36,7 +36,10 @@ func (s *OperationService) ListOperations(
 	ctx context.Context,
 	request *pb.ListOperationsRequest,
 ) (_ *pb.ListOperationsResponse, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "ListOperations"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -125,7 +128,10 @@ func (s *OperationService) CancelOperation(
 	ctx context.Context,
 	request *pb.CancelOperationRequest,
 ) (_ *pb.Operation, responseErr error) {
-	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "CancelOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -178,7 +184,7 @@ func (s *OperationService) CancelOperation(
 		return nil, status.Errorf(codes.Internal, "unknown operation type: %s", operation.GetType().String())
 	}
 
-	subject, err := auth.CheckAuth(ctx, s.auth, permission, operation.GetContainerID(), "")
+	subject, err = auth.CheckAuth(ctx, s.auth, permission, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
@@ -212,7 +218,10 @@ func (s *OperationService) CancelOperation(
 func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (
 	_ *pb.Operation, responseErr error,
 ) {
-	defer audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, responseErr)
+	var subject string
+	defer func() {
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, subject, responseErr)
+	}()
 	const methodName string = "GetOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
@@ -249,7 +258,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	operation := operations[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", operation.GetContainerID()))
 	// TODO: Need to check access to operation resource by operationID
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operation.GetContainerID(), "")
+	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
