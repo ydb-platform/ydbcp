@@ -101,7 +101,7 @@ func sanitize(message *pb.AuthorizeRequest) *pb.AuthorizeRequest {
 		if c.GetIamToken() != "" {
 			sanitized.Checks[i] = &pb.AuthorizeCheck{
 				Identifier: &pb.AuthorizeCheck_IamToken{
-					IamToken: auth.MaskToken(c.GetIamToken()),
+					IamToken: maskToken(c.GetIamToken()),
 				},
 				Permission:   c.Permission,
 				ContainerId:  c.ContainerId,
@@ -123,6 +123,10 @@ func accountToString(account *pb.Account) string {
 	default:
 		return "unknown"
 	}
+}
+
+func maskToken(token string) string {
+	return strings.Split(token, ".")[0]
 }
 
 func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) ([]auth.AuthorizeResult, string, error) {
@@ -165,7 +169,6 @@ func (p *authProviderNebius) Authorize(
 	xlog.Info(
 		ctx,
 		"AuthProviderNebius authorize",
-		zap.String("token", auth.MaskToken(token)),
 		zap.String("checks", fmt.Sprintf("%v", checks)),
 	)
 	if len(token) == 0 {

@@ -162,7 +162,6 @@ func (p *MockAuthProvider) Authorize(
 	xlog.Info(
 		ctx,
 		"MockAuthProvider Authorize",
-		zap.String("Token", auth.MaskToken(token)),
 		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
 	)
 	if len(checks) == 0 {
