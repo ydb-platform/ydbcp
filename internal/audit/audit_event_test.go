@@ -36,26 +36,31 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	}
 	err := status.Error(codes.PermissionDenied, "denied")
 
-	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "user1", err)
+	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "cid1", "user1", err)
 
 	assert.Equal(t, "grpc_api", event.Component)
 	assert.Equal(t, "user1", event.Subject)
+	assert.Equal(t, "cid1", event.ContainerID)
 	assert.Equal(t, "TestService/TestMethod", event.MethodName)
 	assert.Equal(t, codes.PermissionDenied, event.Status.Code())
 	assert.Equal(t, msg, event.GRPCRequest)
 }
 
 func TestAuthCallAuditEvent(t *testing.T) {
+	ctx := context.Background()
+	id := "1234"
+	ctx = context.WithValue(ctx, "RequestID", id)
 	req := &pb.GetBackupRequest{
 		Id: "id1",
 	}
 	resp := &pb.Backup{Id: "id1"}
 	err := status.Error(codes.Unauthenticated, "bad creds")
 
-	event := AuthCallAuditEvent(req, resp, "userX", err)
+	event := AuthCallAuditEvent(ctx, req, resp, "userX", err)
 
 	assert.Equal(t, "iam_auth", event.Component)
 	assert.Equal(t, "userX", event.Subject)
+	assert.Equal(t, "1234", event.ID)
 	assert.Equal(t, codes.Unauthenticated, event.Status.Code())
 	assert.Equal(t, req, event.AuthRequest)
 	assert.Equal(t, resp, event.AuthResponse)
@@ -69,8 +74,8 @@ func TestEventMarshalJSON(t *testing.T) {
 		MethodName: "Method",
 		Subject:    "sub",
 		Token:      "tok",
-		GRPCRequest: &pb.GetBackupRequest{
-			Id: "id1",
+		GRPCRequest: &pb.ListBackupsRequest{
+			ContainerId: "id1",
 		},
 		Status:    status.New(codes.OK, "ok"),
 		Timestamp: time.Now(),
@@ -80,6 +85,8 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Contains(t, string(data), `"resource":"resource"`)
 	assert.Contains(t, string(data), `"component":"grpc_api"`)
+	assert.Contains(t, string(data), `"subject":"sub"`)
+	assert.Contains(t, string(data), `"container_id":"id1"`)
 	assert.Contains(t, string(data), `"status":`)
 }
 

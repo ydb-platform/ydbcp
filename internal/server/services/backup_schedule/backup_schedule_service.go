@@ -49,7 +49,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 ) (_ *pb.BackupSchedule, responseErr error) {
 	var subject string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_CreateBackupSchedule_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_CreateBackupSchedule_FullMethodName, request.ContainerId, subject, responseErr)
 	}()
 	const methodName string = "CreateBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -182,8 +182,9 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	ctx context.Context, request *pb.UpdateBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	var subject string
+	var containerID string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_UpdateBackupSchedule_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_UpdateBackupSchedule_FullMethodName, containerID, subject, responseErr)
 	}()
 
 	const methodName string = "UpdateBackupSchedule"
@@ -217,6 +218,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	schedule := schedules[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
+	containerID = schedule.ContainerID
 	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -290,8 +292,9 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	ctx context.Context, request *pb.GetBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	var subject string
+	var containerID string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, containerID, subject, responseErr)
 	}()
 	const methodName string = "GetBackupSchedule"
 	ctx = xlog.With(ctx, zap.String("GRPCCall", pb.BackupScheduleService_GetBackupSchedule_FullMethodName))
@@ -323,6 +326,7 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	}
 
 	schedule := schedules[0]
+	containerID = schedule.ContainerID
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
@@ -342,7 +346,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 ) (_ *pb.ListBackupSchedulesResponse, responseErr error) {
 	var subject string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ListBackupSchedules_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ListBackupSchedules_FullMethodName, request.ContainerId, subject, responseErr)
 	}()
 	const methodName string = "ListBackupSchedules"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -451,8 +455,9 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	ctx context.Context, request *pb.ToggleBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	var subject string
+	var containerID string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ToggleBackupSchedule_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_ToggleBackupSchedule_FullMethodName, containerID, subject, responseErr)
 	}()
 	const methodName string = "ToggleBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -483,6 +488,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	}
 
 	schedule := schedules[0]
+	containerID = schedule.ContainerID
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
@@ -541,7 +547,8 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	ctx context.Context, request *pb.DeleteBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	var subject string
-	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_DeleteBackupSchedule_FullMethodName, subject, responseErr)
+	var containerID string
+	defer audit.ReportGRPCCall(ctx, request, pb.BackupScheduleService_DeleteBackupSchedule_FullMethodName, containerID, subject, responseErr)
 	const methodName string = "DeleteBackupSchedule"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 
@@ -573,6 +580,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	schedule := schedules[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
+	containerID = schedule.ContainerID
 	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))

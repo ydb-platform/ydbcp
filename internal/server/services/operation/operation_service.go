@@ -38,7 +38,7 @@ func (s *OperationService) ListOperations(
 ) (_ *pb.ListOperationsResponse, responseErr error) {
 	var subject string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, request.ContainerId, subject, responseErr)
 	}()
 	const methodName string = "ListOperations"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -129,8 +129,9 @@ func (s *OperationService) CancelOperation(
 	request *pb.CancelOperationRequest,
 ) (_ *pb.Operation, responseErr error) {
 	var subject string
+	var containerID string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, containerID, subject, responseErr)
 	}()
 	const methodName string = "CancelOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -184,6 +185,7 @@ func (s *OperationService) CancelOperation(
 		return nil, status.Errorf(codes.Internal, "unknown operation type: %s", operation.GetType().String())
 	}
 
+	containerID = operation.GetContainerID()
 	subject, err = auth.CheckAuth(ctx, s.auth, permission, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -218,9 +220,9 @@ func (s *OperationService) CancelOperation(
 func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOperationRequest) (
 	_ *pb.Operation, responseErr error,
 ) {
-	var subject string
+	var subject, containerID string
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, subject, responseErr)
+		audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, containerID, subject, responseErr)
 	}()
 	const methodName string = "GetOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -258,6 +260,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	operation := operations[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", operation.GetContainerID()))
 	// TODO: Need to check access to operation resource by operationID
+	containerID = operation.GetContainerID()
 	subject, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
