@@ -65,11 +65,48 @@ var methodNameActionIndex = map[string]Action{
 	"GetOperation":    ActionGet,
 }
 
-func FromMethodName(ctx context.Context, name string) Action {
+type Resource string
+
+var ResourceUnspecified Resource = "Unspecified"
+var Backup Resource = "Backup"
+var BackupSchedule Resource = "BackupSchedule"
+var Operation Resource = "Operation"
+
+var methodNameResourceIndex = map[string]Resource{
+	//Backups
+	"ListBackups":     Backup,
+	"GetBackup":       Backup,
+	"MakeBackup":      Backup,
+	"DeleteBackup":    Backup,
+	"MakeRestore":     Backup,
+	"UpdateBackupTTL": Backup,
+	//BackupSchedules
+	"CreateBackupSchedule": BackupSchedule,
+	"UpdateBackupSchedule": BackupSchedule,
+	"GetBackupSchedule":    BackupSchedule,
+	"ListBackupSchedules":  BackupSchedule,
+	"ToggleBackupSchedule": BackupSchedule,
+	"DeleteBackupSchedule": BackupSchedule,
+	//Operations
+	"ListOperations":  Operation,
+	"CancelOperation": Operation,
+	"GetOperation":    Operation,
+}
+
+func ActionFromMethodName(ctx context.Context, name string) Action {
 	split := strings.Split(name, "/")
 	if v, ok := methodNameActionIndex[split[len(split)-1]]; ok {
 		return v
 	}
 	xlog.Error(ctx, "failed to parse method name", zap.String("method", name))
 	return ActionUnspecified
+}
+
+func ResourceFromMethodName(ctx context.Context, name string) Resource {
+	split := strings.Split(name, "/")
+	if v, ok := methodNameResourceIndex[split[len(split)-1]]; ok {
+		return v
+	}
+	xlog.Error(ctx, "failed to parse method name", zap.String("method", name))
+	return ResourceUnspecified
 }

@@ -194,7 +194,7 @@ func (p *authProviderNebius) Authorize(
 	sanitizedRequest := sanitize(authReq)
 
 	defer func() {
-		audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(sanitizedRequest, resp, subject, err))
+		audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(ctx, sanitizedRequest, resp, subject, err))
 	}()
 
 	if err != nil {
