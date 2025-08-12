@@ -46,8 +46,12 @@ func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (_ *pb.Backup, responseErr error) {
 	var subject string
 	var containerID string
+	startTime := s.clock.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupService_GetBackup_FullMethodName, containerID, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.BackupService_GetBackup_FullMethodName, containerID, subject,
+			startTime, responseErr,
+		)
 	}()
 	const methodName string = "GetBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -97,10 +101,15 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	return backups[0].Proto(), nil
 }
 
-func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (_ *pb.Operation, responseErr error) {
+func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (
+	_ *pb.Operation, responseErr error,
+) {
 	var subject string
+	startTime := s.clock.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeBackup_FullMethodName, req.ContainerId, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, req, pb.BackupService_MakeBackup_FullMethodName, req.ContainerId, subject, startTime, responseErr,
+		)
 	}()
 	const methodName string = "MakeBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -162,11 +171,17 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	return tbwr.Proto(), nil
 }
 
-func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (_ *pb.Operation, responseErr error) {
+func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRequest) (
+	_ *pb.Operation, responseErr error,
+) {
 	var subject string
 	var containerID string
+	startTime := s.clock.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, req, pb.BackupService_DeleteBackup_FullMethodName, containerID, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, req, pb.BackupService_DeleteBackup_FullMethodName, containerID, subject,
+			startTime, responseErr,
+		)
 	}()
 	const methodName string = "DeleteBackup"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -255,10 +270,16 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	return op.Proto(), nil
 }
 
-func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (operationPb *pb.Operation, responseErr error) {
+func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequest) (
+	operationPb *pb.Operation, responseErr error,
+) {
 	var subject string
+	startTime := s.clock.Now()
+
 	defer func() {
-		audit.ReportGRPCCall(ctx, req, pb.BackupService_MakeRestore_FullMethodName, req.ContainerId, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, req, pb.BackupService_MakeRestore_FullMethodName, req.ContainerId, subject, startTime, responseErr,
+		)
 	}()
 	const methodName string = "MakeRestore"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -433,8 +454,13 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	_ *pb.ListBackupsResponse, responseErr error,
 ) {
 	var subject string
+	startTime := s.clock.Now()
+
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupService_ListBackups_FullMethodName, request.ContainerId, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.BackupService_ListBackups_FullMethodName, request.ContainerId, subject, startTime,
+			responseErr,
+		)
 	}()
 	const methodName string = "ListBackups"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -528,8 +554,11 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 ) {
 	var subject string
 	var containerID string
+	startTime := s.clock.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.BackupService_UpdateBackupTtl_FullMethodName, containerID, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.BackupService_UpdateBackupTtl_FullMethodName, containerID, subject, startTime, responseErr,
+		)
 	}()
 	const methodName string = "UpdateBackupTtl"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
