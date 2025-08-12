@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/util/tls_setup"
 
@@ -166,6 +167,7 @@ func (p *authProviderNebius) Authorize(
 	token string,
 	checks ...auth.AuthorizeCheck,
 ) (results []auth.AuthorizeResult, subject string, err error) {
+	startTime := time.Now()
 	xlog.Info(
 		ctx,
 		"AuthProviderNebius authorize",
@@ -194,7 +196,7 @@ func (p *authProviderNebius) Authorize(
 	sanitizedRequest := sanitize(authReq)
 
 	defer func() {
-		audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(ctx, sanitizedRequest, resp, subject, err))
+		audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(ctx, sanitizedRequest, resp, subject, startTime, err))
 	}()
 
 	if err != nil {

@@ -36,7 +36,7 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	}
 	err := status.Error(codes.PermissionDenied, "denied")
 
-	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "cid1", "user1", err)
+	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "cid1", "user1", time.Now(), err)
 
 	assert.Equal(t, "grpc_api", event.Component)
 	assert.Equal(t, "user1", event.Subject)
@@ -56,7 +56,7 @@ func TestAuthCallAuditEvent(t *testing.T) {
 	resp := &pb.Backup{Id: "id1"}
 	err := status.Error(codes.Unauthenticated, "bad creds")
 
-	event := AuthCallAuditEvent(ctx, req, resp, "userX", err)
+	event := AuthCallAuditEvent(ctx, req, resp, "userX", time.Now(), err)
 
 	assert.Equal(t, "iam_auth", event.Component)
 	assert.Equal(t, "userX", event.Subject)
@@ -77,8 +77,8 @@ func TestEventMarshalJSON(t *testing.T) {
 		GRPCRequest: &pb.ListBackupsRequest{
 			ContainerId: "id1",
 		},
-		Status:    status.New(codes.OK, "ok"),
-		Timestamp: time.Now(),
+		Status:         status.New(codes.OK, "ok"),
+		StartTimestamp: time.Now(),
 	}
 
 	data, err := json.Marshal(event)
@@ -118,9 +118,9 @@ func TestGetGRPCStatus(t *testing.T) {
 func TestReportAuditEvent(t *testing.T) {
 	ctx := context.Background()
 	event := &Event{
-		MethodName: "reportTest",
-		Status:     status.New(codes.OK, "Success"),
-		Timestamp:  time.Now(),
+		MethodName:     "reportTest",
+		Status:         status.New(codes.OK, "Success"),
+		StartTimestamp: time.Now(),
 	}
 
 	oldStream := os.Stdout

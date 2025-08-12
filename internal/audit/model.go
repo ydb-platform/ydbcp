@@ -7,41 +7,15 @@ import (
 	"ydbcp/internal/util/xlog"
 )
 
-type Action int
+type Action string
 
 const (
-	ActionUnspecified Action = iota
-	ActionCreate
-	ActionUpsert
-	ActionUpdate
-	ActionGet
-	ActionDelete
-	ActionSetAccessBindings
-	ActionUpdateAccessBindings
-	ActionList
-	ActionRotate
-	ActionScheduleForDeletion
-	ActionUndelete
-	ActionExchange
-	ActionRevoke
-	ActionStart
-	ActionStop
-	ActionLogin
-	ActionSendConfirmation
-	ActionConfirm
-	ActionUnref
-	ActionResend
-	ActionAccept
-	ActionGetOrCreate
-	ActionValidate
-	ActionEncrypt
-	ActionDecrypt
-	ActionGenerateDataKey
-	ActionGetPublicKey
-	ActionSignHash
-	ActionGetUsage
-	ActionGetByKey
-	ActionCreateOrRecreate
+	ActionUnspecified Action = "ActionUnspecified"
+	ActionCreate             = "ActionCreate"
+	ActionUpdate             = "ActionUpdate"
+	ActionGet                = "ActionGet"
+	ActionDelete             = "ActionDelete"
+	ActionList               = "ActionList"
 )
 
 var methodNameActionIndex = map[string]Action{

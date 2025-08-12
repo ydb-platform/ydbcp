@@ -3,6 +3,7 @@ package operation
 import (
 	"context"
 	"strconv"
+	"time"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/metrics"
 
@@ -37,8 +38,12 @@ func (s *OperationService) ListOperations(
 	request *pb.ListOperationsRequest,
 ) (_ *pb.ListOperationsResponse, responseErr error) {
 	var subject string
+	startTime := time.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_ListOperations_FullMethodName, request.ContainerId, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.OperationService_ListOperations_FullMethodName, request.ContainerId, subject,
+			startTime, responseErr,
+		)
 	}()
 	const methodName string = "ListOperations"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -130,8 +135,12 @@ func (s *OperationService) CancelOperation(
 ) (_ *pb.Operation, responseErr error) {
 	var subject string
 	var containerID string
+	startTime := time.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_CancelOperation_FullMethodName, containerID, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.OperationService_CancelOperation_FullMethodName, containerID, subject, startTime,
+			responseErr,
+		)
 	}()
 	const methodName string = "CancelOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
@@ -178,7 +187,9 @@ func (s *OperationService) CancelOperation(
 	} else if operation.GetType() == types.OperationTypeDB {
 		xlog.Error(ctx, "can't cancel DeleteBackup operation")
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
-		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel DeleteBackup operation: %s", types.OperationToString(operation))
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "can't cancel DeleteBackup operation: %s", types.OperationToString(operation),
+		)
 	} else {
 		xlog.Error(ctx, "unknown operation type")
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -194,9 +205,13 @@ func (s *OperationService) CancelOperation(
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 
 	if operation.GetState() != types.OperationStatePending && operation.GetState() != types.OperationStateRunning {
-		xlog.Error(ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()))
+		xlog.Error(
+			ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()),
+		)
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
-		return nil, status.Errorf(codes.FailedPrecondition, "can't cancel operation with state: %s", operation.GetState().String())
+		return nil, status.Errorf(
+			codes.FailedPrecondition, "can't cancel operation with state: %s", operation.GetState().String(),
+		)
 	}
 
 	operation.SetState(types.OperationStateStartCancelling)
@@ -221,8 +236,11 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	_ *pb.Operation, responseErr error,
 ) {
 	var subject, containerID string
+	startTime := time.Now()
 	defer func() {
-		audit.ReportGRPCCall(ctx, request, pb.OperationService_GetOperation_FullMethodName, containerID, subject, responseErr)
+		audit.ReportGRPCCall(
+			ctx, request, pb.OperationService_GetOperation_FullMethodName, containerID, subject, startTime, responseErr,
+		)
 	}()
 	const methodName string = "GetOperation"
 	ctx = grpcinfo.WithGRPCInfo(ctx)
