@@ -46,12 +46,14 @@ func OpenYdb() *ydb.Driver {
 func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
 	driver := OpenYdb()
 	opID := types.GenerateObjectID()
-	insertTBWRquery := fmt.Sprintf(`
+	insertTBWRquery := fmt.Sprintf(
+		`
 UPSERT INTO Operations 
 (id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
 VALUES 
 ("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
-`, opID, containerID, databaseName, invalidDatabaseEndpoint)
+`, opID, containerID, databaseName, invalidDatabaseEndpoint,
+	)
 	err := driver.Table().Do(
 		context.Background(), func(ctx context.Context, s table.Session) error {
 			_, res, err := s.Execute(
@@ -83,9 +85,11 @@ VALUES
 	if err != nil {
 		log.Panicf("failed to initialize YDBCP db: %v", err)
 	}
-	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: opID,
-	})
+	op, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: opID,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -106,20 +110,24 @@ VALUES
 	if len(backups.Backups) != 0 {
 		log.Panicf("expected no backups by this time, got %v", backups.Backups)
 	}
-	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
-		ContainerId:      containerID,
-		DatabaseNameMask: databaseName,
-		OperationTypes:   []string{types.OperationTypeTB.String()},
-	})
+	ops, err := opClient.ListOperations(
+		context.Background(), &pb.ListOperationsRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: databaseName,
+			OperationTypes:   []string{types.OperationTypeTB.String()},
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
 	if len(ops.Operations) != 0 {
 		log.Panicf("expected zero TB operations, got %d", len(ops.Operations))
 	}
-	tbwr, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: opID,
-	})
+	tbwr, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: opID,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
@@ -168,9 +176,11 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to make backup: %v", err)
 	}
-	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: tbwr.Id,
-	})
+	op, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: tbwr.Id,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -191,11 +201,13 @@ func main() {
 		log.Panicf("Did not list freshly made backup")
 	}
 	backupPb := backups.Backups[0]
-	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
-		ContainerId:      containerID,
-		DatabaseNameMask: databaseName,
-		OperationTypes:   []string{types.OperationTypeTB.String()},
-	})
+	ops, err := opClient.ListOperations(
+		context.Background(), &pb.ListOperationsRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: databaseName,
+			OperationTypes:   []string{types.OperationTypeTB.String()},
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
@@ -227,9 +239,11 @@ func main() {
 		log.Panicln("failed to complete a backup in 30 seconds")
 	}
 	time.Sleep(time.Second * 3) // to wait for operation handler
-	tbwr, err = opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: op.Id,
-	})
+	tbwr, err = opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: op.Id,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -256,8 +270,10 @@ func main() {
 	}
 
 	if updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
-		log.Panicln("expected expireAt to be in an hour, but got in ",
-			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+		log.Panicln(
+			"expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours(),
+		)
 	}
 
 	updatedBackupFromDb, err := client.GetBackup(
@@ -273,8 +289,10 @@ func main() {
 	}
 
 	if updatedBackupFromDb.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
-		log.Panicln("expected expireAt to be in an hour, but got in ",
-			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+		log.Panicln(
+			"expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours(),
+		)
 	}
 
 	// set infinite ttl
@@ -398,7 +416,9 @@ func main() {
 			Endpoint:     databaseEndpoint,
 			ScheduleName: "schedule",
 			ScheduleSettings: &pb.BackupScheduleSettings{
-				SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"},
+				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * *"},
+				RecoveryPointObjective: durationpb.New(time.Hour),
+				Ttl:                    durationpb.New(time.Hour),
 			},
 		},
 	)
@@ -447,10 +467,6 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
-	if schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Minute+time.Hour {
-		log.Panicf("wrong recovery point objective: %v", schedules.Schedules[0].ScheduleSettings.RecoveryPointObjective)
-	}
-
 	newScheduleName := "schedule-2.0"
 	newSourcePath := "/kv_test"
 	newSchedule, err := scheduleClient.UpdateBackupSchedule(
@@ -458,6 +474,10 @@ func main() {
 			Id:           schedule.Id,
 			ScheduleName: newScheduleName,
 			SourcePaths:  []string{newSourcePath},
+			ScheduleSettings: &pb.BackupScheduleSettings{
+				SchedulePattern: &pb.
+					BackupSchedulePattern{Crontab: "10 * * * *"},
+			},
 		},
 	)
 	if err != nil {
@@ -469,6 +489,16 @@ func main() {
 	if newSchedule.ScheduleName != newScheduleName {
 		log.Panicf("schedule name does not match: %s != %s", newSchedule.ScheduleName, newScheduleName)
 	}
+	if newSchedule.ScheduleSettings.SchedulePattern.Crontab != "10 * * * *" {
+		log.Panicf("wrong crontab after update: %v", newSchedule.ScheduleSettings.SchedulePattern.Crontab)
+	}
+	if newSchedule.ScheduleSettings.Ttl.AsDuration() != time.Hour {
+		log.Panicf("wrong ttl after update: %v", newSchedule.ScheduleSettings.Ttl)
+	}
+	if newSchedule.ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Hour {
+		log.Panicf("wrong rpo after update: %v", newSchedule.ScheduleSettings.RecoveryPointObjective)
+	}
+
 	schedules, err = scheduleClient.ListBackupSchedules(
 		context.Background(), &pb.ListBackupSchedulesRequest{
 			ContainerId:      containerID,

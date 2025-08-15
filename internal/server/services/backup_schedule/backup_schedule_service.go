@@ -268,14 +268,20 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 				s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 				return nil, status.Error(codes.FailedPrecondition, "failed to parse crontab")
 			}
+			schedule.ScheduleSettings.SchedulePattern = request.ScheduleSettings.SchedulePattern
 		}
 
 		if request.ScheduleSettings.RecoveryPointObjective != nil && request.ScheduleSettings.RecoveryPointObjective.Seconds == 0 {
 			s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 			return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 		}
+		if request.ScheduleSettings.RecoveryPointObjective != nil {
+			schedule.ScheduleSettings.RecoveryPointObjective = request.ScheduleSettings.RecoveryPointObjective
+		}
+		if request.ScheduleSettings.Ttl != nil {
+			schedule.ScheduleSettings.Ttl = request.ScheduleSettings.Ttl
+		}
 
-		schedule.ScheduleSettings = request.ScheduleSettings
 		err = schedule.UpdateNextLaunch(s.clock.Now())
 		if err != nil {
 			s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
