@@ -3,13 +3,11 @@ package audit
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"os"
+	"strings"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/util/xlog"
@@ -19,19 +17,18 @@ var EventsDestination string
 
 type Event struct { //flat event struct for everything
 	ID             string
+	IdempotencyKey string
 	Action         Action
 	Component      string
 	MethodName     string
 	ContainerID    string
 	Subject        string
-	Token          string
+	SanitizedToken string
 	Resource       Resource
 	GRPCRequest    proto.Message
-	AuthRequest    proto.Message
-	AuthResponse   proto.Message
-	Status         *status.Status
-	StartTimestamp time.Time
-	EndTimestamp   time.Time
+	Status         string
+	Reason         string
+	Timestamp      time.Time
 }
 
 type EventJson struct {
@@ -57,24 +54,25 @@ func marshalProtoMessage(msg proto.Message) json.RawMessage {
 func (e *Event) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		&struct {
-			ID             string          `json:"id"`
+			ID             string          `json:"request_id"`
+			IdempotencyKey string          `json:"idempotency_key"`
 			Service        string          `json:"service"`
 			SpecVersion    string          `json:"specversion"`
 			Action         string          `json:"action"`
 			Resource       Resource        `json:"resource"`
 			Component      string          `json:"component"`
-			MethodName     string          `json:"method_name,omitempty"`
-			ContainerID    string          `json:"container_id"`
+			MethodName     string          `json:"operation,omitempty"`
+			ContainerID    string          `json:"folder_id"`
 			Subject        string          `json:"subject"`
+			SanitizedToken string          `json:"sanitized_token"`
 			GRPCRequest    json.RawMessage `json:"grpc_request,omitempty"`
-			AuthRequest    json.RawMessage `json:"auth_request,omitempty"`
-			AuthResponse   json.RawMessage `json:"auth_response,omitempty"`
-			Status         json.RawMessage `json:"status,omitempty"`
-			StartTimestamp string          `json:"start_timestamp"`
-			EndTimestamp   string          `json:"end_timestamp"`
+			Status         string          `json:"status"`
+			Reason         string          `json:"reason,omitempty"`
+			Timestamp      string          `json:"timestamp"`
 			IsBackground   bool            `json:"is_background"`
 		}{
 			ID:             e.ID,
+			IdempotencyKey: e.IdempotencyKey,
 			Service:        "ydbcp",
 			SpecVersion:    "1.0",
 			Action:         string(e.Action),
@@ -82,14 +80,12 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			Component:      e.Component,
 			MethodName:     e.MethodName,
 			ContainerID:    e.ContainerID,
-			Subject:        e.Subject,
+			Subject:        strings.Join([]string{e.Subject, "as"}, "@"),
+			SanitizedToken: e.SanitizedToken,
 			GRPCRequest:    marshalProtoMessage(e.GRPCRequest),
-			AuthRequest:    marshalProtoMessage(e.AuthRequest),
-			AuthResponse:   marshalProtoMessage(e.AuthResponse),
-			Status:         marshalProtoMessage(e.Status.Proto()),
-			StartTimestamp: e.StartTimestamp.Format(time.RFC3339Nano),
-			EndTimestamp:   e.EndTimestamp.Format(time.RFC3339Nano),
-			IsBackground:   false,
+			Status:         e.Status,
+			Reason:         e.Reason,
+			Timestamp:      e.Timestamp.Format(time.RFC3339Nano),
 		},
 	)
 }
@@ -108,65 +104,68 @@ func (ej *EventJson) MarshalJSON() ([]byte, error) {
 	)
 }
 
-func getGRPCStatus(err error) *status.Status {
-	if err == nil {
-		return status.New(codes.OK, "Success")
+func getStatus(inProgress bool, err error) (string, string) {
+	var status, reason string
+	if err != nil {
+		status = "ERROR"
+		reason = err.Error()
+	} else if inProgress {
+		status = "IN-PROCESS"
+	} else {
+		status = "SUCCESS"
 	}
-	return status.Convert(err)
+	return status, reason
 }
 
 func GRPCCallAuditEvent(
 	ctx context.Context,
 	methodName string,
 	req proto.Message,
-	containerID string,
 	subject string,
-	timestamp time.Time,
+	token string,
+	containerID string,
+	inProgress bool,
 	err error,
 ) *Event {
+	s, r := getStatus(inProgress, err)
 	return &Event{
-		ID:             grpcinfo.GetRequestID(ctx),
+		ID:             uuid.New().String(),
+		IdempotencyKey: grpcinfo.GetRequestID(ctx),
 		Component:      "grpc_api",
 		MethodName:     methodName,
 		GRPCRequest:    req,
 		ContainerID:    containerID,
 		Subject:        subject,
+		SanitizedToken: token,
 		Action:         ActionFromMethodName(ctx, methodName),
 		Resource:       ResourceFromMethodName(ctx, methodName),
-		StartTimestamp: timestamp,
-		Status:         getGRPCStatus(err),
+		Status:         s,
+		Reason:         r,
+		Timestamp:      time.Now(),
 	}
 }
 
-func AuthCallAuditEvent(
-	ctx context.Context, req proto.Message, resp proto.Message, subject string,
-	start time.Time, err error,
-) *Event {
-	return &Event{
-		ID:             grpcinfo.GetRequestID(ctx),
-		Component:      "iam_auth",
-		MethodName:     "internal_auth",
-		AuthRequest:    req,
-		AuthResponse:   resp,
-		Subject:        subject,
-		StartTimestamp: start,
-		Status:         getGRPCStatus(err),
-	}
-}
-
-func ReportGRPCCall(
+func ReportGRPCCallBegin(
 	ctx context.Context, req proto.Message, methodName string,
-	containerID string, subject string, timestamp time.Time, err error,
+	subject string, token string,
 ) {
 	event := GRPCCallAuditEvent(
-		ctx, methodName, req, containerID, subject, timestamp, err,
+		ctx, methodName, req, subject, token, "{none}", true, nil,
+	)
+	ReportAuditEvent(ctx, event)
+}
+
+func ReportGRPCCallEnd(
+	ctx context.Context, methodName string,
+	subject string, containerID string, token string, err error,
+) {
+	event := GRPCCallAuditEvent(
+		ctx, methodName, nil, subject, token, containerID, false, err,
 	)
 	ReportAuditEvent(ctx, event)
 }
 
 func ReportAuditEvent(ctx context.Context, event *Event) {
-	event.EndTimestamp = time.Now()
-
 	jsonData, err := json.Marshal(
 		&EventJson{
 			Destination: EventsDestination,
@@ -178,8 +177,7 @@ func ReportAuditEvent(ctx context.Context, event *Event) {
 		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
 		return
 	}
-
-	_, err = fmt.Fprintln(os.Stdout, string(jsonData))
+	xlog.Raw(string(jsonData))
 	if err != nil {
 		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
 	}

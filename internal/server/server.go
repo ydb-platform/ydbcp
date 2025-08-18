@@ -5,9 +5,10 @@ import (
 	"fmt"
 	"net"
 	"sync"
-
+	"ydbcp/internal/audit"
 	"ydbcp/internal/config"
 	"ydbcp/internal/util/xlog"
+	"ydbcp/pkg/plugins/auth"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -53,7 +54,7 @@ func (s *ServerImpl) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	return nil
 }
 
-func NewServer(cfg *config.GRPCServerConfig) (*ServerImpl, error) {
+func NewServer(cfg *config.GRPCServerConfig, provider auth.AuthProvider) (*ServerImpl, error) {
 	opts := []grpc.ServerOption{}
 	if len(cfg.TLSCertificatePath) > 0 && len(cfg.TLSKeyPath) > 0 {
 		creds, err := credentials.NewServerTLSFromFile(cfg.TLSCertificatePath, cfg.TLSKeyPath)
@@ -62,6 +63,8 @@ func NewServer(cfg *config.GRPCServerConfig) (*ServerImpl, error) {
 		}
 		opts = append(opts, grpc.Creds(creds))
 	}
+	auditInterceptor := audit.NewAuditGRPCInterceptor(provider)
+	opts = append(opts, grpc.UnaryInterceptor(auditInterceptor))
 	server := grpc.NewServer(opts...)
 	reflection.Register(server)
 	return &ServerImpl{
