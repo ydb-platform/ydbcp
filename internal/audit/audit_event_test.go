@@ -36,56 +36,39 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	}
 	err := status.Error(codes.PermissionDenied, "denied")
 
-	event := GRPCCallAuditEvent(ctx, "TestService/TestMethod", msg, "cid1", "user1", time.Now(), err)
+	cid := "cid1"
+	event := GRPCCallAuditEvent(
+		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, msg, "subj", "token", cid, false, err,
+	)
 
 	assert.Equal(t, "grpc_api", event.Component)
-	assert.Equal(t, "user1", event.Subject)
+	assert.Equal(t, "subj", event.Subject)
 	assert.Equal(t, "cid1", event.ContainerID)
-	assert.Equal(t, "TestService/TestMethod", event.MethodName)
-	assert.Equal(t, codes.PermissionDenied, event.Status.Code())
+	assert.Equal(t, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, event.MethodName)
+	assert.Equal(t, "ERROR", event.Status)
 	assert.Equal(t, msg, event.GRPCRequest)
-}
-
-func TestAuthCallAuditEvent(t *testing.T) {
-	ctx := context.Background()
-	id := "1234"
-	ctx = context.WithValue(ctx, "RequestID", id)
-	req := &pb.GetBackupRequest{
-		Id: "id1",
-	}
-	resp := &pb.Backup{Id: "id1"}
-	err := status.Error(codes.Unauthenticated, "bad creds")
-
-	event := AuthCallAuditEvent(ctx, req, resp, "userX", time.Now(), err)
-
-	assert.Equal(t, "iam_auth", event.Component)
-	assert.Equal(t, "userX", event.Subject)
-	assert.Equal(t, "1234", event.ID)
-	assert.Equal(t, codes.Unauthenticated, event.Status.Code())
-	assert.Equal(t, req, event.AuthRequest)
-	assert.Equal(t, resp, event.AuthResponse)
 }
 
 func TestEventMarshalJSON(t *testing.T) {
 	event := &Event{
-		Resource:   "resource",
-		Action:     ActionGet,
-		Component:  "grpc_api",
-		MethodName: "Method",
-		Subject:    "sub",
-		Token:      "tok",
+		Resource:       "resource",
+		Action:         ActionGet,
+		Component:      "grpc_api",
+		MethodName:     "Method",
+		Subject:        "sub",
+		SanitizedToken: "tok",
 		GRPCRequest: &pb.ListBackupsRequest{
 			ContainerId: "id1",
 		},
-		Status:         status.New(codes.OK, "ok"),
-		StartTimestamp: time.Now(),
+		Status:    "SUCCESS",
+		Timestamp: time.Now(),
 	}
 
 	data, err := json.Marshal(event)
 	assert.NoError(t, err)
 	assert.Contains(t, string(data), `"resource":"resource"`)
 	assert.Contains(t, string(data), `"component":"grpc_api"`)
-	assert.Contains(t, string(data), `"subject":"sub"`)
+	assert.Contains(t, string(data), `"subject":"sub@as`)
 	assert.Contains(t, string(data), `"container_id":"id1"`)
 	assert.Contains(t, string(data), `"status":`)
 }
@@ -106,21 +89,11 @@ func TestEventJsonMarshal(t *testing.T) {
 	assert.Contains(t, string(data), `"component":"test"`)
 }
 
-func TestGetGRPCStatus(t *testing.T) {
-	err := status.Error(codes.InvalidArgument, "bad input")
-	s := getGRPCStatus(err)
-	assert.Equal(t, codes.InvalidArgument, s.Code())
-
-	s = getGRPCStatus(nil)
-	assert.Equal(t, codes.OK, s.Code())
-}
-
 func TestReportAuditEvent(t *testing.T) {
 	ctx := context.Background()
 	event := &Event{
-		MethodName:     "reportTest",
-		Status:         status.New(codes.OK, "Success"),
-		StartTimestamp: time.Now(),
+		MethodName: "reportTest",
+		Status:     "SUCCESS",
 	}
 
 	oldStream := os.Stdout
@@ -138,8 +111,9 @@ func TestReportAuditEvent(t *testing.T) {
 	os.Stdout = oldStream
 
 	output := buf.String()
+	fmt.Print(output)
 	assert.Contains(t, output, `"destination":"test-destination"`)
 	assert.Contains(t, output, `"type":"ydbcp-audit"`)
-	assert.Contains(t, output, `"method_name":"reportTest"`)
-	assert.Contains(t, output, "Success")
+	assert.Contains(t, output, `"operation":"reportTest"`)
+	assert.Contains(t, output, "SUCCESS")
 }
