@@ -5,8 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"time"
-	"ydbcp/internal/audit"
 	"ydbcp/internal/util/tls_setup"
 
 	"ydbcp/internal/util/xlog"
@@ -72,6 +70,12 @@ func (p *authProviderNebius) client() (*grpc.ClientConn, error) {
 	return grpc.NewClient("dns:"+p.endpoint, tlsOption)
 }
 
+func authenticateRequest(token string) *pb.AuthenticateRequest {
+	return &pb.AuthenticateRequest{
+		Credentials: &pb.AuthenticateRequest_IamToken{IamToken: token},
+	}
+}
+
 func authorizeRequest(token string, checks []auth.AuthorizeCheck) *pb.AuthorizeRequest {
 	authReq := pb.AuthorizeRequest{
 		Checks: map[int64]*pb.AuthorizeCheck{},
@@ -96,22 +100,7 @@ func authorizeRequest(token string, checks []auth.AuthorizeCheck) *pb.AuthorizeR
 	return &authReq
 }
 
-func sanitize(message *pb.AuthorizeRequest) *pb.AuthorizeRequest {
-	sanitized := message
-	for i, c := range sanitized.Checks {
-		if c.GetIamToken() != "" {
-			sanitized.Checks[i] = &pb.AuthorizeCheck{
-				Identifier: &pb.AuthorizeCheck_IamToken{
-					IamToken: maskToken(c.GetIamToken()),
-				},
-				Permission:   c.Permission,
-				ContainerId:  c.ContainerId,
-				ResourcePath: c.ResourcePath,
-			}
-		}
-	}
-	return sanitized
-}
+var anonymousSubject = "{none}"
 
 func accountToString(account *pb.Account) string {
 	switch v := account.Type.(type) {
@@ -120,19 +109,21 @@ func accountToString(account *pb.Account) string {
 	case *pb.Account_ServiceAccount_:
 		return v.ServiceAccount.Id
 	case *pb.Account_AnonymousAccount_:
-		return "anonymous"
+		return anonymousSubject
 	default:
-		return "unknown"
+		return anonymousSubject
 	}
 }
 
-func maskToken(token string) string {
+func (p *authProviderNebius) MaskToken(token string) string {
 	return strings.Split(token, ".")[0]
 }
 
 func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) ([]auth.AuthorizeResult, string, error) {
 	if len(resp.Results) != expectedResults {
-		return nil, "", fmt.Errorf("access service unexpected respose results number %d, expected %d", len(resp.Results), expectedResults)
+		return nil, "", fmt.Errorf(
+			"access service unexpected respose results number %d, expected %d", len(resp.Results), expectedResults,
+		)
 	}
 	results := make([]auth.AuthorizeResult, 0, expectedResults)
 	var subject string
@@ -162,12 +153,38 @@ func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) (
 	return results, subject, nil
 }
 
+func (p *authProviderNebius) Authenticate(
+	ctx context.Context, token string,
+) (subject string, err error) {
+	xlog.Info(
+		ctx,
+		"AuthProviderNebius authenticate",
+	)
+	if len(token) == 0 {
+		xlog.Debug(ctx, "AuthProviderNebius got empty token")
+		return anonymousSubject, nil
+	}
+	conn, err := p.client()
+	if err != nil {
+		xlog.Info(ctx, "access service client creation error", zap.Error(err))
+		return anonymousSubject, err
+	}
+	defer conn.Close()
+	client := pb.NewAccessServiceClient(conn)
+	authReq := authenticateRequest(token)
+	resp, err := client.Authenticate(ctx, authReq)
+	if err != nil {
+		xlog.Info(ctx, "access service client authentication error", zap.Error(err))
+		return anonymousSubject, err
+	}
+	return accountToString(resp.Account), nil
+}
+
 func (p *authProviderNebius) Authorize(
 	ctx context.Context,
 	token string,
 	checks ...auth.AuthorizeCheck,
 ) (results []auth.AuthorizeResult, subject string, err error) {
-	startTime := time.Now()
 	xlog.Info(
 		ctx,
 		"AuthProviderNebius authorize",
@@ -193,18 +210,14 @@ func (p *authProviderNebius) Authorize(
 	client := pb.NewAccessServiceClient(conn)
 	authReq := authorizeRequest(token, checks)
 	resp, err := client.Authorize(ctx, authReq)
-	sanitizedRequest := sanitize(authReq)
-
-	defer func() {
-		audit.ReportAuditEvent(ctx, audit.AuthCallAuditEvent(ctx, sanitizedRequest, resp, subject, startTime, err))
-	}()
 
 	if err != nil {
 		xlog.Error(ctx, "fail to call AccessService.Authorize", zap.Error(err))
 		return nil, "", fmt.Errorf("access service call error: %w", err)
 	}
 	results, subject, err = processAuthorizeResponse(resp, len(checks))
-	xlog.Info(ctx, "Authorize result",
+	xlog.Info(
+		ctx, "Authorize result",
 		zap.String("results", fmt.Sprintf("%v", results)),
 		zap.String("subject", subject),
 		zap.Error(err),

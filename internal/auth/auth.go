@@ -53,7 +53,27 @@ func NewAuthProvider(ctx context.Context, cfg config.AuthConfig) (auth.AuthProvi
 	return instance, nil
 }
 
-func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, containerID, resourceID string) (string, error) {
+func Authenticate(ctx context.Context, provider auth.AuthProvider) (string, error) {
+	token, err := TokenFromGRPCContext(ctx)
+	if err != nil {
+		xlog.Debug(ctx, "can't get auth token", zap.Error(err))
+		token = ""
+	}
+	return provider.Authenticate(ctx, token)
+}
+
+func GetMaskedToken(ctx context.Context, provider auth.AuthProvider) (string, error) {
+	t, err := TokenFromGRPCContext(ctx)
+	if err != nil {
+		return provider.MaskToken(t), nil
+	} else {
+		return t, err
+	}
+}
+
+func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, containerID, resourceID string) (
+	string, error,
+) {
 	ctx = xlog.With(ctx, zap.String("ContainerID", containerID), zap.String("ResourceID", resourceID))
 	token, err := TokenFromGRPCContext(ctx)
 	if err != nil {
@@ -78,8 +98,13 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 		return "", status.Error(codes.Internal, "authorize error")
 	}
 	if resp[0].Code != auth.AuthCodeSuccess {
-		xlog.Error(ctx, "auth plugin response", zap.String("AuthCode", resp[0].Code.String()), zap.String("AuthMessage", resp[0].Message))
-		return "", status.Errorf(codes.PermissionDenied, "Code: %s, Message: %s", resp[0].Code.String(), resp[0].Message)
+		xlog.Error(
+			ctx, "auth plugin response", zap.String("AuthCode", resp[0].Code.String()),
+			zap.String("AuthMessage", resp[0].Message),
+		)
+		return "", status.Errorf(
+			codes.PermissionDenied, "Code: %s, Message: %s", resp[0].Code.String(), resp[0].Message,
+		)
 	}
 	return subject, nil
 }

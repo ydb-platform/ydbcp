@@ -30,7 +30,11 @@ type AuthorizeResult struct {
 type AuthProvider interface {
 	Init(ctx context.Context, config string) error
 	Finish(ctx context.Context) error
-	Authorize(ctx context.Context, token string, checks ...AuthorizeCheck) (results []AuthorizeResult, subjectID string, err error)
+	Authorize(ctx context.Context, token string, checks ...AuthorizeCheck) (
+		results []AuthorizeResult, subjectID string, err error,
+	)
+	Authenticate(ctx context.Context, token string) (string, error)
+	MaskToken(token string) string
 }
 
 func (code AuthCode) String() string {
