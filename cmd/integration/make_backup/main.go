@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
@@ -9,8 +11,11 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"io"
 	"log"
+	"os"
 	"strings"
+	"sync"
 	"time"
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/types"
@@ -46,12 +51,14 @@ func OpenYdb() *ydb.Driver {
 func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
 	driver := OpenYdb()
 	opID := types.GenerateObjectID()
-	insertTBWRquery := fmt.Sprintf(`
+	insertTBWRquery := fmt.Sprintf(
+		`
 UPSERT INTO Operations 
 (id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
 VALUES 
 ("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
-`, opID, containerID, databaseName, invalidDatabaseEndpoint)
+`, opID, containerID, databaseName, invalidDatabaseEndpoint,
+	)
 	err := driver.Table().Do(
 		context.Background(), func(ctx context.Context, s table.Session) error {
 			_, res, err := s.Execute(
@@ -83,9 +90,11 @@ VALUES
 	if err != nil {
 		log.Panicf("failed to initialize YDBCP db: %v", err)
 	}
-	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: opID,
-	})
+	op, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: opID,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -106,20 +115,24 @@ VALUES
 	if len(backups.Backups) != 0 {
 		log.Panicf("expected no backups by this time, got %v", backups.Backups)
 	}
-	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
-		ContainerId:      containerID,
-		DatabaseNameMask: databaseName,
-		OperationTypes:   []string{types.OperationTypeTB.String()},
-	})
+	ops, err := opClient.ListOperations(
+		context.Background(), &pb.ListOperationsRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: databaseName,
+			OperationTypes:   []string{types.OperationTypeTB.String()},
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
 	if len(ops.Operations) != 0 {
 		log.Panicf("expected zero TB operations, got %d", len(ops.Operations))
 	}
-	tbwr, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: opID,
-	})
+	tbwr, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: opID,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
@@ -129,6 +142,165 @@ VALUES
 	if tbwr.Message != "retry attempts exceeded limit: 3." {
 		log.Panicf("unexpected operation message: %v", tbwr.Message)
 	}
+}
+
+type RawEvent struct {
+	ID             string          `json:"request_id"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	Service        string          `json:"service"`
+	SpecVersion    string          `json:"specversion"`
+	Action         string          `json:"action"`
+	Resource       string          `json:"resource"`
+	Component      string          `json:"component"`
+	MethodName     string          `json:"operation,omitempty"`
+	ContainerID    string          `json:"folder_id"`
+	Subject        string          `json:"subject"`
+	SanitizedToken string          `json:"sanitized_token"`
+	GRPCRequest    json.RawMessage `json:"grpc_request,omitempty"`
+	Status         string          `json:"status"`
+	Reason         string          `json:"reason,omitempty"`
+	Timestamp      string          `json:"timestamp"`
+	IsBackground   bool            `json:"is_background"`
+}
+
+type ParsedEvent struct {
+	RawEvent `json:"event"`
+}
+
+type AuditCaptureEvent struct {
+	event RawEvent
+	seen  bool
+}
+
+func (e *AuditCaptureEvent) Matches(line string) bool {
+	var buf ParsedEvent
+
+	err := json.Unmarshal([]byte(line), &buf)
+	if err != nil {
+		log.Panicln(err)
+	}
+	p := buf.RawEvent
+	if p.MethodName != e.event.MethodName {
+		log.Printf("MethodName mismatch: expected %s, got %s", e.event.MethodName, p.MethodName)
+		return false
+	}
+
+	if p.ContainerID != e.event.ContainerID {
+		log.Printf("ContainerID mismatch: expected %s, got %s", e.event.ContainerID, p.ContainerID)
+		return false
+	}
+
+	if p.Component != e.event.Component {
+		log.Printf("Component mismatch: expected %s, got %s", e.event.Component, p.Component)
+		return false
+	}
+
+	if p.Action != e.event.Action {
+		log.Printf("Action mismatch: expected %s, got %s", e.event.Action, p.Action)
+		return false
+	}
+
+	if p.Timestamp == "" {
+		log.Printf("Timestamp is empty")
+		return false
+	}
+
+	if p.Subject != e.event.Subject {
+		log.Printf("Subject mismatch: expected %s, got %s", e.event.Subject, p.Subject)
+		return false
+	}
+
+	if p.Status != e.event.Status {
+		log.Printf("Status mismatch: expected %s, got %s", e.event.Status, p.Status)
+		return false
+	}
+	return true
+}
+
+type AuditEventsTracker struct {
+	mutex  sync.Mutex
+	wg     sync.WaitGroup
+	done   chan struct{}
+	events []*AuditCaptureEvent
+	ticker *time.Ticker
+}
+
+func MakeAuditEventsTracker(events []*AuditCaptureEvent) *AuditEventsTracker {
+	return &AuditEventsTracker{
+		done:   make(chan struct{}),
+		wg:     sync.WaitGroup{},
+		mutex:  sync.Mutex{},
+		events: events,
+		ticker: time.NewTicker(500 * time.Millisecond),
+	}
+}
+
+func (a *AuditEventsTracker) StopAndCheckAllCaptured() (bool, string) {
+	log.Println("stop tracker")
+	close(a.done)
+	a.wg.Wait()
+	log.Println("stdout reading stopped")
+	for _, event := range a.events {
+		if !event.seen {
+			return false, fmt.Sprintf("event not captured: %v", event.event)
+		}
+	}
+	return true, ""
+}
+
+func (a *AuditEventsTracker) CaptureEvents() {
+	var f *os.File
+	f, err := os.Open("/var/log/main.log")
+	if err != nil {
+		panic(err)
+	}
+	reader := bufio.NewReader(f)
+
+	lines := make(chan string)
+	go func() {
+		defer close(lines)
+		for {
+			select {
+			case <-a.done:
+				return
+			default:
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					if err == io.EOF {
+						time.Sleep(100 * time.Millisecond)
+						continue
+					}
+					log.Panicf("read file error: %v", err)
+				}
+				lines <- strings.TrimRight(line, "\n")
+			}
+		}
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		defer func() {
+			f.Close()
+			a.wg.Done()
+		}()
+
+		for {
+			select {
+			case line, ok := <-lines:
+				if !ok {
+					return // scanner finished
+				}
+				for _, event := range a.events {
+					if !event.seen && event.Matches(line) {
+						event.seen = true
+						break
+					}
+				}
+			case <-a.done:
+				return
+			}
+		}
+	}()
 }
 
 func main() {
@@ -155,7 +327,34 @@ func main() {
 	}
 
 	TestInvalidDatabaseBackup(client, opClient)
+	tracker := MakeAuditEventsTracker(
+		[]*AuditCaptureEvent{
+			{
+				event: RawEvent{
+					Action:         "ActionCreate",
+					Component:      "grpc_api",
+					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
+					ContainerID:    "{none}",
+					Subject:        "anonymous@as",
+					SanitizedToken: "",
+					Status:         "IN-PROCESS",
+				},
+			},
+			{
+				event: RawEvent{
+					Action:         "ActionCreate",
+					Component:      "grpc_api",
+					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
+					ContainerID:    containerID,
+					Subject:        "anonymous@as",
+					SanitizedToken: "",
+					Status:         "SUCCESS",
+				},
+			},
+		},
+	)
 
+	tracker.CaptureEvents()
 	tbwr, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,
@@ -168,9 +367,11 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to make backup: %v", err)
 	}
-	op, err := opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: tbwr.Id,
-	})
+	op, err := opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: tbwr.Id,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -190,12 +391,15 @@ func main() {
 	if len(backups.Backups) != 1 {
 		log.Panicf("Did not list freshly made backup")
 	}
+
 	backupPb := backups.Backups[0]
-	ops, err := opClient.ListOperations(context.Background(), &pb.ListOperationsRequest{
-		ContainerId:      containerID,
-		DatabaseNameMask: databaseName,
-		OperationTypes:   []string{types.OperationTypeTB.String()},
-	})
+	ops, err := opClient.ListOperations(
+		context.Background(), &pb.ListOperationsRequest{
+			ContainerId:      containerID,
+			DatabaseNameMask: databaseName,
+			OperationTypes:   []string{types.OperationTypeTB.String()},
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to list operations: %v", err)
 	}
@@ -227,9 +431,11 @@ func main() {
 		log.Panicln("failed to complete a backup in 30 seconds")
 	}
 	time.Sleep(time.Second * 3) // to wait for operation handler
-	tbwr, err = opClient.GetOperation(context.Background(), &pb.GetOperationRequest{
-		Id: op.Id,
-	})
+	tbwr, err = opClient.GetOperation(
+		context.Background(), &pb.GetOperationRequest{
+			Id: op.Id,
+		},
+	)
 	if err != nil {
 		log.Panicf("failed to get operation: %v", err)
 	}
@@ -256,8 +462,10 @@ func main() {
 	}
 
 	if updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
-		log.Panicln("expected expireAt to be in an hour, but got in ",
-			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+		log.Panicln(
+			"expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours(),
+		)
 	}
 
 	updatedBackupFromDb, err := client.GetBackup(
@@ -273,8 +481,10 @@ func main() {
 	}
 
 	if updatedBackupFromDb.ExpireAt.AsTime().Sub(time.Now()).Hours() > 1 {
-		log.Panicln("expected expireAt to be in an hour, but got in ",
-			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours())
+		log.Panicln(
+			"expected expireAt to be in an hour, but got in ",
+			updatedBackup.ExpireAt.AsTime().Sub(time.Now()).Hours(),
+		)
 	}
 
 	// set infinite ttl
@@ -563,5 +773,10 @@ func main() {
 
 	if err == nil {
 		log.Panicln("deleted schedule was successfully activated")
+	}
+
+	ok, msg := tracker.StopAndCheckAllCaptured()
+	if !ok {
+		log.Panicln(msg)
 	}
 }

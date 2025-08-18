@@ -46,11 +46,31 @@ func (p *authProviderDummy) Authorize(
 	for range len(checks) {
 		results = append(results, auth.AuthorizeResult{Code: auth.AuthCodeSuccess})
 	}
-	xlog.Info(ctx, "AuthProviderDummy Authorize result",
+	xlog.Info(
+		ctx, "AuthProviderDummy Authorize result",
 		zap.String("AuthResults", fmt.Sprintf("%v", results)),
 		zap.String("SubjectID", anonymousSubject),
 	)
 	return results, subject, nil
+}
+
+func (p *authProviderDummy) Authenticate(
+	ctx context.Context,
+	_ string,
+) (string, error) {
+	xlog.Info(
+		ctx,
+		"AuthProviderDummy Authenticate",
+	)
+	xlog.Info(
+		ctx, "AuthProviderDummy Authorize result",
+		zap.String("SubjectID", anonymousSubject),
+	)
+	return anonymousSubject, nil
+}
+
+func (p *authProviderDummy) MaskToken(token string) string {
+	return token
 }
 
 func NewDummyAuthProvider(ctx context.Context) (auth.AuthProvider, error) {

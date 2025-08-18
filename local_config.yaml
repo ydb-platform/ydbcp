@@ -32,3 +32,4 @@ metrics_server:
 
 schedules_limit_per_db: 1
 processor_interval_seconds: 2
+duplicate_log_to_file: /var/log/main.log
