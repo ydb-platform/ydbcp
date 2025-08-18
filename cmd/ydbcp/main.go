@@ -59,7 +59,12 @@ func main() {
 
 	var wg sync.WaitGroup
 
-	logger, err := xlog.SetupLogging(configInstance.GRPCServer.LogLevel)
+	var logger *xlog.LogConfig
+	if configInstance.DuplicateLogToFile != "" {
+		logger, err = xlog.SetupLoggingWithFile(configInstance.GRPCServer.LogLevel, configInstance.DuplicateLogToFile)
+	} else {
+		logger, err = xlog.SetupLogging(configInstance.GRPCServer.LogLevel)
+	}
 	if err != nil {
 		log.Error(err)
 		os.Exit(1)
@@ -92,10 +97,27 @@ func main() {
 			zap.String("config", confStr),
 		)
 	}
-	audit.EventsDestination = configInstance.AuditEventsDestination
+
+	var authProvider ap.AuthProvider
+	if len(configInstance.Auth.PluginPath) == 0 {
+		authProvider, err = auth.NewDummyAuthProvider(ctx)
+	} else {
+		authProvider, err = auth.NewAuthProvider(ctx, configInstance.Auth)
+	}
+	if err != nil {
+		xlog.Error(ctx, "Error init AuthProvider", zap.Error(err))
+		os.Exit(1)
+	}
+	defer func() {
+		if err := authProvider.Finish(ctx); err != nil {
+			xlog.Error(ctx, "Error finish auth provider", zap.Error(err))
+		}
+	}()
+	xlog.Info(ctx, "Initialized AuthProvider")
 	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
-	server, err := server.NewServer(&configInstance.GRPCServer)
+	audit.EventsDestination = configInstance.AuditEventsDestination
+	server, err := server.NewServer(&configInstance.GRPCServer, authProvider)
 	if err != nil {
 		xlog.Error(ctx, "failed to initialize GRPC server", zap.Error(err))
 		os.Exit(1)
@@ -117,22 +139,6 @@ func main() {
 		os.Exit(1)
 	}
 	xlog.Info(ctx, "connected to YDBCP S3 storage")
-	var authProvider ap.AuthProvider
-	if len(configInstance.Auth.PluginPath) == 0 {
-		authProvider, err = auth.NewDummyAuthProvider(ctx)
-	} else {
-		authProvider, err = auth.NewAuthProvider(ctx, configInstance.Auth)
-	}
-	if err != nil {
-		xlog.Error(ctx, "Error init AuthProvider", zap.Error(err))
-		os.Exit(1)
-	}
-	defer func() {
-		if err := authProvider.Finish(ctx); err != nil {
-			xlog.Error(ctx, "Error finish auth provider", zap.Error(err))
-		}
-	}()
-	xlog.Info(ctx, "Initialized AuthProvider")
 
 	backup.NewBackupService(
 		dbConnector,
@@ -143,7 +149,9 @@ func main() {
 		configInstance.ClientConnection.AllowInsecureEndpoint,
 	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
-	backup_schedule.NewBackupScheduleService(dbConnector, clientConnector, authProvider, *configInstance).Register(server)
+	backup_schedule.NewBackupScheduleService(
+		dbConnector, clientConnector, authProvider, *configInstance,
+	).Register(server)
 	if err := server.Start(ctx, &wg); err != nil {
 		xlog.Error(ctx, "Error start GRPC server", zap.Error(err))
 		os.Exit(1)

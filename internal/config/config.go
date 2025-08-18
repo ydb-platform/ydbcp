@@ -81,6 +81,7 @@ type Config struct {
 	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
 	DisableTTLDeletion       bool                   `yaml:"disable_ttl_deletion" default:"false"`
 	AuditEventsDestination   string                 `yaml:"audit_events_destination"`
+	DuplicateLogToFile       string                 `yaml:"duplicate_log_to_file"`
 }
 
 type ClusterConnectionConfig struct {

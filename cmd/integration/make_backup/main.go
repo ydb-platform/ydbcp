@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
@@ -9,8 +11,11 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	"google.golang.org/protobuf/types/known/durationpb"
+	"io"
 	"log"
+	"os"
 	"strings"
+	"sync"
 	"time"
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/types"
@@ -139,6 +144,165 @@ VALUES
 	}
 }
 
+type RawEvent struct {
+	ID             string          `json:"request_id"`
+	IdempotencyKey string          `json:"idempotency_key"`
+	Service        string          `json:"service"`
+	SpecVersion    string          `json:"specversion"`
+	Action         string          `json:"action"`
+	Resource       string          `json:"resource"`
+	Component      string          `json:"component"`
+	MethodName     string          `json:"operation,omitempty"`
+	ContainerID    string          `json:"folder_id"`
+	Subject        string          `json:"subject"`
+	SanitizedToken string          `json:"sanitized_token"`
+	GRPCRequest    json.RawMessage `json:"grpc_request,omitempty"`
+	Status         string          `json:"status"`
+	Reason         string          `json:"reason,omitempty"`
+	Timestamp      string          `json:"timestamp"`
+	IsBackground   bool            `json:"is_background"`
+}
+
+type ParsedEvent struct {
+	RawEvent `json:"event"`
+}
+
+type AuditCaptureEvent struct {
+	event RawEvent
+	seen  bool
+}
+
+func (e *AuditCaptureEvent) Matches(line string) bool {
+	var buf ParsedEvent
+
+	err := json.Unmarshal([]byte(line), &buf)
+	if err != nil {
+		log.Panicln(err)
+	}
+	p := buf.RawEvent
+	if p.MethodName != e.event.MethodName {
+		log.Printf("MethodName mismatch: expected %s, got %s", e.event.MethodName, p.MethodName)
+		return false
+	}
+
+	if p.ContainerID != e.event.ContainerID {
+		log.Printf("ContainerID mismatch: expected %s, got %s", e.event.ContainerID, p.ContainerID)
+		return false
+	}
+
+	if p.Component != e.event.Component {
+		log.Printf("Component mismatch: expected %s, got %s", e.event.Component, p.Component)
+		return false
+	}
+
+	if p.Action != e.event.Action {
+		log.Printf("Action mismatch: expected %s, got %s", e.event.Action, p.Action)
+		return false
+	}
+
+	if p.Timestamp == "" {
+		log.Printf("Timestamp is empty")
+		return false
+	}
+
+	if p.Subject != e.event.Subject {
+		log.Printf("Subject mismatch: expected %s, got %s", e.event.Subject, p.Subject)
+		return false
+	}
+
+	if p.Status != e.event.Status {
+		log.Printf("Status mismatch: expected %s, got %s", e.event.Status, p.Status)
+		return false
+	}
+	return true
+}
+
+type AuditEventsTracker struct {
+	mutex  sync.Mutex
+	wg     sync.WaitGroup
+	done   chan struct{}
+	events []*AuditCaptureEvent
+	ticker *time.Ticker
+}
+
+func MakeAuditEventsTracker(events []*AuditCaptureEvent) *AuditEventsTracker {
+	return &AuditEventsTracker{
+		done:   make(chan struct{}),
+		wg:     sync.WaitGroup{},
+		mutex:  sync.Mutex{},
+		events: events,
+		ticker: time.NewTicker(500 * time.Millisecond),
+	}
+}
+
+func (a *AuditEventsTracker) StopAndCheckAllCaptured() (bool, string) {
+	log.Println("stop tracker")
+	close(a.done)
+	a.wg.Wait()
+	log.Println("stdout reading stopped")
+	for _, event := range a.events {
+		if !event.seen {
+			return false, fmt.Sprintf("event not captured: %v", event.event)
+		}
+	}
+	return true, ""
+}
+
+func (a *AuditEventsTracker) CaptureEvents() {
+	var f *os.File
+	f, err := os.Open("/var/log/main.log")
+	if err != nil {
+		panic(err)
+	}
+	reader := bufio.NewReader(f)
+
+	lines := make(chan string)
+	go func() {
+		defer close(lines)
+		for {
+			select {
+			case <-a.done:
+				return
+			default:
+				line, err := reader.ReadString('\n')
+				if err != nil {
+					if err == io.EOF {
+						time.Sleep(100 * time.Millisecond)
+						continue
+					}
+					log.Panicf("read file error: %v", err)
+				}
+				lines <- strings.TrimRight(line, "\n")
+			}
+		}
+	}()
+
+	a.wg.Add(1)
+	go func() {
+		defer func() {
+			f.Close()
+			a.wg.Done()
+		}()
+
+		for {
+			select {
+			case line, ok := <-lines:
+				if !ok {
+					return // scanner finished
+				}
+				for _, event := range a.events {
+					if !event.seen && event.Matches(line) {
+						event.seen = true
+						break
+					}
+				}
+			case <-a.done:
+				return
+			}
+		}
+	}()
+}
+
 func main() {
 	conn := common.CreateGRPCClient(ydbcpEndpoint)
 	defer func(conn *grpc.ClientConn) {
@@ -163,7 +327,34 @@ func main() {
 	}
 
 	TestInvalidDatabaseBackup(client, opClient)
+	tracker := MakeAuditEventsTracker(
+		[]*AuditCaptureEvent{
+			{
+				event: RawEvent{
+					Action:         "ActionCreate",
+					Component:      "grpc_api",
+					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
+					ContainerID:    "{none}",
+					Subject:        "anonymous@as",
+					SanitizedToken: "",
+					Status:         "IN-PROCESS",
+				},
+			},
+			{
+				event: RawEvent{
+					Action:         "ActionCreate",
+					Component:      "grpc_api",
+					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
+					ContainerID:    containerID,
+					Subject:        "anonymous@as",
+					SanitizedToken: "",
+					Status:         "SUCCESS",
+				},
+			},
+		},
+	)
 
+	tracker.CaptureEvents()
 	tbwr, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,
@@ -200,6 +391,7 @@ func main() {
 	if len(backups.Backups) != 1 {
 		log.Panicf("Did not list freshly made backup")
 	}
+
 	backupPb := backups.Backups[0]
 	ops, err := opClient.ListOperations(
 		context.Background(), &pb.ListOperationsRequest{
@@ -593,5 +785,10 @@ func main() {
 
 	if err == nil {
 		log.Panicln("deleted schedule was successfully activated")
+	}
+
+	ok, msg := tracker.StopAndCheckAllCaptured()
+	if !ok {
+		log.Panicln(msg)
 	}
 }
