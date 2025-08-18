@@ -22,7 +22,16 @@ func getFromCtx(ctx context.Context, key string) *string {
 	return nil
 }
 
+type ctxKeyRequestID struct{}
+
+func SetRequestID(ctx context.Context, id string) context.Context {
+	return context.WithValue(ctx, ctxKeyRequestID{}, id)
+}
+
 func GetRequestID(ctx context.Context) string {
+	if id, ok := ctx.Value(ctxKeyRequestID{}).(string); ok {
+		return id
+	}
 	for _, key := range []string{"RequestID", "RequestId", "request-id", "request_id"} {
 		val := getFromCtx(ctx, key)
 		if val != nil {
