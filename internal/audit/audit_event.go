@@ -68,7 +68,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			GRPCRequest    json.RawMessage `json:"grpc_request,omitempty"`
 			Status         string          `json:"status"`
 			Reason         string          `json:"reason,omitempty"`
-			Timestamp      string          `json:"timestamp"`
+			Timestamp      string          `json:"@timestamp"`
 			IsBackground   bool            `json:"is_background"`
 		}{
 			ID:             e.ID,

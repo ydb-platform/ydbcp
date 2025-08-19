@@ -71,6 +71,7 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(data), `"subject":"sub@as`)
 	assert.Contains(t, string(data), `"container_id":"id1"`)
 	assert.Contains(t, string(data), `"status":`)
+	assert.Contains(t, string(data), `"@timestamp":`)
 }
 
 func TestEventJsonMarshal(t *testing.T) {
