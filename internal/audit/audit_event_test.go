@@ -38,7 +38,8 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 
 	cid := "cid1"
 	event := GRPCCallAuditEvent(
-		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, msg, "subj", "token", cid, false, err,
+		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, msg, "subj", "token.signature", cid,
+		false, err,
 	)
 
 	assert.Equal(t, "grpc_api", event.Component)
