@@ -64,7 +64,7 @@ func Authenticate(ctx context.Context, provider auth.AuthProvider) (string, erro
 
 func GetMaskedToken(ctx context.Context, provider auth.AuthProvider) (string, error) {
 	t, err := TokenFromGRPCContext(ctx)
-	if err != nil {
+	if err == nil {
 		return provider.MaskToken(t), nil
 	} else {
 		return t, err
