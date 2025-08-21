@@ -31,10 +31,14 @@ type Event struct { //flat event struct for everything
 	Timestamp      time.Time
 }
 
+type EventEnvelope struct {
+	TextData string `json:"text_data"`
+	Type     string `json:"type"`
+}
+
 type EventJson struct {
 	Destination string
-	Event       *Event
-	Type        string
+	Event       *EventEnvelope
 }
 
 func marshalProtoMessage(msg proto.Message) json.RawMessage {
@@ -93,15 +97,24 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 func (ej *EventJson) MarshalJSON() ([]byte, error) {
 	return json.Marshal(
 		&struct {
-			Destination string `json:"destination,omitempty"`
-			Event       *Event `json:"event"`
-			Type        string `json:"type"`
+			Destination string         `json:"destination,omitempty"`
+			Event       *EventEnvelope `json:"event"`
 		}{
 			Destination: ej.Destination,
 			Event:       ej.Event,
-			Type:        ej.Type,
 		},
 	)
+}
+
+func makeEnvelope(event *Event) (*EventEnvelope, error) {
+	data, err := event.MarshalJSON()
+	if err != nil {
+		return nil, err
+	}
+	return &EventEnvelope{
+		TextData: string(data),
+		Type:     "ydbcp-audit",
+	}, nil
 }
 
 func getStatus(inProgress bool, err error) (string, string) {
@@ -166,11 +179,15 @@ func ReportGRPCCallEnd(
 }
 
 func ReportAuditEvent(ctx context.Context, event *Event) {
+	env, err := makeEnvelope(event)
+	if err != nil {
+		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
+		return
+	}
 	jsonData, err := json.Marshal(
 		&EventJson{
 			Destination: EventsDestination,
-			Event:       event,
-			Type:        "ydbcp-audit",
+			Event:       env,
 		},
 	)
 	if err != nil {

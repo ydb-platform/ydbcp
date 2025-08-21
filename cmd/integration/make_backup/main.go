@@ -163,8 +163,13 @@ type RawEvent struct {
 	IsBackground   bool            `json:"is_background"`
 }
 
+type RawEventEnvelope struct {
+	TextData string `json:"text_data"`
+	Type     string `json:"type"`
+}
+
 type ParsedEvent struct {
-	RawEvent `json:"event"`
+	Event RawEventEnvelope `json:"event"`
 }
 
 type AuditCaptureEvent struct {
@@ -174,12 +179,15 @@ type AuditCaptureEvent struct {
 
 func (e *AuditCaptureEvent) Matches(line string) bool {
 	var buf ParsedEvent
-
 	err := json.Unmarshal([]byte(line), &buf)
 	if err != nil {
-		log.Panicln(err)
+		return false
 	}
-	p := buf.RawEvent
+	var p RawEvent
+	err = json.Unmarshal([]byte(buf.Event.TextData), &p)
+	if err != nil {
+		return false
+	}
 	if p.MethodName != e.event.MethodName {
 		log.Printf("MethodName mismatch: expected %s, got %s", e.event.MethodName, p.MethodName)
 		return false
