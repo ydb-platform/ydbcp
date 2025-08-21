@@ -76,19 +76,20 @@ func TestEventMarshalJSON(t *testing.T) {
 }
 
 func TestEventJsonMarshal(t *testing.T) {
-	event := &Event{Component: "test"}
+	event, err := makeEnvelope(&Event{Component: "test"})
+	require.NoError(t, err)
 	ej := &EventJson{
 		Destination: "stdout",
 		Event:       event,
-		Type:        "ydbcp-audit",
 	}
 
 	data, err := json.Marshal(ej)
 	assert.NoError(t, err)
 	fmt.Print(string(data))
 	assert.Contains(t, string(data), `"destination":"stdout"`)
+	assert.Contains(t, string(data), `"text_data"`)
 	assert.Contains(t, string(data), `"type":"ydbcp-audit"`)
-	assert.Contains(t, string(data), `"component":"test"`)
+	assert.Contains(t, string(data), `\"component\":\"test\"`)
 }
 
 func TestReportAuditEvent(t *testing.T) {
@@ -116,6 +117,6 @@ func TestReportAuditEvent(t *testing.T) {
 	fmt.Print(output)
 	assert.Contains(t, output, `"destination":"test-destination"`)
 	assert.Contains(t, output, `"type":"ydbcp-audit"`)
-	assert.Contains(t, output, `"operation":"reportTest"`)
+	assert.Contains(t, output, `\"operation\":\"reportTest\"`)
 	assert.Contains(t, output, "SUCCESS")
 }
