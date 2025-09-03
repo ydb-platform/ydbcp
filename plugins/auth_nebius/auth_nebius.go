@@ -116,7 +116,7 @@ func accountToString(account *pb.Account) string {
 }
 
 func (p *authProviderNebius) MaskToken(token string) string {
-	return strings.Split(token, ".")[0]
+	return strings.Split(token, ".")[0] + ".**"
 }
 
 func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) ([]auth.AuthorizeResult, string, error) {
