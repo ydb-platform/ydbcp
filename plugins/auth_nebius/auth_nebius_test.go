@@ -25,5 +25,5 @@ func TestMaskedToken(t *testing.T) {
 	)
 	token, err := auth.GetMaskedToken(ctx, &provider)
 	require.NoError(t, err)
-	require.Equal(t, "token", token)
+	require.Equal(t, "token.**", token)
 }
