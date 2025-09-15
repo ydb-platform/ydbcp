@@ -119,6 +119,11 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
 	}
 
+	if request.ScheduleSettings.EncryptionSettings != nil {
+		s.IncApiCallsCounter(methodName, codes.Unimplemented)
+		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+	}
+
 	if request.ScheduleSettings.RecoveryPointObjective != nil && (request.ScheduleSettings.RecoveryPointObjective.Seconds == 0) {
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")

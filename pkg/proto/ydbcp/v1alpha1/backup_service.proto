@@ -91,6 +91,9 @@ message MakeBackupRequest {
     repeated string source_paths_to_exclude = 5;  // [(size) = "<=256"];
     // The time-to-live for the backup.
     google.protobuf.Duration ttl = 6;
+    // Backup encryption settings,
+    // unspecified field means the backup will be unencrypted.
+    EncryptionSettings encryption_settings = 7;
 }
 
 message DeleteBackupRequest {
