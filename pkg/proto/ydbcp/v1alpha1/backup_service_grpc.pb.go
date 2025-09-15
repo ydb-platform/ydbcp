@@ -31,12 +31,23 @@ const (
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type BackupServiceClient interface {
+	// Returns the list of backups for the specified container.
+	// Required YDB permissions: `ydb.databases.list`
 	ListBackups(ctx context.Context, in *ListBackupsRequest, opts ...grpc.CallOption) (*ListBackupsResponse, error)
 	// Returns the specified backup.
+	// Required YDB permissions: `ydb.databases.get`
 	GetBackup(ctx context.Context, in *GetBackupRequest, opts ...grpc.CallOption) (*Backup, error)
+	// Creates a backup of the specified database.
+	// Required YDB permissions: `ydb.databases.backup`
 	MakeBackup(ctx context.Context, in *MakeBackupRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Deletes the specified backup and returns DeleteBackup operation.
+	// Required YDB permissions: `ydb.databases.backup`
 	DeleteBackup(ctx context.Context, in *DeleteBackupRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Restores the specified backup and returns MakeRestore operation.
+	// Required YDB permissions: `ydb.tables.create`
 	MakeRestore(ctx context.Context, in *MakeRestoreRequest, opts ...grpc.CallOption) (*Operation, error)
+	// Updates the TTL of the specified backup.
+	// Required YDB permissions: `ydb.databases.backup`
 	UpdateBackupTtl(ctx context.Context, in *UpdateBackupTtlRequest, opts ...grpc.CallOption) (*Backup, error)
 }
 
@@ -106,12 +117,23 @@ func (c *backupServiceClient) UpdateBackupTtl(ctx context.Context, in *UpdateBac
 // All implementations must embed UnimplementedBackupServiceServer
 // for forward compatibility
 type BackupServiceServer interface {
+	// Returns the list of backups for the specified container.
+	// Required YDB permissions: `ydb.databases.list`
 	ListBackups(context.Context, *ListBackupsRequest) (*ListBackupsResponse, error)
 	// Returns the specified backup.
+	// Required YDB permissions: `ydb.databases.get`
 	GetBackup(context.Context, *GetBackupRequest) (*Backup, error)
+	// Creates a backup of the specified database.
+	// Required YDB permissions: `ydb.databases.backup`
 	MakeBackup(context.Context, *MakeBackupRequest) (*Operation, error)
+	// Deletes the specified backup and returns DeleteBackup operation.
+	// Required YDB permissions: `ydb.databases.backup`
 	DeleteBackup(context.Context, *DeleteBackupRequest) (*Operation, error)
+	// Restores the specified backup and returns MakeRestore operation.
+	// Required YDB permissions: `ydb.tables.create`
 	MakeRestore(context.Context, *MakeRestoreRequest) (*Operation, error)
+	// Updates the TTL of the specified backup.
+	// Required YDB permissions: `ydb.databases.backup`
 	UpdateBackupTtl(context.Context, *UpdateBackupTtlRequest) (*Backup, error)
 	mustEmbedUnimplementedBackupServiceServer()
 }
