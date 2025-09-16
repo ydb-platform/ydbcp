@@ -54,4 +54,6 @@ message Operation {
     RetryConfig retry_config = 16;
     // Human readable description for the operation type.
     string type_description = 17;
+    // The KMS key ID that should be used to encrypt the DEK (data encryption key).
+    string kms_key_id = 18;
 }

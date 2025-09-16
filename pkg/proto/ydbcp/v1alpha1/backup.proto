@@ -49,6 +49,8 @@ message Backup {
     string schedule_id = 11;
     // List of source paths included in the backup (empty list means backup of root directory).
     repeated string source_paths = 12;  // [(size) = "<=256"];
+    // The KMS key ID that was used to encrypt the DEK (data encryption key).
+    string kms_key_id = 13;
 }
 
 message S3Location {
