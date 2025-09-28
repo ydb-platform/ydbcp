@@ -7,7 +7,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
-	"strings"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/util/xlog"
@@ -84,7 +83,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			Component:      e.Component,
 			MethodName:     e.MethodName,
 			ContainerID:    e.ContainerID,
-			Subject:        strings.Join([]string{e.Subject, "as"}, "@"),
+			Subject:        formatSubject(e.Subject),
 			SanitizedToken: e.SanitizedToken,
 			GRPCRequest:    marshalProtoMessage(e.GRPCRequest),
 			Status:         e.Status,
@@ -128,6 +127,15 @@ func getStatus(inProgress bool, err error) (string, string) {
 		status = "SUCCESS"
 	}
 	return status, reason
+}
+
+func formatSubject(subject string) string {
+	switch subject {
+	case "", "{none}":
+		return "{none}"
+	default:
+		return subject + "@as"
+	}
 }
 
 func GRPCCallAuditEvent(
