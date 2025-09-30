@@ -1,12 +1,12 @@
 package client
 
 import (
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/stretchr/testify/assert"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Import"
 	"testing"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Import"
 )
 
 func deref(items []*Ydb_Import.ImportFromS3Settings_Item) []Ydb_Import.ImportFromS3Settings_Item {
@@ -20,15 +20,9 @@ func deref(items []*Ydb_Import.ImportFromS3Settings_Item) []Ydb_Import.ImportFro
 func TestPrepareItemsForImport(t *testing.T) {
 	s3ObjectsMap := make(map[string]s3.Bucket)
 	s3ObjectsMap["bucket"] = s3.Bucket{
-		"local/table_1/scheme.pb": {
-			Key: aws.String("local/table_1/scheme.pb"),
-		},
-		"local/table_2/scheme.pb": {
-			Key: aws.String("local/table_2/scheme.pb"),
-		},
-		"local/folder/table_3/scheme.pb": {
-			Key: aws.String("local/folder/table_3/scheme.pb"),
-		},
+		"local/table_1/scheme.pb":        []byte{},
+		"local/table_2/scheme.pb":        []byte{},
+		"local/folder/table_3/scheme.pb": []byte{},
 	}
 
 	s3Settings := types.ImportSettings{

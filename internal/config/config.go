@@ -65,8 +65,9 @@ type MetricsServerConfig struct {
 }
 
 type FeatureFlagsConfig struct {
-	DisableTTLDeletion   bool `yaml:"disable_ttl_deletion" default:"false"`
-	EnableNewPathsFormat bool `yaml:"enable_new_paths_format" default:"false"`
+	DisableTTLDeletion      bool `yaml:"disable_ttl_deletion" default:"false"`
+	EnableNewPathsFormat    bool `yaml:"enable_new_paths_format" default:"false"`
+	EnableBackupsEncryption bool `yaml:"enable_backups_encryption" default:"false"`
 }
 
 type LogConfig struct {
@@ -96,6 +97,7 @@ type Config struct {
 	ClientConnection   ClientConnectionConfig   `yaml:"client_connection"`
 	S3                 S3Config                 `yaml:"s3"`
 	Auth               PluginConfig             `yaml:"auth"`
+	KMS                PluginConfig             `yaml:"kms"`
 	GRPCServer         GRPCServerConfig         `yaml:"grpc_server"`
 	MetricsServer      MetricsServerConfig      `yaml:"metrics_server"`
 	OperationProcessor OperationProcessorConfig `yaml:"operation_processor"`

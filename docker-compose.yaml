@@ -109,6 +109,7 @@ services:
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       YDB_NAME: ${YDB_NAME}
       ENABLE_NEW_PATHS_FORMAT: ${ENABLE_NEW_PATHS_FORMAT}
+      ENABLE_BACKUPS_ENCRYPTION: ${ENABLE_BACKUPS_ENCRYPTION}
     depends_on:
       setup_ydb:
         condition: service_completed_successfully

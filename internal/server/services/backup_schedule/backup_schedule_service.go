@@ -3,9 +3,6 @@ package backup_schedule
 import (
 	"context"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"strconv"
 	"time"
 	"ydbcp/internal/audit"
@@ -22,6 +19,10 @@ import (
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
@@ -120,8 +121,15 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	}
 
 	if request.ScheduleSettings.EncryptionSettings != nil {
-		s.IncApiCallsCounter(methodName, codes.Unimplemented)
-		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		if !s.config.FeatureFlags.EnableBackupsEncryption {
+			s.IncApiCallsCounter(methodName, codes.Unimplemented)
+			return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		}
+
+		if request.ScheduleSettings.EncryptionSettings.GetKeyEncryptionKey() == nil {
+			s.IncApiCallsCounter(methodName, codes.InvalidArgument)
+			return nil, status.Error(codes.InvalidArgument, "encryption key is required")
+		}
 	}
 
 	if request.ScheduleSettings.RecoveryPointObjective != nil && (request.ScheduleSettings.RecoveryPointObjective.Seconds == 0) {

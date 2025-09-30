@@ -54,9 +54,16 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        enable_new_paths_format: [ true, false ]
+        include:
+          - enable_new_paths_format: false
+            enable_backups_encryption: false
+          - enable_new_paths_format: true
+            enable_backups_encryption: false
+          - enable_new_paths_format: true
+            enable_backups_encryption: true
     env:
       ENABLE_NEW_PATHS_FORMAT: ${{ matrix.enable_new_paths_format }}
+      ENABLE_BACKUPS_ENCRYPTION: ${{ matrix.enable_backups_encryption }}
     steps:
       - uses: actions/checkout@v4
       - name: supply with s3 access keys
@@ -108,5 +115,22 @@ jobs:
           docker exec local-ydbcp sh -c './test_new_paths_format'
       - name: docker compose down
         if: ${{ matrix.enable_new_paths_format }}
+        run: |
+          docker compose down
+      - name: docker compose up     
+        if: ${{ matrix.enable_backups_encryption }}
+        run: |
+          docker compose up -d
+      - name: run make_encrypted_backup tests
+        if: ${{ matrix.enable_backups_encryption }}
+        run: |
+          while [ "$(docker inspect -f {{.State.Health.Status}} local-ydbcp)" != "healthy" ]; do
+            echo "Waiting for container to become healthy..."
+            sleep 1
+          done
+          echo "Starting make_encrypted_backup tests!"
+          docker exec local-ydbcp sh -c './make_encrypted_backup'
+      - name: docker compose down
+        if: ${{ matrix.enable_backups_encryption }}
         run: |
           docker compose down

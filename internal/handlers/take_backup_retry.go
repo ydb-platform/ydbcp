@@ -4,10 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"math"
 	"strings"
 	"time"
@@ -17,22 +13,31 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	kp "ydbcp/pkg/plugins/kms"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewTBWROperationHandler(
 	db db.DBConnector,
 	client client.ClientConnector,
+	s3Connector s3.S3Connector,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
 	config config.Config,
+	kmsProvider kp.KmsProvider,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
 		err := TBWROperationHandler(
-			ctx, op, db, client, config.S3, config.ClientConnection, queryBuilderFactory, clock, config.FeatureFlags,
+			ctx, op, db, client, s3Connector, config.S3, config.ClientConnection, queryBuilderFactory, clock, config.FeatureFlags, kmsProvider,
 		)
 		if err == nil {
 			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
@@ -223,11 +228,13 @@ func TBWROperationHandler(
 	operation types.Operation,
 	db db.DBConnector,
 	clientConn client.ClientConnector,
+	s3Connector s3.S3Connector,
 	s3 config.S3Config,
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
+	kmsProvider kp.KmsProvider,
 ) error {
 	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
 
@@ -329,6 +336,7 @@ func TBWROperationHandler(
 					backup, tb, err := backup_operations.MakeBackup(
 						ctx,
 						clientConn,
+						s3Connector,
 						s3,
 						clientConfig.AllowedEndpointDomains,
 						clientConfig.AllowInsecureEndpoint,
@@ -336,6 +344,7 @@ func TBWROperationHandler(
 						types.OperationCreatorName,
 						clock,
 						featureFlags,
+						kmsProvider,
 					)
 
 					tbwr.IncRetries()
