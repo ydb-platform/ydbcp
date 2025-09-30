@@ -225,15 +225,8 @@ func (d *ClientYdbConnector) ExportToS3(
 
 	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(s3Settings.SourcePaths))
 	for i, source := range s3Settings.SourcePaths {
-		// Destination prefix format: s3_destination_prefix/rel_source_path
-		destinationPrefix := path.Join(
-			s3Settings.DestinationPrefix,
-			strings.TrimPrefix(source, clientDb.Name()+"/"),
-		)
-
 		items[i] = &Ydb_Export.ExportToS3Settings_Item{
-			SourcePath:        source,
-			DestinationPrefix: destinationPrefix,
+			SourcePath: source,
 		}
 	}
 
@@ -245,6 +238,18 @@ func (d *ClientYdbConnector) ExportToS3(
 		zap.String("S3Bucket", s3Settings.Bucket),
 		zap.String("S3Description", s3Settings.Description),
 	)
+
+	var encryptionSettings *Ydb_Export.EncryptionSettings
+	if len(s3Settings.EncryptionKey) > 0 {
+		encryptionSettings = &Ydb_Export.EncryptionSettings{
+			EncryptionAlgorithm: s3Settings.EncryptionAlgorithm,
+			Key: &Ydb_Export.EncryptionSettings_SymmetricKey_{
+				SymmetricKey: &Ydb_Export.EncryptionSettings_SymmetricKey{
+					Key: s3Settings.EncryptionKey,
+				},
+			},
+		}
+	}
 
 	response, err := exportClient.ExportToS3(
 		ctx,
@@ -263,6 +268,9 @@ func (d *ClientYdbConnector) ExportToS3(
 				NumberOfRetries:          s3Settings.NumberOfRetries,
 				Items:                    items,
 				DisableVirtualAddressing: s3Settings.S3ForcePathStyle,
+				SourcePath:               clientDb.Name(),
+				DestinationPrefix:        s3Settings.DestinationPrefix,
+				EncryptionSettings:       encryptionSettings,
 			},
 		},
 	)
@@ -315,6 +323,7 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 		func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
 			for _, object := range p.Contents {
 
+				// TODO: support import for encrypted backups
 				key, found := strings.CutSuffix(*object.Key, "scheme.pb")
 				if found {
 					shouldRestore := backupEverything || pathPrefixes[key]
@@ -322,7 +331,9 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 						*itemsPtr = append(
 							*itemsPtr,
 							&Ydb_Import.ImportFromS3Settings_Item{
-								SourcePrefix: key,
+								Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
+									SourcePrefix: key,
+								},
 								DestinationPath: path.Join(
 									dbName,
 									s3Settings.DestinationPrefix,
@@ -394,6 +405,7 @@ func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Dri
 				NumberOfRetries:          s3Settings.NumberOfRetries,
 				Items:                    items,
 				DisableVirtualAddressing: s3Settings.S3ForcePathStyle,
+				SourcePrefix:             "TODO: Source prefix for backup in bucket",
 			},
 		},
 	)
