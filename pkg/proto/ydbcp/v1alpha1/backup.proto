@@ -13,6 +13,28 @@ enum BackupField {
     COMPLETED_AT = 4;
 }
 
+message EncryptionSettings {
+
+    enum Algorithm {
+        UNSPECIFIED = 0;
+        AES_128_GCM = 1;
+        AES_256_GCM = 2;
+        CHACHA20_POLY1305 = 3;
+    }
+
+    // Algorithm for backup encryption
+    Algorithm algorithm = 1;
+
+    message KmsKey {
+        // The KMS key ID that should be used to encrypt the DEK (data encryption key).
+        string key_id = 1;
+    }
+
+    oneof KeyEncryptionKey {
+        KmsKey kms_key = 2;
+    }
+}
+
 message Backup {
     enum Status {
         STATUS_UNSPECIFIED = 0;
@@ -49,6 +71,9 @@ message Backup {
     string schedule_id = 11;
     // List of source paths included in the backup (empty list means backup of root directory).
     repeated string source_paths = 12;  // [(size) = "<=256"];
+    // Backup encryption settings,
+    // unspecified field means the backup is unencrypted.
+    EncryptionSettings encryption_settings = 13;
 }
 
 message S3Location {

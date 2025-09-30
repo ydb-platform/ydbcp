@@ -109,6 +109,11 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 	now := timestamppb.Now()
 
+	if req.EncryptionSettings != nil {
+		s.IncApiCallsCounter(methodName, codes.Unimplemented)
+		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+	}
+
 	tbwr := &types.TakeBackupWithRetryOperation{
 		TakeBackupOperation: types.TakeBackupOperation{
 			ID:          types.GenerateObjectID(),

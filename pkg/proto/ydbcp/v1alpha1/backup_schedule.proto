@@ -20,6 +20,9 @@ message BackupScheduleSettings {
     google.protobuf.Duration ttl = 2;
     // Recovery point objective duration (maximum length of time permitted, that data can be restored).
     google.protobuf.Duration recovery_point_objective = 3;
+    // Backup encryption settings,
+    // unspecified field means the backup is unencrypted.
+    EncryptionSettings encryption_settings = 4;
 }
 
 message ScheduledBackupInfo {
