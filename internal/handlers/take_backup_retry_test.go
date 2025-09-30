@@ -3,20 +3,23 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"testing"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/connectors/s3"
+	"ydbcp/internal/kms"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -353,9 +356,11 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -417,9 +422,11 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -482,9 +489,11 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t3.AsTime()),
 		config.Config{},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -539,9 +548,11 @@ func TestTBWRHandlerError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -593,6 +604,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
@@ -604,6 +616,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -667,6 +680,7 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
@@ -678,6 +692,7 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -742,6 +757,7 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
@@ -753,6 +769,7 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -802,6 +819,7 @@ func TestTBWRHandlerInvalidEndpointError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
@@ -813,6 +831,7 @@ func TestTBWRHandlerInvalidEndpointError(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -867,6 +886,7 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
@@ -878,6 +898,7 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -946,6 +967,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
 		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
@@ -957,6 +979,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 				AllowInsecureEndpoint:  true,
 			},
 		},
+		kms.NewMockKmsProvider(nil),
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)

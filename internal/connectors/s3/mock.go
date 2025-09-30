@@ -1,12 +1,14 @@
 package s3
 
 import (
+	"fmt"
 	"strings"
 
+	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/s3"
 )
 
-type Bucket map[string]*s3.Object
+type Bucket map[string][]byte
 
 type MockS3Connector struct {
 	storage map[string]Bucket
@@ -21,7 +23,7 @@ func (m *MockS3Connector) ListObjectsPages(input *s3.ListObjectsInput, fn func(*
 	var s3objs []*s3.Object
 	for i := 0; i < len(objects); i++ {
 		s3objs = append(s3objs, &s3.Object{
-			Key: &objects[i],
+			Key: aws.String(objects[i]),
 		})
 	}
 
@@ -40,13 +42,10 @@ func (m *MockS3Connector) ListObjects(pathPrefix string, bucketName string) ([]s
 	var size int64
 
 	if bucket, ok := m.storage[bucketName]; ok {
-		for key, object := range bucket {
+		for key, data := range bucket {
 			if strings.HasPrefix(key, pathPrefix) {
 				objects = append(objects, key)
-
-				if object.Size != nil {
-					size += *object.Size
-				}
+				size += int64(len(data))
 			}
 		}
 	}
@@ -58,11 +57,9 @@ func (m *MockS3Connector) GetSize(pathPrefix string, bucketName string) (int64, 
 	var size int64
 
 	if bucket, ok := m.storage[bucketName]; ok {
-		for key, object := range bucket {
+		for key, data := range bucket {
 			if strings.HasPrefix(key, pathPrefix) {
-				if object.Size != nil {
-					size += *object.Size
-				}
+				size += int64(len(data))
 			}
 		}
 	}
@@ -78,4 +75,32 @@ func (m *MockS3Connector) DeleteObjects(objects []string, bucketName string) err
 	}
 
 	return nil
+}
+
+func (m *MockS3Connector) PutObject(key string, bucketName string, data []byte) error {
+	if _, ok := m.storage[bucketName]; !ok {
+		m.storage[bucketName] = make(Bucket)
+	}
+
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	m.storage[bucketName][key] = dataCopy
+
+	return nil
+}
+
+func (m *MockS3Connector) GetObject(key string, bucketName string) ([]byte, error) {
+	bucket, ok := m.storage[bucketName]
+	if !ok {
+		return nil, fmt.Errorf("bucket %s not found", bucketName)
+	}
+
+	data, ok := bucket[key]
+	if !ok {
+		return nil, fmt.Errorf("object %s not found in bucket %s", key, bucketName)
+	}
+
+	dataCopy := make([]byte, len(data))
+	copy(dataCopy, data)
+	return dataCopy, nil
 }

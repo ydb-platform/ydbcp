@@ -132,6 +132,16 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		if tb.ParentOperationID != nil {
 			d.AddValueParam("$parent_operation_id", table_types.StringValueFromString(*tb.ParentOperationID))
 		}
+		if tb.EncryptionSettings != nil {
+			d.AddValueParam(
+				"$encryption_algorithm",
+				table_types.StringValueFromString(tb.EncryptionSettings.GetAlgorithm().String()),
+			)
+			d.AddValueParam(
+				"$kms_key_id",
+				table_types.StringValueFromString(tb.EncryptionSettings.GetKmsKey().GetKeyId()),
+			)
+		}
 	} else if operation.GetType() == types.OperationTypeTBWR {
 		tbwr, ok := operation.(*types.TakeBackupWithRetryOperation)
 		if !ok {
@@ -183,6 +193,16 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		}
 		if tbwr.Ttl != nil {
 			d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(*tbwr.Ttl))
+		}
+		if tbwr.EncryptionSettings != nil {
+			d.AddValueParam(
+				"$encryption_algorithm",
+				table_types.StringValueFromString(tbwr.EncryptionSettings.GetAlgorithm().String()),
+			)
+			d.AddValueParam(
+				"$kms_key_id",
+				table_types.StringValueFromString(tbwr.EncryptionSettings.GetKmsKey().GetKeyId()),
+			)
 		}
 	} else if operation.GetType() == types.OperationTypeRB {
 		rb, ok := operation.(*types.RestoreBackupOperation)
@@ -336,6 +356,17 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	if b.ExpireAt != nil {
 		d.AddValueParam("$expire_at", table_types.TimestampValueFromTime(*b.ExpireAt))
 	}
+
+	if b.EncryptionSettings != nil {
+		d.AddValueParam(
+			"$encryption_algorithm",
+			table_types.StringValueFromString(b.EncryptionSettings.GetAlgorithm().String()),
+		)
+		d.AddValueParam(
+			"$kms_key_id",
+			table_types.StringValueFromString(b.EncryptionSettings.GetKmsKey().GetKeyId()),
+		)
+	}
 	return d
 }
 
@@ -389,6 +420,17 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 			"$recovery_point_objective",
 			table_types.IntervalValueFromDuration(schedule.ScheduleSettings.RecoveryPointObjective.AsDuration()),
 		)
+
+		if schedule.ScheduleSettings.EncryptionSettings != nil {
+			d.AddValueParam(
+				"$encryption_algorithm",
+				table_types.StringValueFromString(schedule.ScheduleSettings.EncryptionSettings.GetAlgorithm().String()),
+			)
+			d.AddValueParam(
+				"$kms_key_id",
+				table_types.StringValueFromString(schedule.ScheduleSettings.EncryptionSettings.GetKmsKey().GetKeyId()),
+			)
+		}
 	}
 	if schedule.NextLaunch != nil {
 		d.AddValueParam("$next_launch", table_types.TimestampValueFromTime(*schedule.NextLaunch))

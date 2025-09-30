@@ -1,7 +1,9 @@
 package s3
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"strings"
 
 	"ydbcp/internal/config"
@@ -16,6 +18,8 @@ type S3Connector interface {
 	ListObjects(pathPrefix string, bucket string) ([]string, int64, error)
 	GetSize(pathPrefix string, bucket string) (int64, error)
 	DeleteObjects(keys []string, bucket string) error
+	PutObject(key string, bucket string, data []byte) error
+	GetObject(key string, bucket string) ([]byte, error)
 }
 
 type ClientS3Connector struct {
@@ -150,4 +154,38 @@ func (c *ClientS3Connector) DeleteObjects(keys []string, bucket string) error {
 	}
 
 	return nil
+}
+
+func (c *ClientS3Connector) PutObject(key string, bucket string, data []byte) error {
+	_, err := c.s3.PutObject(&s3.PutObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+		Body:   bytes.NewReader(data),
+	})
+	if err != nil {
+		return fmt.Errorf("failed to put object %s to bucket %s: %w", key, bucket, err)
+	}
+	return nil
+}
+
+func (c *ClientS3Connector) GetObject(key string, bucket string) ([]byte, error) {
+	result, err := c.s3.GetObject(&s3.GetObjectInput{
+		Bucket: aws.String(bucket),
+		Key:    aws.String(key),
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get object %s from bucket %s: %w", key, bucket, err)
+	}
+	defer func() {
+		if result.Body != nil {
+			_ = result.Body.Close()
+		}
+	}()
+
+	data, err := io.ReadAll(result.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read object %s from bucket %s: %w", key, bucket, err)
+	}
+
+	return data, nil
 }

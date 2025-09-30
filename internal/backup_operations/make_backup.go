@@ -2,19 +2,23 @@ package backup_operations
 
 import (
 	"context"
+	"crypto/rand"
 	"errors"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"path"
 	"regexp"
 	"strings"
 	"time"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
+	s3connector "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+	kp "ydbcp/pkg/plugins/kms"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/ydb-platform/ydb-go-sdk/v3"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -36,6 +40,7 @@ type MakeBackupInternalRequest struct {
 	ScheduleID           *string
 	Ttl                  *time.Duration
 	ParentOperationID    *string
+	EncryptionSettings   *pb.EncryptionSettings
 }
 
 func FromBackupSchedule(schedule *types.BackupSchedule) MakeBackupInternalRequest {
@@ -65,6 +70,7 @@ func FromTBWROperation(tbwr *types.TakeBackupWithRetryOperation) MakeBackupInter
 		ScheduleID:           tbwr.ScheduleID,
 		Ttl:                  tbwr.Ttl,
 		ParentOperationID:    &tbwr.ID,
+		EncryptionSettings:   tbwr.EncryptionSettings,
 	}
 }
 
@@ -282,9 +288,35 @@ func IsEmptyBackup(backup *types.Backup) bool {
 	return backup.Size == 0 && backup.S3Endpoint == ""
 }
 
+func GetEncryptionParams(settings *pb.EncryptionSettings) ([]byte, string, error) {
+	var algorithm string
+	var length int
+
+	switch settings.Algorithm {
+	case pb.EncryptionSettings_UNSPECIFIED:
+	case pb.EncryptionSettings_AES_128_GCM:
+		algorithm = "AES-128-GCM"
+		length = 16
+	case pb.EncryptionSettings_AES_256_GCM:
+		algorithm = "AES-256-GCM"
+		length = 32
+	case pb.EncryptionSettings_CHACHA20_POLY1305:
+		algorithm = "ChaCha20-Poly1305"
+		length = 32
+	}
+
+	dek := make([]byte, length)
+	_, err := rand.Read(dek)
+	if err != nil {
+		return nil, "", err
+	}
+	return dek, algorithm, nil
+}
+
 func MakeBackup(
 	ctx context.Context,
 	clientConn client.ClientConnector,
+	s3Connector s3connector.S3Connector,
 	s3 config.S3Config,
 	allowedEndpointDomains []string,
 	allowInsecureEndpoint bool,
@@ -292,6 +324,7 @@ func MakeBackup(
 	subject string,
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
+	kmsProvider kp.KmsProvider,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
 	if req.ScheduleID != nil {
 		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
@@ -359,6 +392,53 @@ func MakeBackup(
 		S3ForcePathStyle:  s3.S3ForcePathStyle,
 	}
 
+	if req.EncryptionSettings != nil {
+		if featureFlags.EnableBackupsEncryption {
+			dek, algorithm, err := GetEncryptionParams(req.EncryptionSettings)
+			if err != nil {
+				return nil, nil, err
+			}
+
+			s3Settings.EncryptionKey = dek
+			s3Settings.EncryptionAlgorithm = algorithm
+
+			kmsKey := req.EncryptionSettings.GetKmsKey()
+			if kmsKey == nil {
+				xlog.Error(ctx, "kms key is not specified")
+				return nil, nil, status.Errorf(codes.InvalidArgument, "kms key is not specified")
+			}
+
+			encryptResp, err := kmsProvider.Encrypt(
+				ctx,
+				&kp.EncryptRequest{
+					KeyID:     kmsKey.GetKeyId(),
+					Plaintext: dek,
+				},
+			)
+
+			if err != nil {
+				xlog.Error(ctx, "can't encrypt data encryption key", zap.Error(err))
+				return nil, nil, err
+			}
+
+			dekKey := path.Join(destinationPrefix, "dek.encrypted")
+			err = s3Connector.PutObject(dekKey, s3.Bucket, encryptResp.Ciphertext)
+			if err != nil {
+				xlog.Error(ctx, "can't save encrypted DEK to S3", zap.Error(err), zap.String("dekKey", dekKey))
+				return nil, nil, status.Errorf(codes.Internal, "can't save encrypted DEK to S3: %v", err)
+			}
+			xlog.Info(ctx, "encrypted DEK saved to S3", zap.String("dekKey", dekKey))
+		} else {
+			if req.ScheduleID == nil {
+				xlog.Error(ctx, "can't create manual encrypted backup because backup encryption is not enabled")
+				return nil, nil, status.Errorf(codes.FailedPrecondition, "backup encryption is not enabled")
+			}
+
+			xlog.Warn(ctx, "backup encryption is not enabled, so unencrypted backup will be created for this schedule")
+			req.EncryptionSettings = nil
+		}
+	}
+
 	clientOperationID, err := clientConn.ExportToS3(ctx, client, s3Settings, featureFlags)
 	if err != nil {
 		xlog.Error(ctx, "can't start export operation", zap.Error(err))
@@ -388,9 +468,10 @@ func MakeBackup(
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		ScheduleID:  req.ScheduleID,
-		ExpireAt:    expireAt,
-		SourcePaths: pathsForExport,
+		ScheduleID:         req.ScheduleID,
+		ExpireAt:           expireAt,
+		SourcePaths:        pathsForExport,
+		EncryptionSettings: req.EncryptionSettings,
 	}
 
 	op := &types.TakeBackupOperation{
@@ -409,9 +490,10 @@ func MakeBackup(
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		YdbOperationId:    clientOperationID,
-		UpdatedAt:         now,
-		ParentOperationID: req.ParentOperationID,
+		YdbOperationId:     clientOperationID,
+		UpdatedAt:          now,
+		ParentOperationID:  req.ParentOperationID,
+		EncryptionSettings: req.EncryptionSettings,
 	}
 
 	return backup, op, nil

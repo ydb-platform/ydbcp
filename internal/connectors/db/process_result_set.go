@@ -78,6 +78,9 @@ func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 		completedAt *time.Time
 		createdAt   *time.Time
 		expireAt    *time.Time
+
+		encryptionAlgorithm *string
+		kmsKeyId            *string
 	)
 
 	err := res.ScanNamed(
@@ -99,6 +102,8 @@ func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 		query.Named("created_at", &createdAt),
 		query.Named("completed_at", &completedAt),
 		query.Named("initiated", &creator),
+		query.Named("encryption_algorithm", &encryptionAlgorithm),
+		query.Named("kms_key_id", &kmsKeyId),
 	)
 	if err != nil {
 		return nil, err
@@ -112,22 +117,39 @@ func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 		}
 	}
 
+	var encryptionSettings *pb.EncryptionSettings
+	if kmsKeyId != nil {
+		encryptionSettings = &pb.EncryptionSettings{}
+		encryptionSettings.KeyEncryptionKey = &pb.EncryptionSettings_KmsKey_{
+			KmsKey: &pb.EncryptionSettings_KmsKey{
+				KeyId: *kmsKeyId,
+			},
+		}
+
+		if encryptionAlgorithm != nil {
+			if algorithmValue, ok := pb.EncryptionSettings_Algorithm_value[*encryptionAlgorithm]; ok {
+				encryptionSettings.Algorithm = pb.EncryptionSettings_Algorithm(algorithmValue)
+			}
+		}
+	}
+
 	return &types.Backup{
-		ID:               backupId,
-		ContainerID:      containerId,
-		DatabaseName:     databaseName,
-		DatabaseEndpoint: databaseEndpoint,
-		S3Endpoint:       StringOrEmpty(s3endpoint),
-		S3Region:         StringOrEmpty(s3region),
-		S3Bucket:         StringOrEmpty(s3bucket),
-		S3PathPrefix:     StringOrEmpty(s3pathPrefix),
-		Status:           StringOrDefault(status, types.BackupStateUnknown),
-		Message:          StringOrEmpty(message),
-		AuditInfo:        auditFromDb(creator, createdAt, completedAt),
-		Size:             Int64OrZero(size),
-		ScheduleID:       scheduleId,
-		ExpireAt:         expireAt,
-		SourcePaths:      sourcePathsSlice,
+		ID:                 backupId,
+		ContainerID:        containerId,
+		DatabaseName:       databaseName,
+		DatabaseEndpoint:   databaseEndpoint,
+		S3Endpoint:         StringOrEmpty(s3endpoint),
+		S3Region:           StringOrEmpty(s3region),
+		S3Bucket:           StringOrEmpty(s3bucket),
+		S3PathPrefix:       StringOrEmpty(s3pathPrefix),
+		Status:             StringOrDefault(status, types.BackupStateUnknown),
+		Message:            StringOrEmpty(message),
+		AuditInfo:          auditFromDb(creator, createdAt, completedAt),
+		Size:               Int64OrZero(size),
+		ScheduleID:         scheduleId,
+		ExpireAt:           expireAt,
+		SourcePaths:        sourcePathsSlice,
+		EncryptionSettings: encryptionSettings,
 	}, nil
 }
 
@@ -157,6 +179,9 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		retries              *uint32
 		retriesCount         *uint32
 		maxBackoff           *time.Duration
+
+		encryptionAlgorithm *string
+		kmsKeyId            *string
 	)
 	err := res.ScanNamed(
 		query.Named("id", &operationId),
@@ -183,6 +208,8 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		query.Named("retries", &retries),
 		query.Named("retries_count", &retriesCount),
 		query.Named("retries_max_backoff", &maxBackoff),
+		query.Named("encryption_algorithm", &encryptionAlgorithm),
+		query.Named("kms_key_id", &kmsKeyId),
 	)
 	if err != nil {
 		return nil, err
@@ -211,6 +238,22 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		updatedTs = timestamppb.New(*updatedAt)
 	}
 
+	var encryptionSettings *pb.EncryptionSettings
+	if kmsKeyId != nil {
+		encryptionSettings = &pb.EncryptionSettings{}
+		encryptionSettings.KeyEncryptionKey = &pb.EncryptionSettings_KmsKey_{
+			KmsKey: &pb.EncryptionSettings_KmsKey{
+				KeyId: *kmsKeyId,
+			},
+		}
+
+		if encryptionAlgorithm != nil {
+			if algorithmValue, ok := pb.EncryptionSettings_Algorithm_value[*encryptionAlgorithm]; ok {
+				encryptionSettings.Algorithm = pb.EncryptionSettings_Algorithm(algorithmValue)
+			}
+		}
+	}
+
 	if operationType == string(types.OperationTypeTB) {
 		if backupId == nil {
 			return nil, fmt.Errorf("failed to read backup_id for TB operation: %s", operationId)
@@ -232,6 +275,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 			Audit:                auditFromDb(creator, createdAt, completedAt),
 			UpdatedAt:            updatedTs,
 			ParentOperationID:    parentOperationID,
+			EncryptionSettings:   encryptionSettings,
 		}, nil
 	} else if operationType == string(types.OperationTypeRB) {
 		if backupId == nil {
@@ -309,6 +353,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 				SourcePathsToExclude: sourcePathsToExcludeSlice,
 				Audit:                auditFromDb(creator, createdAt, completedAt),
 				UpdatedAt:            updatedTs,
+				EncryptionSettings:   encryptionSettings,
 			},
 			ScheduleID:  scheduleID,
 			Ttl:         ttl,
@@ -342,6 +387,9 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		lastSuccessfulBackupID *string
 		recoveryPoint          *time.Time
 		nextLaunch             *time.Time
+
+		encryptionAlgorithm *string
+		kmsKeyId            *string
 	)
 
 	namedValues := []query.NamedDestination{
@@ -361,6 +409,8 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		query.Named("paths_to_exclude", &sourcePathsToExclude),
 		query.Named("recovery_point_objective", &recoveryPointObjective),
 		query.Named("next_launch", &nextLaunch),
+		query.Named("encryption_algorithm", &encryptionAlgorithm),
+		query.Named("kms_key_id", &kmsKeyId),
 	}
 	if withRPOInfo {
 		namedValues = append(namedValues, query.Named("last_backup_id", &lastBackupID))
@@ -401,6 +451,22 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		rpoDuration = durationpb.New(*recoveryPointObjective)
 	}
 
+	var encryptionSettings *pb.EncryptionSettings
+	if kmsKeyId != nil {
+		encryptionSettings = &pb.EncryptionSettings{}
+		encryptionSettings.KeyEncryptionKey = &pb.EncryptionSettings_KmsKey_{
+			KmsKey: &pb.EncryptionSettings_KmsKey{
+				KeyId: *kmsKeyId,
+			},
+		}
+
+		if encryptionAlgorithm != nil {
+			if algorithmValue, ok := pb.EncryptionSettings_Algorithm_value[*encryptionAlgorithm]; ok {
+				encryptionSettings.Algorithm = pb.EncryptionSettings_Algorithm(algorithmValue)
+			}
+		}
+	}
+
 	return &types.BackupSchedule{
 		ID:                   ID,
 		ContainerID:          containerID,
@@ -416,6 +482,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: crontab},
 			Ttl:                    ttlDuration,
 			RecoveryPointObjective: rpoDuration,
+			EncryptionSettings:     encryptionSettings,
 		},
 		NextLaunch:             nextLaunch,
 		LastBackupID:           lastBackupID,

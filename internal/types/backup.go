@@ -37,21 +37,22 @@ func ParseObjectID(string string) (string, error) {
 }
 
 type Backup struct {
-	ID               string
-	ContainerID      string
-	DatabaseName     string
-	DatabaseEndpoint string
-	S3Endpoint       string
-	S3Region         string
-	S3Bucket         string
-	S3PathPrefix     string
-	Status           string
-	Message          string
-	AuditInfo        *pb.AuditInfo
-	Size             int64
-	ScheduleID       *string
-	ExpireAt         *time.Time
-	SourcePaths      []string
+	ID                 string
+	ContainerID        string
+	DatabaseName       string
+	DatabaseEndpoint   string
+	S3Endpoint         string
+	S3Region           string
+	S3Bucket           string
+	S3PathPrefix       string
+	Status             string
+	Message            string
+	AuditInfo          *pb.AuditInfo
+	Size               int64
+	ScheduleID         *string
+	ExpireAt           *time.Time
+	SourcePaths        []string
+	EncryptionSettings *pb.EncryptionSettings
 }
 
 func (o *Backup) String() string {
@@ -77,12 +78,13 @@ func (o *Backup) Proto() *pb.Backup {
 			Bucket:     o.S3Bucket,
 			PathPrefix: o.S3PathPrefix,
 		},
-		Audit:       o.AuditInfo,
-		Size:        o.Size,
-		Status:      pb.Backup_Status(pb.Backup_Status_value[o.Status]),
-		Message:     o.Message,
-		ExpireAt:    nil,
-		SourcePaths: o.SourcePaths,
+		Audit:              o.AuditInfo,
+		Size:               o.Size,
+		Status:             pb.Backup_Status(pb.Backup_Status_value[o.Status]),
+		Message:            o.Message,
+		ExpireAt:           nil,
+		SourcePaths:        o.SourcePaths,
+		EncryptionSettings: o.EncryptionSettings,
 	}
 	if o.ScheduleID != nil {
 		backup.ScheduleId = *o.ScheduleID

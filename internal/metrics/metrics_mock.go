@@ -2,11 +2,12 @@ package metrics
 
 import (
 	"context"
+	"sync"
+	"ydbcp/internal/types"
+
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	"sync"
-	"ydbcp/internal/types"
 )
 
 type MockMetricsRegistry struct {
@@ -38,12 +39,16 @@ func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operat
 }
 
 func (s *MockMetricsRegistry) IncCompletedBackupsCount(
-	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode,
+	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, isEncrypted bool,
 ) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if code == Ydb.StatusIds_SUCCESS {
-		s.metrics["backups_succeeded_count"]++
+		if isEncrypted {
+			s.metrics["backups_succeeded_count_encrypted"]++
+		} else {
+			s.metrics["backups_succeeded_count_unencrypted"]++
+		}
 	} else {
 		s.metrics["backups_failed_count"]++
 	}
