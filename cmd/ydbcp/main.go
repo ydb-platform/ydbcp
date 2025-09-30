@@ -210,7 +210,7 @@ func main() {
 		xlog.Info(ctx, "Created TtlWatcher")
 	}
 
-	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock(), configInstance.FeatureFlags)
 
 	schedule_watcher.NewScheduleWatcher(
 		ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector,

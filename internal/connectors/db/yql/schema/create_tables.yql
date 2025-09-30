@@ -22,6 +22,9 @@ CREATE TABLE Backups (
 
     schedule_id String,
 
+    encryption_algorithm String,
+    kms_key_id String,
+
     INDEX idx_container_id GLOBAL ON (container_id),
     INDEX idx_created_at GLOBAL ON (created_at),
     INDEX idx_expire_at GLOBAL ON (status, expire_at),
@@ -55,6 +58,8 @@ CREATE TABLE Operations (
     paths_to_exclude String,
     operation_id String,
     parent_operation_id String,
+    encryption_algorithm String,
+    kms_key_id String,
     --used only in TBWR
     schedule_id String,
     ttl Interval,
@@ -84,6 +89,9 @@ CREATE TABLE BackupSchedules (
 
     initiated String,
     created_at Timestamp,
+
+    encryption_algorithm String,
+    kms_key_id String,
 
     recovery_point_objective Interval,
 

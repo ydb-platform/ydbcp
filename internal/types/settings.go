@@ -11,29 +11,33 @@ func MakeYdbConnectionString(params YdbConnectionParams) string {
 }
 
 type ExportSettings struct {
-	Endpoint          string
-	Region            string
-	Bucket            string
-	AccessKey         string
-	SecretKey         string
-	Description       string
-	NumberOfRetries   uint32
-	SourcePaths       []string
-	DestinationPrefix string
-	S3ForcePathStyle  bool
+	Endpoint            string
+	Region              string
+	Bucket              string
+	AccessKey           string
+	SecretKey           string
+	Description         string
+	NumberOfRetries     uint32
+	SourcePaths         []string
+	DestinationPrefix   string
+	S3ForcePathStyle    bool
+	EncryptionAlgorithm string
+	EncryptionKey       []byte
 }
 
 type ImportSettings struct {
-	Endpoint          string
-	Region            string
-	Bucket            string
-	AccessKey         string
-	SecretKey         string
-	Description       string
-	NumberOfRetries   uint32
-	BackupID          string
-	BucketDbRoot      string
-	SourcePaths       map[string]bool
-	S3ForcePathStyle  bool
-	DestinationPrefix string
+	Endpoint            string
+	Region              string
+	Bucket              string
+	AccessKey           string
+	SecretKey           string
+	Description         string
+	NumberOfRetries     uint32
+	BackupID            string
+	BucketDbRoot        string
+	SourcePaths         map[string]bool
+	S3ForcePathStyle    bool
+	DestinationPrefix   string
+	EncryptionAlgorithm string
+	EncryptionKey       []byte
 }

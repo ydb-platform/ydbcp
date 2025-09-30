@@ -119,7 +119,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
 	}
 
-	if request.ScheduleSettings.EncryptionSettings != nil {
+	if !s.config.FeatureFlags.EnableBackupEncryption && request.ScheduleSettings.EncryptionSettings != nil {
 		s.IncApiCallsCounter(methodName, codes.Unimplemented)
 		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
 	}

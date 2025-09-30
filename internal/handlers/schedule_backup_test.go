@@ -6,6 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -40,7 +41,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 	)
 
 	handler := NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)
