@@ -53,9 +53,9 @@ func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.Operat
 	opID := types.GenerateObjectID()
 	insertTBWRquery := fmt.Sprintf(
 		`
-UPSERT INTO Operations 
+UPSERT INTO Operations
 (id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
-VALUES 
+VALUES
 ("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
 `, opID, containerID, databaseName, invalidDatabaseEndpoint,
 	)
@@ -342,7 +342,7 @@ func main() {
 					Action:         "ActionCreate",
 					Component:      "grpc_api",
 					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
-					ContainerID:    "{none}",
+					ContainerID:    containerID,
 					Subject:        "anonymous@as",
 					SanitizedToken: "",
 					Status:         "IN-PROCESS",

@@ -82,7 +82,7 @@ func (e *Event) MarshalJSON() ([]byte, error) {
 			Resource:       e.Resource,
 			Component:      e.Component,
 			MethodName:     e.MethodName,
-			ContainerID:    e.ContainerID,
+			ContainerID:    formatContainerID(e.ContainerID),
 			Subject:        formatSubject(e.Subject),
 			SanitizedToken: e.SanitizedToken,
 			GRPCRequest:    marshalProtoMessage(e.GRPCRequest),
@@ -129,6 +129,15 @@ func getStatus(inProgress bool, err error) (string, string) {
 	return status, reason
 }
 
+func formatContainerID(containerID string) string {
+	switch containerID {
+	case "", "{none}":
+		return "{none}"
+	default:
+		return containerID
+	}
+}
+
 func formatSubject(subject string) string {
 	switch subject {
 	case "", "{none}":
@@ -168,10 +177,10 @@ func GRPCCallAuditEvent(
 
 func ReportGRPCCallBegin(
 	ctx context.Context, req proto.Message, methodName string,
-	subject string, token string,
+	subject string, token string, containerID string,
 ) {
 	event := GRPCCallAuditEvent(
-		ctx, methodName, req, subject, token, "{none}", true, nil,
+		ctx, methodName, req, subject, token, containerID, true, nil,
 	)
 	ReportAuditEvent(ctx, event)
 }
