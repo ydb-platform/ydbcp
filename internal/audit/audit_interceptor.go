@@ -41,6 +41,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 		subject, _ := authHelper.Authenticate(ctx, provider)
 		token, _ := authHelper.GetMaskedToken(ctx, provider)
 		containerID := ""
+
 		pm, ok := req.(proto.Message)
 		if !ok {
 			xlog.Error(ctx, "got invalid proto.Message", zap.Any("GRPCRequest", req))
@@ -50,6 +51,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 			}
 			ReportGRPCCallBegin(ctx, pm, info.FullMethod, subject, token, containerID)
 		}
+
 		response, grpcErr := handler(ctx, req)
 		containerID = GetContainerIDForRequest(requestID)
 		defer ClearContainerIDForRequest(requestID)
