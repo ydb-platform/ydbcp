@@ -50,6 +50,7 @@ type TakeBackupOperation struct {
 	Audit                *pb.AuditInfo
 	UpdatedAt            *timestamppb.Timestamp
 	ParentOperationID    *string
+	EncryptionSettings   *pb.EncryptionSettings
 }
 
 func (o *TakeBackupOperation) GetID() string {
@@ -377,8 +378,9 @@ func (o *TakeBackupWithRetryOperation) SpawnNewTBOperation(backupID string, subj
 			Creator:   subject,
 			CreatedAt: timestamppb.Now(),
 		},
-		UpdatedAt:         timestamppb.Now(),
-		ParentOperationID: &o.ID,
+		UpdatedAt:          timestamppb.Now(),
+		ParentOperationID:  &o.ID,
+		EncryptionSettings: o.EncryptionSettings,
 	}
 }
 
