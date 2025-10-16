@@ -14,20 +14,21 @@ import (
 
 var EventsDestination string
 
-type Event struct { //flat event struct for everything
-	ID             string
-	IdempotencyKey string
-	Action         Action
-	Component      string
-	MethodName     string
-	ContainerID    string
-	Subject        string
-	SanitizedToken string
-	Resource       Resource
-	GRPCRequest    proto.Message
-	Status         string
-	Reason         string
-	Timestamp      time.Time
+type GenericAuditFields struct {
+	ID             string   `json:"request_id"`
+	IdempotencyKey string   `json:"idempotency_key"`
+	Service        string   `json:"service"`
+	SpecVersion    string   `json:"specversion"`
+	Action         Action   `json:"action"`
+	Resource       Resource `json:"resource"`
+	Component      string   `json:"component"`
+	FolderID       string   `json:"folder_id"`
+	Subject        string   `json:"subject"`
+	SanitizedToken string   `json:"sanitized_token"`
+	Status         string   `json:"status"`
+	Reason         string   `json:"reason,omitempty"`
+	Timestamp      string   `json:"@timestamp"`
+	IsBackground   bool     `json:"is_background"`
 }
 
 type EventEnvelope struct {
@@ -36,8 +37,8 @@ type EventEnvelope struct {
 }
 
 type EventJson struct {
-	Destination string
-	Event       *EventEnvelope
+	Destination string         `json:"destination,omitempty"`
+	Event       *EventEnvelope `json:"event"`
 }
 
 func marshalProtoMessage(msg proto.Message) json.RawMessage {
@@ -54,59 +55,15 @@ func marshalProtoMessage(msg proto.Message) json.RawMessage {
 	return b
 }
 
-func (e *Event) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		&struct {
-			ID             string          `json:"request_id"`
-			IdempotencyKey string          `json:"idempotency_key"`
-			Service        string          `json:"service"`
-			SpecVersion    string          `json:"specversion"`
-			Action         string          `json:"action"`
-			Resource       Resource        `json:"resource"`
-			Component      string          `json:"component"`
-			MethodName     string          `json:"operation,omitempty"`
-			ContainerID    string          `json:"folder_id"`
-			Subject        string          `json:"subject"`
-			SanitizedToken string          `json:"sanitized_token"`
-			GRPCRequest    json.RawMessage `json:"grpc_request,omitempty"`
-			Status         string          `json:"status"`
-			Reason         string          `json:"reason,omitempty"`
-			Timestamp      string          `json:"@timestamp"`
-			IsBackground   bool            `json:"is_background"`
-		}{
-			ID:             e.ID,
-			IdempotencyKey: e.IdempotencyKey,
-			Service:        "ydbcp",
-			SpecVersion:    "1.0",
-			Action:         string(e.Action),
-			Resource:       e.Resource,
-			Component:      e.Component,
-			MethodName:     e.MethodName,
-			ContainerID:    e.ContainerID,
-			Subject:        formatSubject(e.Subject),
-			SanitizedToken: e.SanitizedToken,
-			GRPCRequest:    marshalProtoMessage(e.GRPCRequest),
-			Status:         e.Status,
-			Reason:         e.Reason,
-			Timestamp:      e.Timestamp.Format(time.RFC3339Nano),
-		},
-	)
+type GRPCCallEvent struct {
+	GenericAuditFields
+
+	MethodName  string          `json:"operation"`
+	GRPCRequest json.RawMessage `json:"grpc_request"`
 }
 
-func (ej *EventJson) MarshalJSON() ([]byte, error) {
-	return json.Marshal(
-		&struct {
-			Destination string         `json:"destination,omitempty"`
-			Event       *EventEnvelope `json:"event"`
-		}{
-			Destination: ej.Destination,
-			Event:       ej.Event,
-		},
-	)
-}
-
-func makeEnvelope(event *Event) (*EventEnvelope, error) {
-	data, err := event.MarshalJSON()
+func makeEnvelope(event any) (*EventEnvelope, error) {
+	data, err := json.Marshal(event)
 	if err != nil {
 		return nil, err
 	}
@@ -147,22 +104,27 @@ func GRPCCallAuditEvent(
 	containerID string,
 	inProgress bool,
 	err error,
-) *Event {
+) *GRPCCallEvent {
 	s, r := getStatus(inProgress, err)
-	return &Event{
-		ID:             uuid.New().String(),
-		IdempotencyKey: grpcinfo.GetRequestID(ctx),
-		Component:      "grpc_api",
-		MethodName:     methodName,
-		GRPCRequest:    req,
-		ContainerID:    containerID,
-		Subject:        subject,
-		SanitizedToken: token,
-		Action:         ActionFromMethodName(ctx, methodName),
-		Resource:       ResourceFromMethodName(ctx, methodName),
-		Status:         s,
-		Reason:         r,
-		Timestamp:      time.Now(),
+	return &GRPCCallEvent{
+		GenericAuditFields: GenericAuditFields{
+			ID:             uuid.New().String(),
+			IdempotencyKey: grpcinfo.GetRequestID(ctx),
+			Service:        "ydbcp",
+			SpecVersion:    "1.0",
+			Action:         ActionFromMethodName(ctx, methodName),
+			Resource:       ResourceFromMethodName(ctx, methodName),
+			Component:      "grpc_api",
+			FolderID:       containerID,
+			Subject:        formatSubject(subject),
+			SanitizedToken: token,
+			Status:         s,
+			Reason:         r,
+			Timestamp:      time.Now().Format(time.RFC3339Nano),
+			IsBackground:   false,
+		},
+		MethodName:  methodName,
+		GRPCRequest: marshalProtoMessage(req),
 	}
 }
 
@@ -186,7 +148,7 @@ func ReportGRPCCallEnd(
 	ReportAuditEvent(ctx, event)
 }
 
-func ReportAuditEvent(ctx context.Context, event *Event) {
+func ReportAuditEvent(ctx context.Context, event *GRPCCallEvent) {
 	env, err := makeEnvelope(event)
 	if err != nil {
 		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
