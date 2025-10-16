@@ -52,6 +52,11 @@ jobs:
 
   integration-test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        enable_new_paths_format: [ true, false ]
+    env:
+      ENABLE_NEW_PATHS_FORMAT: ${{ matrix.enable_new_paths_format }}
     steps:
       - uses: actions/checkout@v4
       - name: supply with s3 access keys

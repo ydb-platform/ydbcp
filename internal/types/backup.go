@@ -106,3 +106,7 @@ func (o *Backup) SetCompletedAt(completedAt *timestamppb.Timestamp) {
 		o.AuditInfo = &pb.AuditInfo{CompletedAt: completedAt}
 	}
 }
+
+func (o *Backup) Empty() bool {
+	return len(o.S3Endpoint) == 0 && len(o.S3Region) == 0 && len(o.S3Bucket) == 0 && len(o.S3PathPrefix) == 0
+}

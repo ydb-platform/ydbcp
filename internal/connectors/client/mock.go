@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"strings"
+	"ydbcp/internal/config"
 
 	"ydbcp/internal/types"
 
@@ -77,7 +78,7 @@ func (m *MockClientConnector) PreparePathsForExport(
 	return sourcePaths, nil
 }
 
-func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings types.ExportSettings) (string, error) {
+func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Settings types.ExportSettings, _ config.FeatureFlagsConfig) (string, error) {
 	objects := make([]ObjectPath, 0)
 	for _, source := range s3Settings.SourcePaths {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: path.Join(s3Settings.DestinationPrefix, source)}
@@ -102,7 +103,7 @@ func (m *MockClientConnector) ExportToS3(_ context.Context, _ *ydb.Driver, s3Set
 	return newOp.Id, nil
 }
 
-func (m *MockClientConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
+func (m *MockClientConnector) ImportFromS3(_ context.Context, _ *ydb.Driver, s3Settings types.ImportSettings, _ config.FeatureFlagsConfig) (string, error) {
 	for source := range s3Settings.SourcePaths {
 		objectPath := ObjectPath{Bucket: s3Settings.Bucket, KeyPrefix: source}
 		if !m.storage[objectPath] {
