@@ -35,8 +35,8 @@ type ClientConnector interface {
 	Close(ctx context.Context, clientDb *ydb.Driver) error
 
 	PreparePathsForExport(ctx context.Context, clientDb *ydb.Driver, sourcePaths []string, sourcePathsToExclude []string) ([]string, error)
-	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings) (string, error)
-	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error)
+	ExportToS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings, featureFlags config.FeatureFlagsConfig) (string, error)
+	ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings, featureFlags config.FeatureFlagsConfig) (string, error)
 	GetOperationStatus(
 		ctx context.Context, clientDb *ydb.Driver, operationId string,
 	) (*Ydb_Operations.GetOperationResponse, error)
@@ -217,7 +217,7 @@ func (d *ClientYdbConnector) PreparePathsForExport(
 }
 
 func (d *ClientYdbConnector) ExportToS3(
-	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings,
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ExportSettings, featureFlags config.FeatureFlagsConfig,
 ) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
@@ -225,15 +225,18 @@ func (d *ClientYdbConnector) ExportToS3(
 
 	items := make([]*Ydb_Export.ExportToS3Settings_Item, len(s3Settings.SourcePaths))
 	for i, source := range s3Settings.SourcePaths {
-		// Destination prefix format: s3_destination_prefix/rel_source_path
-		destinationPrefix := path.Join(
-			s3Settings.DestinationPrefix,
-			strings.TrimPrefix(source, clientDb.Name()+"/"),
-		)
-
 		items[i] = &Ydb_Export.ExportToS3Settings_Item{
-			SourcePath:        source,
-			DestinationPrefix: destinationPrefix,
+			SourcePath: source,
+		}
+
+		if !featureFlags.EnableNewSourcePathFormat {
+			// Destination prefix format: s3_destination_prefix/rel_source_path
+			destinationPrefix := path.Join(
+				s3Settings.DestinationPrefix,
+				strings.TrimPrefix(source, clientDb.Name()+"/"),
+			)
+
+			items[i].DestinationPrefix = destinationPrefix
 		}
 	}
 
@@ -263,6 +266,8 @@ func (d *ClientYdbConnector) ExportToS3(
 				NumberOfRetries:          s3Settings.NumberOfRetries,
 				Items:                    items,
 				DisableVirtualAddressing: s3Settings.S3ForcePathStyle,
+				SourcePath:               clientDb.Name(),
+				DestinationPrefix:        s3Settings.DestinationPrefix,
 			},
 		},
 	)
@@ -322,7 +327,9 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 						*itemsPtr = append(
 							*itemsPtr,
 							&Ydb_Import.ImportFromS3Settings_Item{
-								SourcePrefix: key,
+								Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
+									SourcePrefix: key,
+								},
 								DestinationPath: path.Join(
 									dbName,
 									s3Settings.DestinationPrefix,
@@ -344,7 +351,9 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 	return *itemsPtr, nil
 }
 
-func (d *ClientYdbConnector) ImportFromS3(ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings) (string, error) {
+func (d *ClientYdbConnector) ImportFromS3(
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ImportSettings, _ config.FeatureFlagsConfig,
+) (string, error) {
 	if clientDb == nil {
 		return "", fmt.Errorf("unititialized client db driver")
 	}

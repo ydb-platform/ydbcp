@@ -159,7 +159,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	}
 
 	err = backup_operations.OpenConnAndValidateSourcePaths(
-		ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn,
+		ctx, backup_operations.FromBackupSchedule(&schedule), s.clientConn, s.config.FeatureFlags,
 	)
 	if err != nil {
 		return nil, err
@@ -278,7 +278,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	}
 
 	err = backup_operations.OpenConnAndValidateSourcePaths(
-		ctx, backup_operations.FromBackupSchedule(schedule), s.clientConn,
+		ctx, backup_operations.FromBackupSchedule(schedule), s.clientConn, s.config.FeatureFlags,
 	)
 	if err != nil {
 		return nil, err
