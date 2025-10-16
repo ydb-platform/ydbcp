@@ -114,10 +114,10 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(0)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 0,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -186,10 +186,10 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -275,10 +275,10 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -352,10 +352,10 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -428,10 +428,10 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(0)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 0,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -506,10 +506,10 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -594,10 +594,10 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -671,10 +671,10 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -763,10 +763,10 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)
@@ -844,10 +844,10 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10000)
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{
-			OperationTtlSeconds: 10000,
-		}, queries.NewWriteTableQueryMock,
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
 
 	err := handler(ctx, &tbOp)

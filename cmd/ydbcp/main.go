@@ -60,10 +60,10 @@ func main() {
 	var wg sync.WaitGroup
 
 	var logger *xlog.LogConfig
-	if configInstance.DuplicateLogToFile != "" {
-		logger, err = xlog.SetupLoggingWithFile(configInstance.GRPCServer.LogLevel, configInstance.DuplicateLogToFile)
+	if configInstance.GetDuplicateLogToFile() != "" {
+		logger, err = xlog.SetupLoggingWithFile(configInstance.GetLogLevel(), configInstance.GetDuplicateLogToFile())
 	} else {
-		logger, err = xlog.SetupLogging(configInstance.GRPCServer.LogLevel)
+		logger, err = xlog.SetupLogging(configInstance.GetLogLevel())
 	}
 	if err != nil {
 		log.Error(err)
@@ -116,7 +116,7 @@ func main() {
 	xlog.Info(ctx, "Initialized AuthProvider")
 	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
-	audit.EventsDestination = configInstance.AuditEventsDestination
+	audit.EventsDestination = configInstance.GetAuditEventsDestination()
 	server, err := server.NewServer(&configInstance.GRPCServer, authProvider)
 	if err != nil {
 		xlog.Error(ctx, "failed to initialize GRPC server", zap.Error(err))
@@ -201,10 +201,10 @@ func main() {
 		os.Exit(1)
 	}
 
-	processor.NewOperationProcessor(ctx, &wg, configInstance.ProcessorIntervalSeconds, dbConnector, handlersRegistry)
+	processor.NewOperationProcessor(ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector, handlersRegistry)
 	xlog.Info(ctx, "Initialized OperationProcessor")
 
-	if configInstance.DisableTTLDeletion {
+	if configInstance.GetDisableTTLDeletion() {
 		xlog.Info(ctx, "TtlWatcher is disabled, old backups won't be deleted")
 	} else {
 		ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)

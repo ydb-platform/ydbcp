@@ -23,26 +23,26 @@ type S3Config struct {
 	PathPrefix          string `yaml:"path_prefix"`
 	AccessKeyIDPath     string `yaml:"access_key_id_path"`
 	SecretAccessKeyPath string `yaml:"secret_access_key_path"`
-	S3ForcePathStyle    bool   `yaml:"s3_force_path_style"`
+	S3ForcePathStyle    bool   `yaml:"s3_force_path_style" default:"false"`
 	IsMock              bool
 }
 
 type YDBConnectionConfig struct {
 	ConnectionString   string `yaml:"connection_string"`
-	Insecure           bool   `yaml:"insecure"`
+	Insecure           bool   `yaml:"insecure" default:"false"`
 	Discovery          bool   `yaml:"discovery" default:"true"`
 	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
 	OAuth2KeyFile      string `yaml:"oauth2_key_file"`
-	EnableSDKMetrics   bool   `yaml:"enable_sdk_metrics"`
+	EnableSDKMetrics   bool   `yaml:"enable_sdk_metrics" default:"true"`
 }
 
 type ClientConnectionConfig struct {
-	Insecure               bool     `yaml:"insecure"`
+	Insecure               bool     `yaml:"insecure" default:"false"`
 	Discovery              bool     `yaml:"discovery" default:"true"`
 	DialTimeoutSeconds     uint32   `yaml:"dial_timeout_seconds" default:"5"`
 	OAuth2KeyFile          string   `yaml:"oauth2_key_file"`
 	AllowedEndpointDomains []string `yaml:"allowed_endpoint_domains"`
-	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint"`
+	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint" default:"false"`
 }
 
 type AuthConfig struct {
@@ -55,7 +55,7 @@ type GRPCServerConfig struct {
 	BindPort           uint16 `yaml:"bind_port" default:"2135"`
 	TLSCertificatePath string `yaml:"tls_certificate_path"`
 	TLSKeyPath         string `yaml:"tls_key_path"`
-	LogLevel           string `yaml:"log_level"`
+	LogLevel           string `yaml:"log_level" default:"DEBUG"`
 }
 
 type MetricsServerConfig struct {
@@ -65,23 +65,109 @@ type MetricsServerConfig struct {
 	TLSKeyPath         string `yaml:"tls_key_path"`
 }
 
+type FeatureFlagsConfig struct {
+	DisableTTLDeletion bool `yaml:"disable_ttl_deletion" default:"false"`
+}
+
+type LogConfig struct {
+	DuplicateToFile string `yaml:"duplicate_to_file"`
+	Level           string `yaml:"level" default:"DEBUG"`
+}
+
+type OperationProcessorConfig struct {
+	OperationTtlSeconds      int64 `yaml:"operation_ttl_seconds" default:"86400"`
+	ProcessorIntervalSeconds int64 `yaml:"processor_interval_seconds" default:"10"`
+}
+
+type AuditConfig struct {
+	EventsDestination string `yaml:"events_destination"`
+}
+
+type QuotaConfig struct {
+	SchedulesPerDB int `yaml:"schedules_per_db" default:"10"`
+}
+
 type Validatable interface {
 	Validate() error
 }
 
 type Config struct {
-	DBConnection             YDBConnectionConfig    `yaml:"db_connection"`
-	ClientConnection         ClientConnectionConfig `yaml:"client_connection"`
-	S3                       S3Config               `yaml:"s3"`
-	OperationTtlSeconds      int64                  `yaml:"operation_ttl_seconds"`
-	Auth                     AuthConfig             `yaml:"auth"`
-	GRPCServer               GRPCServerConfig       `yaml:"grpc_server"`
-	MetricsServer            MetricsServerConfig    `yaml:"metrics_server"`
-	SchedulesLimitPerDB      int                    `yaml:"schedules_limit_per_db" default:"10"`
-	ProcessorIntervalSeconds int64                  `yaml:"processor_interval_seconds" default:"10"`
-	DisableTTLDeletion       bool                   `yaml:"disable_ttl_deletion" default:"false"`
-	AuditEventsDestination   string                 `yaml:"audit_events_destination"`
-	DuplicateLogToFile       string                 `yaml:"duplicate_log_to_file"`
+	DBConnection       YDBConnectionConfig      `yaml:"db_connection"`
+	ClientConnection   ClientConnectionConfig   `yaml:"client_connection"`
+	S3                 S3Config                 `yaml:"s3"`
+	Auth               AuthConfig               `yaml:"auth"`
+	GRPCServer         GRPCServerConfig         `yaml:"grpc_server"`
+	MetricsServer      MetricsServerConfig      `yaml:"metrics_server"`
+	OperationProcessor OperationProcessorConfig `yaml:"operation_processor"`
+	Audit              AuditConfig              `yaml:"audit"`
+	Log                LogConfig                `yaml:"log"`
+	Quota              QuotaConfig              `yaml:"quota"`
+	FeatureFlags       FeatureFlagsConfig       `yaml:"feature_flags"`
+
+	// TODO: remove these fields and their getters after migration to the new config format
+	OperationTtlSeconds      int64  `yaml:"operation_ttl_seconds" default:"86400"`
+	SchedulesLimitPerDB      int    `yaml:"schedules_limit_per_db" default:"10"`
+	ProcessorIntervalSeconds int64  `yaml:"processor_interval_seconds" default:"10"`
+	DisableTTLDeletion       bool   `yaml:"disable_ttl_deletion" default:"false"`
+	AuditEventsDestination   string `yaml:"audit_events_destination"`
+	DuplicateLogToFile       string `yaml:"duplicate_log_to_file"`
+}
+
+func (c Config) GetOperationTtlSeconds() int64 {
+	if c.OperationTtlSeconds == 0 {
+		return c.OperationProcessor.OperationTtlSeconds
+	}
+
+	return c.OperationTtlSeconds
+}
+
+func (c *Config) SetOperationTtlSeconds(val int64) {
+	c.OperationTtlSeconds = val
+	c.OperationProcessor.OperationTtlSeconds = val
+}
+
+func (c Config) GetSchedulesLimitPerDB() int {
+	if c.SchedulesLimitPerDB == 0 {
+		return c.Quota.SchedulesPerDB
+	}
+
+	return c.SchedulesLimitPerDB
+}
+
+func (c Config) GetProcessorIntervalSeconds() int64 {
+	if c.ProcessorIntervalSeconds == 0 {
+		return c.OperationProcessor.ProcessorIntervalSeconds
+	}
+
+	return c.ProcessorIntervalSeconds
+}
+
+func (c Config) GetDisableTTLDeletion() bool {
+	return c.DisableTTLDeletion || c.FeatureFlags.DisableTTLDeletion
+}
+
+func (c Config) GetAuditEventsDestination() string {
+	if len(c.AuditEventsDestination) == 0 {
+		return c.Audit.EventsDestination
+	}
+
+	return c.AuditEventsDestination
+}
+
+func (c Config) GetDuplicateLogToFile() string {
+	if len(c.DuplicateLogToFile) == 0 {
+		return c.Log.DuplicateToFile
+	}
+
+	return c.DuplicateLogToFile
+}
+
+func (c Config) GetLogLevel() string {
+	if len(c.GRPCServer.LogLevel) == 0 {
+		return c.Log.Level
+	}
+
+	return c.GRPCServer.LogLevel
 }
 
 type ClusterConnectionConfig struct {

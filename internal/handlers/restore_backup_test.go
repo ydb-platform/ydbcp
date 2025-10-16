@@ -132,10 +132,12 @@ func TestRBOperationHandlerRunningOperationInProgress(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	// try to handle pending rb operation with ttl
+	config := config.Config{}
+	config.SetOperationTtlSeconds(1000)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 1000},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -184,10 +186,12 @@ func TestRBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(1000)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 1000},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -235,10 +239,12 @@ func TestRBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 10},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -337,10 +343,12 @@ func TestRBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(1000)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 1000},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -389,10 +397,12 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 10},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -441,10 +451,12 @@ func TestRBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 10},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
@@ -493,10 +505,12 @@ func TestRBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	clientConnector := client.NewMockClientConnector(client.WithOperations(ydbOpMap))
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
+	config := config.Config{}
+	config.SetOperationTtlSeconds(10)
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
-		config.Config{OperationTtlSeconds: 10},
+		config,
 	)
 	err := handler(ctx, &rbOp)
 	assert.Empty(t, err)
