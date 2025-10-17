@@ -161,6 +161,7 @@ type RawEvent struct {
 	Reason         string          `json:"reason,omitempty"`
 	Timestamp      string          `json:"@timestamp"`
 	IsBackground   bool            `json:"is_background"`
+	Database       string          `json:"database,omitempty"`
 }
 
 type RawEventEnvelope struct {
@@ -357,6 +358,22 @@ func main() {
 					Subject:        "anonymous@as",
 					SanitizedToken: "",
 					Status:         "SUCCESS",
+				},
+			},
+			{
+				event: RawEvent{
+					Action:    "ActionUpdate",
+					Component: "backup_service",
+					Status:    "NEW",
+					Database:  databaseName,
+				},
+			},
+			{
+				event: RawEvent{
+					Action:    "ActionUpdate",
+					Component: "backup_service",
+					Status:    "DONE",
+					Database:  databaseName,
 				},
 			},
 		},

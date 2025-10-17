@@ -43,26 +43,31 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	)
 
 	assert.Equal(t, "grpc_api", event.Component)
-	assert.Equal(t, "subj", event.Subject)
-	assert.Equal(t, "cid1", event.ContainerID)
+	assert.Equal(t, "subj@as", event.Subject)
+	assert.Equal(t, "cid1", event.FolderID)
 	assert.Equal(t, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, event.MethodName)
 	assert.Equal(t, "ERROR", event.Status)
-	assert.Equal(t, msg, event.GRPCRequest)
+	assert.Equal(t, marshalProtoMessage(msg), event.GRPCRequest)
 }
 
 func TestEventMarshalJSON(t *testing.T) {
-	event := &Event{
-		Resource:       "resource",
-		Action:         ActionGet,
-		Component:      "grpc_api",
-		MethodName:     "Method",
-		Subject:        "sub",
-		SanitizedToken: "tok",
-		GRPCRequest: &pb.ListBackupsRequest{
-			ContainerId: "id1",
+	event := &GRPCCallEvent{
+		GenericAuditFields: GenericAuditFields{
+			Resource:       "resource",
+			Action:         ActionGet,
+			Component:      "grpc_api",
+			Subject:        "sub@as",
+			FolderID:       "id1",
+			SanitizedToken: "tok",
+			Status:         "SUCCESS",
+			Timestamp:      time.Now().Format(time.RFC3339Nano),
 		},
-		Status:    "SUCCESS",
-		Timestamp: time.Now(),
+		GRPCRequest: marshalProtoMessage(
+			&pb.ListBackupsRequest{
+				ContainerId: "id1",
+			},
+		),
+		MethodName: "Method",
 	}
 
 	data, err := json.Marshal(event)
@@ -70,13 +75,14 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(data), `"resource":"resource"`)
 	assert.Contains(t, string(data), `"component":"grpc_api"`)
 	assert.Contains(t, string(data), `"subject":"sub@as`)
-	assert.Contains(t, string(data), `"container_id":"id1"`)
+	assert.Contains(t, string(data), `"folder_id":"id1"`)
+	assert.Contains(t, string(data), `"operation":"Method"`)
 	assert.Contains(t, string(data), `"status":`)
 	assert.Contains(t, string(data), `"@timestamp":`)
 }
 
 func TestEventJsonMarshal(t *testing.T) {
-	event, err := makeEnvelope(&Event{Component: "test"})
+	event, err := makeEnvelope(&GRPCCallEvent{GenericAuditFields: GenericAuditFields{Component: "test"}})
 	require.NoError(t, err)
 	ej := &EventJson{
 		Destination: "stdout",
@@ -94,9 +100,11 @@ func TestEventJsonMarshal(t *testing.T) {
 
 func TestReportAuditEvent(t *testing.T) {
 	ctx := context.Background()
-	event := &Event{
+	event := &GRPCCallEvent{
 		MethodName: "reportTest",
-		Status:     "SUCCESS",
+		GenericAuditFields: GenericAuditFields{
+			Status: "SUCCESS",
+		},
 	}
 
 	oldStream := os.Stdout
