@@ -7,6 +7,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -26,6 +27,17 @@ func NewBackupScheduleHandler(
 			queryBuilderFactory, clock,
 		)
 	}
+}
+
+func withNewBackupAudit(
+	ctx context.Context, tbwr *types.TakeBackupWithRetryOperation,
+	upsertError error,
+) error {
+	if upsertError != nil {
+		return upsertError
+	}
+	audit.ReportBackupStateAuditEvent(ctx, tbwr, false, true)
+	return nil
 }
 
 func BackupScheduleHandler(
@@ -84,9 +96,11 @@ func BackupScheduleHandler(
 		if err != nil {
 			return err
 		}
-		return driver.ExecuteUpsert(
-			ctx,
-			queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(*schedule),
+		return withNewBackupAudit(
+			ctx, tbwr, driver.ExecuteUpsert(
+				ctx,
+				queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(*schedule),
+			),
 		)
 	}
 	return nil

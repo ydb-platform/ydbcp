@@ -9,6 +9,7 @@ import (
 	"google.golang.org/protobuf/proto"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
+	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -148,7 +149,68 @@ func ReportGRPCCallEnd(
 	ReportAuditEvent(ctx, event)
 }
 
-func ReportAuditEvent(ctx context.Context, event *GRPCCallEvent) {
+type BackupStateEvent struct {
+	GenericAuditFields
+	Database string `json:"database"`
+}
+
+func ReportBackupStateAuditEvent(
+	ctx context.Context, operation *types.TakeBackupWithRetryOperation,
+	retry bool, new bool,
+) {
+	status := operation.GetState().String()
+	reason := ""
+	switch operation.GetState() {
+	case types.OperationStateRunning:
+		{
+			if retry {
+				status = "RETRYING"
+				reason = "New backup attempt scheduled"
+			} else if new {
+				status = "NEW"
+				reason = "New retryable backup attempt scheduled"
+			}
+		}
+	case types.OperationStateDone:
+		{
+			reason = "Backup complete"
+		}
+	case types.OperationStateError:
+		{
+			reason = "Backup and all its retry attempts failed"
+		}
+	case types.OperationStateCancelling:
+	case types.OperationStateCancelled:
+	case types.OperationStateStartCancelling:
+		{
+			reason = "Backup operation cancelled"
+		}
+	}
+
+	event := &BackupStateEvent{
+		GenericAuditFields: GenericAuditFields{
+			ID:             uuid.New().String(),
+			IdempotencyKey: operation.GetID(),
+			Service:        "ydbcp",
+			SpecVersion:    "1.0",
+			Action:         ActionUpdate,
+			Resource:       Backup,
+			Component:      "backup_service",
+			FolderID:       operation.GetContainerID(),
+			Subject:        types.OperationCreatorName,
+			SanitizedToken: "<somehow unpack token from oauth2 auth process>",
+			Status:         status,
+			Reason:         reason,
+			Timestamp:      time.Now().Format(time.RFC3339Nano),
+			IsBackground:   true,
+		},
+		Database: operation.GetDatabaseName(),
+	}
+
+	ReportAuditEvent(ctx, event)
+}
+
+func ReportAuditEvent(ctx context.Context, event any) {
 	env, err := makeEnvelope(event)
 	if err != nil {
 		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
