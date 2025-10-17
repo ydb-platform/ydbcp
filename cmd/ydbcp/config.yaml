@@ -4,6 +4,7 @@ db_connection:
   connection_string: "grpcs://localhost:2135/domain/database"
   insecure: true
   discovery: false
+  enable_sdk_metrics: false
 
 client_connection:
   insecure: true

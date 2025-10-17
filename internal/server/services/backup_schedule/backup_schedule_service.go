@@ -94,12 +94,12 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.Internal, "error getting backup schedules")
 	}
 
-	if len(schedules)+1 > s.config.SchedulesLimitPerDB {
+	if len(schedules)+1 > s.config.GetSchedulesLimitPerDB() {
 		xlog.Error(
 			ctx, "can't create backup schedule, limit exceeded for database",
 			zap.String("database", request.DatabaseName),
 			zap.String("container", request.ContainerId),
-			zap.Int("limit", s.config.SchedulesLimitPerDB),
+			zap.Int("limit", s.config.GetSchedulesLimitPerDB()),
 		)
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(
@@ -107,7 +107,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 			"can't create backup schedule, limit exceeded for database: %s, container: %s, limit: %d",
 			request.DatabaseName,
 			request.ContainerId,
-			s.config.SchedulesLimitPerDB,
+			s.config.GetSchedulesLimitPerDB(),
 		)
 	}
 
