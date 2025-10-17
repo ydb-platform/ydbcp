@@ -25,13 +25,14 @@ import (
 func NewTBWROperationHandler(
 	db db.DBConnector,
 	client client.ClientConnector,
-	s3 config.S3Config,
-	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	config config.Config,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		err := TBWROperationHandler(ctx, op, db, client, s3, clientConfig, queryBuilderFactory, clock)
+		err := TBWROperationHandler(
+			ctx, op, db, client, config.S3, config.ClientConnection, queryBuilderFactory, clock, config.FeatureFlags,
+		)
 		if err == nil {
 			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
@@ -207,6 +208,7 @@ func TBWROperationHandler(
 	clientConfig config.ClientConnectionConfig,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	featureFlags config.FeatureFlagsConfig,
 ) error {
 	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
 
@@ -299,6 +301,7 @@ func TBWROperationHandler(
 						backup_operations.FromTBWROperation(tbwr),
 						types.OperationCreatorName,
 						clock,
+						featureFlags,
 					)
 
 					tbwr.IncRetries()
