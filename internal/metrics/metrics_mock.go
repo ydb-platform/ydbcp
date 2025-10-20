@@ -1,6 +1,7 @@
 package metrics
 
 import (
+	"context"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -36,7 +37,9 @@ func (s *MockMetricsRegistry) IncOperationsStartedCounter(operation types.Operat
 	s.metrics["operations_started_count"]++
 }
 
-func (s *MockMetricsRegistry) IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode) {
+func (s *MockMetricsRegistry) IncCompletedBackupsCount(
+	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode,
+) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if code == Ydb.StatusIds_SUCCESS {
@@ -114,7 +117,11 @@ func (s *MockMetricsRegistry) IncScheduledBackupsCount(schedule *types.BackupSch
 	s.metrics["schedules_launched_take_backup_with_retry_count"]++
 }
 
-func (s *MockMetricsRegistry) IncScheduleCounters(schedule *types.BackupSchedule, err error) {
+func (s *MockMetricsRegistry) IncScheduleCounters(
+	_ context.Context,
+	schedule *types.BackupSchedule,
+	err error,
+) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if err != nil {
