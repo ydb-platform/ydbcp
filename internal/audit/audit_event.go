@@ -25,7 +25,7 @@ type GenericAuditFields struct {
 	Component      string   `json:"component"`
 	FolderID       string   `json:"folder_id"`
 	Subject        string   `json:"subject"`
-	SanitizedToken string   `json:"sanitized_token"`
+	SanitizedToken string   `json:"sanitized_token,omitempty"`
 	Status         string   `json:"status"`
 	Reason         string   `json:"reason,omitempty"`
 	Timestamp      string   `json:"@timestamp"`
@@ -198,16 +198,56 @@ func ReportBackupStateAuditEvent(
 			Component:      "backup_service",
 			FolderID:       operation.GetContainerID(),
 			Subject:        types.OperationCreatorName,
-			SanitizedToken: "<somehow unpack token from oauth2 auth process>",
-			Status:         status,
-			Reason:         reason,
-			Timestamp:      time.Now().Format(time.RFC3339Nano),
-			IsBackground:   true,
+			//no token
+			Status:       status,
+			Reason:       reason,
+			Timestamp:    time.Now().Format(time.RFC3339Nano),
+			IsBackground: true,
 		},
 		Database: operation.GetDatabaseName(),
 	}
 
 	ReportAuditEvent(ctx, event)
+}
+
+type FailedRPOAuditEvent struct {
+	GenericAuditFields
+	Database   string `json:"database"`
+	ScheduleID string `json:"schedule_id"`
+}
+
+var ReportedMissedRPOs = make(map[string]bool)
+
+func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedule) {
+	if schedule == nil {
+		xlog.Error(ctx, "nil schedule passed to ReportFailedRPOAuditEvent")
+		return
+	}
+	if ReportedMissedRPOs[schedule.ID] {
+		return
+	}
+	event := &FailedRPOAuditEvent{
+		GenericAuditFields: GenericAuditFields{
+			ID:             uuid.New().String(),
+			IdempotencyKey: schedule.ID,
+			Service:        "ydbcp",
+			SpecVersion:    "1.0",
+			Action:         ActionGet,
+			Resource:       BackupSchedule,
+			Component:      "backup_service",
+			FolderID:       schedule.ContainerID,
+			Subject:        types.OperationCreatorName,
+			//no token
+			Status:       "ERROR",
+			Reason:       "Recovery point objective failed for schedule",
+			Timestamp:    time.Now().Format(time.RFC3339Nano),
+			IsBackground: true,
+		},
+		Database:   schedule.DatabaseName,
+		ScheduleID: schedule.ID,
+	}
+	ReportAuditEvent(ctx, event)
+	ReportedMissedRPOs[schedule.ID] = true
 }
 
 func ReportAuditEvent(ctx context.Context, event any) {

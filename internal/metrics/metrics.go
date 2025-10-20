@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"sync"
 	"time"
+	"ydbcp/internal/audit"
 	"ydbcp/internal/types"
 
 	"ydbcp/internal/config"
@@ -41,7 +42,7 @@ type MetricsRegistry interface {
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
 	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
-	IncScheduleCounters(schedule *types.BackupSchedule, err error)
+	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
 	ResetScheduleCounters(schedule *types.BackupSchedule)
 }
 
@@ -208,7 +209,9 @@ func (s *MetricsRegistryImpl) IncSuccessfulHandlerRunsCount(containerId string, 
 	s.handlerSuccessfulCount.WithLabelValues(containerId, operationType).Inc()
 }
 
-func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode) {
+func (s *MetricsRegistryImpl) IncCompletedBackupsCount(
+	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode,
+) {
 	var scheduleIdLabel string
 	if scheduleId != nil {
 		scheduleIdLabel = *scheduleId
@@ -225,7 +228,11 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(containerId string, datab
 	}
 }
 
-func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule, err error) {
+func (s *MetricsRegistryImpl) IncScheduleCounters(
+	ctx context.Context,
+	schedule *types.BackupSchedule,
+	err error,
+) {
 	var scheduleNameLabel string
 	if schedule.Name != nil {
 		scheduleNameLabel = *schedule.Name
@@ -289,6 +296,7 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 	}
 
 	info := schedule.GetBackupInfo(s.clock)
+	var rpoMargin time.Duration
 	if info != nil {
 		s.scheduleRPOMarginRatio.WithLabelValues(
 			schedule.ContainerID,
@@ -296,9 +304,11 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 			schedule.ID,
 			scheduleNameLabel,
 		).Set(info.LastBackupRpoMarginRatio)
+		rpoMargin = info.LastBackupRpoMarginInterval.AsDuration()
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil && schedule.ScheduleSettings.RecoveryPointObjective != nil {
 		// Report fake LastBackupRpoMarginRatio based on schedule creation time if no backups were made
 		fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
+		rpoMargin = fakeRpoMargin
 		fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		s.scheduleRPOMarginRatio.WithLabelValues(
 			schedule.ContainerID,
@@ -306,6 +316,11 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(schedule *types.BackupSchedule
 			schedule.ID,
 			scheduleNameLabel,
 		).Set(fakeLastBackupRpoMarginRatio)
+	}
+	if rpoMargin > schedule.ScheduleSettings.RecoveryPointObjective.AsDuration() {
+		audit.ReportFailedRPOAuditEvent(ctx, schedule)
+	} else {
+		audit.ReportedMissedRPOs[schedule.ID] = false
 	}
 }
 
@@ -346,151 +361,199 @@ func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedu
 	)
 }
 
-func InitializeMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) {
+func InitializeMetricsRegistry(
+	ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock,
+) {
 	GlobalMetricsRegistry = newMetricsRegistry(ctx, wg, cfg, clock)
 }
 
-func newMetricsRegistry(ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock) *MetricsRegistryImpl {
+func newMetricsRegistry(
+	ctx context.Context, wg *sync.WaitGroup, cfg *config.MetricsServerConfig, clock clockwork.Clock,
+) *MetricsRegistryImpl {
 	s := &MetricsRegistryImpl{
 		reg:   prometheus.NewRegistry(),
 		cfg:   *cfg,
 		clock: clock,
 	}
 
-	s.healthCheckGauge = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "healthcheck",
-		Name:      "gauge",
-		Help:      "1 if YDBCP binary is up",
-	}, []string{})
+	s.healthCheckGauge = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "healthcheck",
+			Name:      "gauge",
+			Help:      "1 if YDBCP binary is up",
+		}, []string{},
+	)
 
-	s.ydbErrorsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "healthcheck",
-		Name:      "ydb_errors",
-		Help:      "Total count of received errors from YDB (or YDB Go SDK)",
-	}, []string{})
+	s.ydbErrorsCounter = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "healthcheck",
+			Name:      "ydb_errors",
+			Help:      "Total count of received errors from YDB (or YDB Go SDK)",
+		}, []string{},
+	)
 
-	s.apiCallsCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "api",
-		Name:      "calls_count",
-		Help:      "Total count of API calls",
-	}, []string{"service", "method", "status"})
+	s.apiCallsCounter = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "api",
+			Name:      "calls_count",
+			Help:      "Total count of API calls",
+		}, []string{"service", "method", "status"},
+	)
 
-	s.bytesWrittenCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "storage",
-		Name:      "bytes_written",
-		Help:      "Count of bytes written to storage",
-	}, []string{"container_id", "bucket", "database"})
+	s.bytesWrittenCounter = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "storage",
+			Name:      "bytes_written",
+			Help:      "Count of bytes written to storage",
+		}, []string{"container_id", "bucket", "database"},
+	)
 
-	s.bytesDeletedCounter = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "storage",
-		Name:      "bytes_deleted",
-		Help:      "Count of bytes deleted from storage",
-	}, []string{"container_id", "bucket", "database"})
+	s.bytesDeletedCounter = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "storage",
+			Name:      "bytes_deleted",
+			Help:      "Count of bytes deleted from storage",
+		}, []string{"container_id", "bucket", "database"},
+	)
 
-	s.completedOperationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
-		Subsystem: "operations",
-		Name:      "duration_seconds",
-		Help:      "Duration of completed operations in seconds",
-		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
-	}, []string{"container_id", "database", "type", "type_description", "status"})
+	s.completedOperationsDuration = promauto.With(s.reg).NewHistogramVec(
+		prometheus.HistogramOpts{
+			Subsystem: "operations",
+			Name:      "duration_seconds",
+			Help:      "Duration of completed operations in seconds",
+			Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
+		}, []string{"container_id", "database", "type", "type_description", "status"},
+	)
 
-	s.inflightOperationsDuration = promauto.With(s.reg).NewHistogramVec(prometheus.HistogramOpts{
-		Subsystem: "operations",
-		Name:      "inflight_duration_seconds",
-		Help:      "Duration of running operations in seconds",
-		Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
-	}, []string{"container_id", "database", "type", "type_description", "state"})
+	s.inflightOperationsDuration = promauto.With(s.reg).NewHistogramVec(
+		prometheus.HistogramOpts{
+			Subsystem: "operations",
+			Name:      "inflight_duration_seconds",
+			Help:      "Duration of running operations in seconds",
+			Buckets:   prometheus.ExponentialBuckets(10, 2, 8),
+		}, []string{"container_id", "database", "type", "type_description", "state"},
+	)
 
-	s.operationsStarted = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "operations",
-		Name:      "started_counter",
-		Help:      "Total count of started operations",
-	}, []string{"container_id", "database", "type", "type_description", "schedule_id"})
+	s.operationsStarted = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "operations",
+			Name:      "started_counter",
+			Help:      "Total count of started operations",
+		}, []string{"container_id", "database", "type", "type_description", "schedule_id"},
+	)
 
-	s.operationsFinished = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "operations",
-		Name:      "finished_counter",
-		Help:      "Total count of finished operations",
-	}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"})
+	s.operationsFinished = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "operations",
+			Name:      "finished_counter",
+			Help:      "Total count of finished operations",
+		}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"},
+	)
 
-	s.operationsInflight = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "operations",
-		Name:      "inflight",
-		Help:      "Total count of active operations",
-	}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"})
+	s.operationsInflight = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "operations",
+			Name:      "inflight",
+			Help:      "Total count of active operations",
+		}, []string{"container_id", "database", "type", "type_description", "status", "schedule_id"},
+	)
 
-	s.handlerRunsCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "operation_processor",
-		Name:      "handler_runs_count",
-		Help:      "Total count of operation handler runs",
-	}, []string{"container_id", "operation_type"})
+	s.handlerRunsCount = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "operation_processor",
+			Name:      "handler_runs_count",
+			Help:      "Total count of operation handler runs",
+		}, []string{"container_id", "operation_type"},
+	)
 
-	s.handlerFailedCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "operation_processor",
-		Name:      "handler_runs_failed_count",
-		Help:      "Total count of failed operation handler runs",
-	}, []string{"container_id", "operation_type"})
+	s.handlerFailedCount = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "operation_processor",
+			Name:      "handler_runs_failed_count",
+			Help:      "Total count of failed operation handler runs",
+		}, []string{"container_id", "operation_type"},
+	)
 
-	s.handlerSuccessfulCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "operation_processor",
-		Name:      "handler_runs_successful_count",
-		Help:      "Total count of successful operation handler runs",
-	}, []string{"container_id", "operation_type"})
+	s.handlerSuccessfulCount = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "operation_processor",
+			Name:      "handler_runs_successful_count",
+			Help:      "Total count of successful operation handler runs",
+		}, []string{"container_id", "operation_type"},
+	)
 
-	s.backupsFailedCount = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "backups",
-		Name:      "failed_count",
-		Help:      "Total count of failed backups",
-	}, []string{"container_id", "database", "schedule_id"})
+	s.backupsFailedCount = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "backups",
+			Name:      "failed_count",
+			Help:      "Total count of failed backups",
+		}, []string{"container_id", "database", "schedule_id"},
+	)
 
-	s.backupsSucceededCount = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "backups",
-		Name:      "succeeded_count",
-		Help:      "Total count of successful backups",
-	}, []string{"container_id", "database", "schedule_id"})
+	s.backupsSucceededCount = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "backups",
+			Name:      "succeeded_count",
+			Help:      "Total count of successful backups",
+		}, []string{"container_id", "database", "schedule_id"},
+	)
 
-	s.scheduleActionFailedCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "schedules",
-		Name:      "failed_count",
-		Help:      "Total count of failed scheduled backup runs",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleActionFailedCount = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "schedules",
+			Name:      "failed_count",
+			Help:      "Total count of failed scheduled backup runs",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
-	s.scheduleActionSucceededCount = promauto.With(s.reg).NewCounterVec(prometheus.CounterOpts{
-		Subsystem: "schedules",
-		Name:      "succeeded_count",
-		Help:      "Total count of successful scheduled backup runs",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleActionSucceededCount = promauto.With(s.reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "schedules",
+			Name:      "succeeded_count",
+			Help:      "Total count of successful scheduled backup runs",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
-	s.scheduleLastBackupTimestamp = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "schedules",
-		Name:      "last_backup_timestamp",
-		Help:      "Timestamp of last successful backup for this schedule",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleLastBackupTimestamp = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "schedules",
+			Name:      "last_backup_timestamp",
+			Help:      "Timestamp of last successful backup for this schedule",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
-	s.scheduleRPOMarginRatio = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "schedules",
-		Name:      "rpo_margin_ratio",
-		Help:      "if RPO is set for schedule, calculates a ratio to which RPO is satisfied",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleRPOMarginRatio = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "schedules",
+			Name:      "rpo_margin_ratio",
+			Help:      "if RPO is set for schedule, calculates a ratio to which RPO is satisfied",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
-	s.scheduleElapsedTimeSinceLastBackup = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "schedules",
-		Name:      "elapsed_seconds_since_last_backup",
-		Help:      "Amount of time elapsed since last successful backup for this schedule",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleElapsedTimeSinceLastBackup = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "schedules",
+			Name:      "elapsed_seconds_since_last_backup",
+			Help:      "Amount of time elapsed since last successful backup for this schedule",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
-	s.scheduleRPODuration = promauto.With(s.reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "schedules",
-		Name:      "rpo_duration_seconds",
-		Help:      "Maximum length of time permitted, that backup can be restored for this schedule",
-	}, []string{"container_id", "database", "schedule_id", "schedule_name"})
+	s.scheduleRPODuration = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "schedules",
+			Name:      "rpo_duration_seconds",
+			Help:      "Maximum length of time permitted, that backup can be restored for this schedule",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
 
 	s.server = CreateMetricsServer(ctx, wg, s.reg, &s.cfg)
 
 	return s
 }
 
-func CreateMetricsServer(ctx context.Context, wg *sync.WaitGroup, registry *prometheus.Registry, cfg *config.MetricsServerConfig) *http.Server {
+func CreateMetricsServer(
+	ctx context.Context, wg *sync.WaitGroup, registry *prometheus.Registry, cfg *config.MetricsServerConfig,
+) *http.Server {
 	mux := http.NewServeMux()
 	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{Registry: registry}))
 
