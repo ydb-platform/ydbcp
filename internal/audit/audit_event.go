@@ -160,6 +160,7 @@ func ReportBackupStateAuditEvent(
 ) {
 	status := operation.GetState().String()
 	reason := ""
+	component := "backup_service"
 	switch operation.GetState() {
 	case types.OperationStateRunning:
 		{
@@ -167,6 +168,7 @@ func ReportBackupStateAuditEvent(
 				status = "RETRYING"
 				reason = "New backup attempt scheduled"
 			} else if new {
+				component = "backup_schedule_service"
 				status = "NEW"
 				reason = "New retryable backup attempt scheduled"
 			}
@@ -195,7 +197,7 @@ func ReportBackupStateAuditEvent(
 			SpecVersion:    "1.0",
 			Action:         ActionUpdate,
 			Resource:       Backup,
-			Component:      "backup_service",
+			Component:      component,
 			FolderID:       operation.GetContainerID(),
 			Subject:        types.OperationCreatorName,
 			//no token
@@ -234,7 +236,7 @@ func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedu
 			SpecVersion:    "1.0",
 			Action:         ActionGet,
 			Resource:       BackupSchedule,
-			Component:      "backup_service",
+			Component:      "backup_schedule_service",
 			FolderID:       schedule.ContainerID,
 			Subject:        types.OperationCreatorName,
 			//no token

@@ -410,7 +410,7 @@ func main() {
 			{
 				event: RawEvent{
 					Action:      "ActionUpdate",
-					Component:   "backup_service",
+					Component:   "backup_schedule_service",
 					Status:      "NEW",
 					ContainerID: containerID,
 					Database:    databaseName,
@@ -427,8 +427,8 @@ func main() {
 			},
 			{
 				event: RawEvent{
-					Action:      "ActionUpdate",
-					Component:   "backup_service",
+					Action:      "ActionGet",
+					Component:   "backup_schedule_service",
 					Status:      "ERROR",
 					Reason:      "Recovery point objective failed for schedule",
 					ContainerID: containerID,
