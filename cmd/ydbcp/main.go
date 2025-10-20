@@ -201,7 +201,9 @@ func main() {
 		os.Exit(1)
 	}
 
-	processor.NewOperationProcessor(ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector, handlersRegistry)
+	processor.NewOperationProcessor(
+		ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector, handlersRegistry,
+	)
 	xlog.Info(ctx, "Initialized OperationProcessor")
 
 	if configInstance.GetDisableTTLDeletion() {
@@ -214,7 +216,7 @@ func main() {
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 
 	schedule_watcher.NewScheduleWatcher(
-		ctx, &wg, configInstance.ProcessorIntervalSeconds, dbConnector,
+		ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector,
 		backupScheduleHandler, clockwork.NewRealClock(),
 	)
 	xlog.Info(ctx, "Created ScheduleWatcher")
