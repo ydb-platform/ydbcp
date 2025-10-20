@@ -41,7 +41,9 @@ func OpenYdb() *ydb.Driver {
 		ydb.WithBalancer(balancers.SingleConn()),
 		ydb.WithAnonymousCredentials(),
 	}
-	driver, err := ydb.Open(context.Background(), databaseEndpoint+"/"+databaseName, opts...)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	driver, err := ydb.Open(ctx, databaseEndpoint+"/"+databaseName, opts...)
+	cancel()
 	if err != nil {
 		log.Panicf("failed to open database: %v", err)
 	}
@@ -59,8 +61,9 @@ VALUES
 ("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
 `, opID, containerID, databaseName, invalidDatabaseEndpoint,
 	)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err := driver.Table().Do(
-		context.Background(), func(ctx context.Context, s table.Session) error {
+		ctx, func(ctx context.Context, s table.Session) error {
 			_, res, err := s.Execute(
 				ctx,
 				table.TxControl(
@@ -91,7 +94,7 @@ VALUES
 		log.Panicf("failed to initialize YDBCP db: %v", err)
 	}
 	op, err := opClient.GetOperation(
-		context.Background(), &pb.GetOperationRequest{
+		ctx, &pb.GetOperationRequest{
 			Id: opID,
 		},
 	)
@@ -101,10 +104,12 @@ VALUES
 	if op.GetType() != types.OperationTypeTBWR.String() {
 		log.Panicf("unexpected operation type: %v", op.GetType())
 	}
+	cancel()
 	time.Sleep(time.Second * 10) // to wait for four operation handlers
+	ctx, cancel = context.WithTimeout(context.Background(), time.Second*5)
 
 	backups, err := client.ListBackups(
-		context.Background(), &pb.ListBackupsRequest{
+		ctx, &pb.ListBackupsRequest{
 			ContainerId:      containerID,
 			DatabaseNameMask: "%",
 		},
@@ -116,7 +121,7 @@ VALUES
 		log.Panicf("expected no backups by this time, got %v", backups.Backups)
 	}
 	ops, err := opClient.ListOperations(
-		context.Background(), &pb.ListOperationsRequest{
+		ctx, &pb.ListOperationsRequest{
 			ContainerId:      containerID,
 			DatabaseNameMask: databaseName,
 			OperationTypes:   []string{types.OperationTypeTB.String()},
@@ -141,6 +146,48 @@ VALUES
 	}
 	if tbwr.Message != "retry attempts exceeded limit: 3." {
 		log.Panicf("unexpected operation message: %v", tbwr.Message)
+	}
+	cancel()
+}
+
+func ResetNextLaunch(id string) {
+	driver := OpenYdb()
+	resetNextLaunchQuery := fmt.Sprintf(
+		`UPDATE BackupSchedules SET next_launch = CurrentUTCTimestamp() WHERE id = '%s'`, id,
+	)
+	log.Println(resetNextLaunchQuery)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
+	err := driver.Table().Do(
+		ctx, func(ctx context.Context, s table.Session) error {
+			_, res, err := s.Execute(
+				ctx,
+				table.TxControl(
+					table.BeginTx(
+						table.WithSerializableReadWrite(),
+					),
+					table.CommitTx(),
+				),
+				resetNextLaunchQuery,
+				nil,
+			)
+			if err != nil {
+				return err
+			}
+			defer func(res result.Result) {
+				err = res.Close()
+				if err != nil {
+					xlog.Error(ctx, "Error closing transaction result")
+				}
+			}(res) // result must be closed
+			if res.ResultSetCount() != 0 {
+				return errors.New("expected 0 result set")
+			}
+			return res.Err()
+		},
+	)
+	cancel()
+	if err != nil {
+		log.Panicf("YDB fail: %v", err)
 	}
 }
 
@@ -189,22 +236,22 @@ func (e *AuditCaptureEvent) Matches(line string) bool {
 	if err != nil {
 		return false
 	}
-	if p.MethodName != e.event.MethodName {
+	if e.event.MethodName != "" && e.event.MethodName != p.MethodName {
 		log.Printf("MethodName mismatch: expected %s, got %s", e.event.MethodName, p.MethodName)
 		return false
 	}
 
-	if p.ContainerID != e.event.ContainerID {
+	if e.event.ContainerID != "" && e.event.ContainerID != p.ContainerID {
 		log.Printf("ContainerID mismatch: expected %s, got %s", e.event.ContainerID, p.ContainerID)
 		return false
 	}
 
-	if p.Component != e.event.Component {
+	if e.event.Component != "" && e.event.Component != p.Component {
 		log.Printf("Component mismatch: expected %s, got %s", e.event.Component, p.Component)
 		return false
 	}
 
-	if p.Action != e.event.Action {
+	if e.event.Action != "" && e.event.Action != p.Action {
 		log.Printf("Action mismatch: expected %s, got %s", e.event.Action, p.Action)
 		return false
 	}
@@ -214,12 +261,12 @@ func (e *AuditCaptureEvent) Matches(line string) bool {
 		return false
 	}
 
-	if p.Subject != e.event.Subject {
+	if e.event.Subject != "" && e.event.Subject != p.Subject {
 		log.Printf("Subject mismatch: expected %s, got %s", e.event.Subject, p.Subject)
 		return false
 	}
 
-	if p.Status != e.event.Status {
+	if e.event.Status != "" && e.event.Status != p.Status {
 		log.Printf("Status mismatch: expected %s, got %s", e.event.Status, p.Status)
 		return false
 	}
@@ -362,18 +409,30 @@ func main() {
 			},
 			{
 				event: RawEvent{
-					Action:    "ActionUpdate",
-					Component: "backup_service",
-					Status:    "NEW",
-					Database:  databaseName,
+					Action:      "ActionUpdate",
+					Component:   "backup_service",
+					Status:      "NEW",
+					ContainerID: containerID,
+					Database:    databaseName,
 				},
 			},
 			{
 				event: RawEvent{
-					Action:    "ActionUpdate",
-					Component: "backup_service",
-					Status:    "DONE",
-					Database:  databaseName,
+					Action:      "ActionUpdate",
+					Component:   "backup_service",
+					Status:      "DONE",
+					ContainerID: containerID,
+					Database:    databaseName,
+				},
+			},
+			{
+				event: RawEvent{
+					Action:      "ActionUpdate",
+					Component:   "backup_service",
+					Status:      "ERROR",
+					Reason:      "Recovery point objective failed for schedule",
+					ContainerID: containerID,
+					Database:    databaseName,
 				},
 			},
 		},
@@ -634,7 +693,7 @@ func main() {
 			ScheduleName: "schedule",
 			ScheduleSettings: &pb.BackupScheduleSettings{
 				SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * *"},
-				RecoveryPointObjective: durationpb.New(time.Hour),
+				RecoveryPointObjective: durationpb.New(time.Second),
 				Ttl:                    durationpb.New(time.Hour),
 			},
 		},
@@ -642,6 +701,7 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to create backup schedule: %v", err)
 	}
+	ResetNextLaunch(schedule.Id)
 
 	// local config has schedules_limit_per_db = 1, so we should not be able to create another schedule for this db
 	_, err = scheduleClient.CreateBackupSchedule(
@@ -684,6 +744,9 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
+	//wait for schedule handler
+	time.Sleep(time.Second * 3)
+
 	newScheduleName := "schedule-2.0"
 	newSourcePath := "/kv_test"
 	newSchedule, err := scheduleClient.UpdateBackupSchedule(
@@ -712,7 +775,7 @@ func main() {
 	if newSchedule.ScheduleSettings.Ttl.AsDuration() != time.Hour {
 		log.Panicf("wrong ttl after update: %v", newSchedule.ScheduleSettings.Ttl)
 	}
-	if newSchedule.ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Hour {
+	if newSchedule.ScheduleSettings.RecoveryPointObjective.AsDuration() != time.Second {
 		log.Panicf("wrong rpo after update: %v", newSchedule.ScheduleSettings.RecoveryPointObjective)
 	}
 
