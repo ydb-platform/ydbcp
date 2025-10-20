@@ -213,7 +213,10 @@ func main() {
 
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 
-	schedule_watcher.NewScheduleWatcher(ctx, &wg, dbConnector, backupScheduleHandler, clockwork.NewRealClock())
+	schedule_watcher.NewScheduleWatcher(
+		ctx, &wg, configInstance.ProcessorIntervalSeconds, dbConnector,
+		backupScheduleHandler, clockwork.NewRealClock(),
+	)
 	xlog.Info(ctx, "Created ScheduleWatcher")
 
 	healthcheck.NewHealthCheck(ctx, &wg, watchers.WithDisableLog())

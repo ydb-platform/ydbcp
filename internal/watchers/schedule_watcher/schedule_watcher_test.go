@@ -72,6 +72,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
+		60,
 		dbConnector,
 		handler,
 		clock,
@@ -184,6 +185,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
+		60,
 		dbConnector,
 		handler,
 		clock,
@@ -304,6 +306,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
+		60,
 		dbConnector,
 		handler,
 		clock,
@@ -420,6 +423,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
+		60,
 		dbConnector,
 		handler,
 		clock,
@@ -530,6 +534,7 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	_ = NewScheduleWatcher(
 		ctx,
 		&wg,
+		60,
 		dbConnector,
 		handler,
 		clock,
@@ -581,6 +586,9 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	assert.Equal(t, m[schedules[0].ID], *schedules[0].NextLaunch)
 	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
-	assert.Equal(t, float64(schedules[0].Audit.CreatedAt.AsTime().Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
+	assert.Equal(
+		t, float64(schedules[0].Audit.CreatedAt.AsTime().Unix()),
+		metrics.GetMetrics()["schedules_last_backup_timestamp"],
+	)
 	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_rpo_margin_ratio"])
 }
