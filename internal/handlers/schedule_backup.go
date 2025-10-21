@@ -36,7 +36,7 @@ func withNewBackupAudit(
 	if upsertError != nil {
 		return upsertError
 	}
-	audit.ReportBackupStateAuditEvent(ctx, tbwr, false, true)
+	audit.ReportBackupStateAuditEvent(ctx, tbwr, true)
 	return nil
 }
 

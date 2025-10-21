@@ -50,17 +50,8 @@ func OpenYdb() *ydb.Driver {
 	return driver
 }
 
-func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
+func ExecuteDataQuery(ctx context.Context, query string) {
 	driver := OpenYdb()
-	opID := types.GenerateObjectID()
-	insertTBWRquery := fmt.Sprintf(
-		`
-UPSERT INTO Operations 
-(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
-VALUES 
-("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
-`, opID, containerID, databaseName, invalidDatabaseEndpoint,
-	)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err := driver.Table().Do(
 		ctx, func(ctx context.Context, s table.Session) error {
@@ -72,7 +63,7 @@ VALUES
 					),
 					table.CommitTx(),
 				),
-				insertTBWRquery,
+				query,
 				nil,
 			)
 			if err != nil {
@@ -90,9 +81,25 @@ VALUES
 			return res.Err()
 		},
 	)
+	cancel()
 	if err != nil {
-		log.Panicf("failed to initialize YDBCP db: %v", err)
+		log.Panicln("failed to execute YDB query:", err)
 	}
+}
+
+func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
+	opID := types.GenerateObjectID()
+	insertTBWRquery := fmt.Sprintf(
+		`
+UPSERT INTO Operations 
+(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
+VALUES 
+("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
+`, opID, containerID, databaseName, invalidDatabaseEndpoint,
+	)
+	ctx := context.Background()
+	ExecuteDataQuery(ctx, insertTBWRquery)
+
 	op, err := opClient.GetOperation(
 		ctx, &pb.GetOperationRequest{
 			Id: opID,
@@ -104,9 +111,9 @@ VALUES
 	if op.GetType() != types.OperationTypeTBWR.String() {
 		log.Panicf("unexpected operation type: %v", op.GetType())
 	}
-	cancel()
 	time.Sleep(time.Second * 10) // to wait for four operation handlers
-	ctx, cancel = context.WithTimeout(context.Background(), time.Second*5)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 
 	backups, err := client.ListBackups(
 		ctx, &pb.ListBackupsRequest{
@@ -151,44 +158,33 @@ VALUES
 }
 
 func ResetNextLaunch(id string) {
-	driver := OpenYdb()
 	resetNextLaunchQuery := fmt.Sprintf(
 		`UPDATE BackupSchedules SET next_launch = CurrentUTCTimestamp() WHERE id = '%s'`, id,
 	)
-	log.Println(resetNextLaunchQuery)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	err := driver.Table().Do(
-		ctx, func(ctx context.Context, s table.Session) error {
-			_, res, err := s.Execute(
-				ctx,
-				table.TxControl(
-					table.BeginTx(
-						table.WithSerializableReadWrite(),
-					),
-					table.CommitTx(),
-				),
-				resetNextLaunchQuery,
-				nil,
-			)
-			if err != nil {
-				return err
-			}
-			defer func(res result.Result) {
-				err = res.Close()
-				if err != nil {
-					xlog.Error(ctx, "Error closing transaction result")
-				}
-			}(res) // result must be closed
-			if res.ResultSetCount() != 0 {
-				return errors.New("expected 0 result set")
-			}
-			return res.Err()
-		},
+	ExecuteDataQuery(context.Background(), resetNextLaunchQuery)
+}
+
+func InsertFaultyBackups() {
+	opID := types.GenerateObjectID()
+	insertTBWRquery := fmt.Sprintf(
+		`
+UPSERT INTO Operations 
+(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
+VALUES 
+("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "CANCELLING", 0, 3)
+`, opID, containerID, databaseName, databaseEndpoint,
 	)
-	cancel()
-	if err != nil {
-		log.Panicf("YDB fail: %v", err)
-	}
+	ExecuteDataQuery(context.Background(), insertTBWRquery)
+	opID = types.GenerateObjectID()
+	insertTBWRquery = fmt.Sprintf(
+		`
+UPSERT INTO Operations 
+(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
+VALUES 
+("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 3, 3)
+`, opID, containerID, databaseName, databaseEndpoint,
+	)
+	ExecuteDataQuery(context.Background(), insertTBWRquery)
 }
 
 type RawEvent struct {
@@ -409,30 +405,45 @@ func main() {
 			},
 			{
 				event: RawEvent{
-					Action:      "ActionUpdate",
 					Component:   "backup_schedule_service",
-					Status:      "NEW",
+					Status:      "IN-PROCESS",
 					ContainerID: containerID,
 					Database:    databaseName,
 				},
 			},
 			{
 				event: RawEvent{
-					Action:      "ActionUpdate",
 					Component:   "backup_service",
-					Status:      "DONE",
+					Status:      "SUCCESS",
 					ContainerID: containerID,
 					Database:    databaseName,
 				},
 			},
 			{
 				event: RawEvent{
-					Action:      "ActionGet",
 					Component:   "backup_schedule_service",
 					Status:      "ERROR",
 					Reason:      "Recovery point objective failed for schedule",
 					ContainerID: containerID,
 					Database:    databaseName,
+				},
+			},
+			{
+				event: RawEvent{
+					Component:   "backup_service",
+					Status:      "ERROR",
+					ContainerID: containerID,
+					Database:    databaseName,
+					Reason:      "Backup operation cancelled",
+				},
+			},
+			{
+				event: RawEvent{
+					Component:   "backup_service",
+					Status:      "ERROR",
+					ContainerID: containerID,
+					Database:    databaseName,
+					Reason:      "Backup and all its retry attempts failed",
 				},
 			},
 		},
@@ -778,6 +789,7 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
+	InsertFaultyBackups()
 	//wait for schedule handler
 	time.Sleep(time.Second * 3)
 

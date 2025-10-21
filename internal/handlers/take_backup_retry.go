@@ -117,13 +117,13 @@ func shouldRetry(
 }
 
 func withBackupStateAudit(
-	ctx context.Context, tbwr *types.TakeBackupWithRetryOperation, retry bool,
+	ctx context.Context, tbwr *types.TakeBackupWithRetryOperation,
 	upsertError error,
 ) error {
 	if upsertError != nil {
 		return upsertError
 	}
-	audit.ReportBackupStateAuditEvent(ctx, tbwr, retry, false)
+	audit.ReportBackupStateAuditEvent(ctx, tbwr, false)
 	return nil
 }
 
@@ -272,7 +272,6 @@ func TBWROperationHandler(
 	case types.OperationStateRunning:
 		{
 			do, err := MakeRetryDecision(ctx, tbwr, lastTbOp, clock)
-			reportRetry := do == RunNewTb
 			if err != nil {
 				xlog.Error(ctx, "RetryDecision failed", zap.Error(err))
 				tbwr.State = types.OperationStateError
@@ -282,7 +281,7 @@ func TBWROperationHandler(
 				tbwr.Audit.CompletedAt = timestamppb.New(now)
 
 				upsertError := withBackupStateAudit(
-					ctx, tbwr, reportRetry, db.ExecuteUpsert(
+					ctx, tbwr, db.ExecuteUpsert(
 						ctx,
 						queryBuilderFactory().WithUpdateOperation(tbwr),
 					),
@@ -313,7 +312,7 @@ func TBWROperationHandler(
 					tbwr.UpdatedAt = timestamppb.New(now)
 					tbwr.Audit.CompletedAt = timestamppb.New(now)
 					return withBackupStateAudit(
-						ctx, tbwr, reportRetry, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+						ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
 					)
 				}
 			case Skip:
@@ -322,7 +321,7 @@ func TBWROperationHandler(
 				{
 					setErrorToRetryOperation(ctx, tbwr, ops, clock)
 					return withBackupStateAudit(
-						ctx, tbwr, reportRetry, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+						ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
 					)
 				}
 			case RunNewTb:
@@ -361,7 +360,7 @@ func TBWROperationHandler(
 							tbwr.UpdatedAt = timestamppb.New(now)
 							tbwr.Audit.CompletedAt = timestamppb.New(now)
 							return withBackupStateAudit(
-								ctx, tbwr, reportRetry, db.ExecuteUpsert(
+								ctx, tbwr, db.ExecuteUpsert(
 									ctx,
 									queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr),
 								),
@@ -369,7 +368,7 @@ func TBWROperationHandler(
 						} else {
 							//increment retries
 							return withBackupStateAudit(
-								ctx, tbwr, reportRetry, db.ExecuteUpsert(
+								ctx, tbwr, db.ExecuteUpsert(
 									ctx,
 									queryBuilderFactory().WithUpdateOperation(tbwr),
 								),
@@ -378,7 +377,7 @@ func TBWROperationHandler(
 					} else {
 						xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
 						return withBackupStateAudit(
-							ctx, tbwr, reportRetry, db.ExecuteUpsert(
+							ctx, tbwr, db.ExecuteUpsert(
 								ctx,
 								queryBuilderFactory().WithCreateBackup(*backup).WithCreateOperation(tb).WithUpdateOperation(tbwr),
 							),
@@ -393,7 +392,7 @@ func TBWROperationHandler(
 				tbwr.Audit.CompletedAt = timestamppb.New(now)
 
 				upsertError := withBackupStateAudit(
-					ctx, tbwr, reportRetry, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+					ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
 				)
 				if upsertError != nil {
 					return upsertError
@@ -414,7 +413,7 @@ func TBWROperationHandler(
 				tbwr.UpdatedAt = timestamppb.New(now)
 				tbwr.Audit.CompletedAt = timestamppb.New(now)
 				return withBackupStateAudit(
-					ctx, tbwr, false, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+					ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
 				)
 			} else {
 				if lastTbOp.State == types.OperationStatePending || lastTbOp.State == types.OperationStateRunning {
@@ -423,7 +422,7 @@ func TBWROperationHandler(
 					lastTbOp.Message = "Cancelling by parent operation"
 					lastTbOp.UpdatedAt = timestamppb.New(clock.Now())
 					return withBackupStateAudit(
-						ctx, tbwr, false, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(lastTbOp)),
+						ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(lastTbOp)),
 					)
 				}
 			}
@@ -436,7 +435,7 @@ func TBWROperationHandler(
 			tbwr.UpdatedAt = timestamppb.New(now)
 			tbwr.Audit.CompletedAt = timestamppb.New(now)
 			upsertError := withBackupStateAudit(
-				ctx, tbwr, false, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+				ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
 			)
 			if upsertError != nil {
 				return upsertError
