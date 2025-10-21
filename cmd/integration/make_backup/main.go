@@ -617,6 +617,40 @@ func main() {
 	if !done {
 		log.Panicln("failed to complete a restore in 30 seconds")
 	}
+
+	partialRestoreOperation, err := client.MakeRestore(
+		context.Background(), &pb.MakeRestoreRequest{
+			ContainerId:       containerID,
+			BackupId:          backupOperation.BackupId,
+			DatabaseName:      databaseName,
+			DatabaseEndpoint:  databaseEndpoint,
+			DestinationPrefix: "/partial_restore",
+			SourcePaths:       []string{"kv_test"},
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to make partial restore: %v", err)
+	}
+	done = false
+	for range 30 {
+		op, err := opClient.GetOperation(
+			context.Background(), &pb.GetOperationRequest{
+				Id: partialRestoreOperation.Id,
+			},
+		)
+		if err != nil {
+			log.Panicf("failed to get operation: %v", err)
+		}
+		if op.GetStatus().String() == types.OperationStateDone.String() {
+			done = true
+			break
+		}
+		time.Sleep(time.Second)
+	}
+	if !done {
+		log.Panicln("failed to complete a partial restore in 30 seconds")
+	}
+
 	deleteOperation, err := client.DeleteBackup(
 		context.Background(), &pb.DeleteBackupRequest{
 			BackupId: backupOperation.BackupId,

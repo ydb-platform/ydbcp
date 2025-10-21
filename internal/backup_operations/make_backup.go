@@ -97,7 +97,12 @@ func IsAllowedEndpoint(e string, allowedEndpointDomains []string, allowInsecureE
 	return false
 }
 
-func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector) error {
+func OpenConnAndValidateSourcePaths(
+	ctx context.Context,
+	req MakeBackupInternalRequest,
+	clientConn client.ClientConnector,
+	featureFlags config.FeatureFlagsConfig,
+) error {
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.DatabaseEndpoint,
 		DatabaseName: req.DatabaseName,
@@ -116,7 +121,7 @@ func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalR
 			xlog.Error(ctx, "can't close client connection", zap.Error(err))
 		}
 	}()
-	_, err = ValidateSourcePaths(ctx, req, clientConn, driver, dsn)
+	_, err = ValidateSourcePaths(ctx, req, clientConn, driver, dsn, featureFlags)
 	var empty *EmptyDatabaseError
 	if errors.As(err, &empty) {
 		return nil
@@ -125,7 +130,14 @@ func OpenConnAndValidateSourcePaths(ctx context.Context, req MakeBackupInternalR
 	}
 }
 
-func ValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, clientConn client.ClientConnector, client *ydb.Driver, dsn string) ([]string, error) {
+func ValidateSourcePaths(
+	ctx context.Context,
+	req MakeBackupInternalRequest,
+	clientConn client.ClientConnector,
+	client *ydb.Driver,
+	dsn string,
+	featureFlags config.FeatureFlagsConfig,
+) ([]string, error) {
 	if req.ScheduleID != nil {
 		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
 	}
@@ -139,15 +151,22 @@ func ValidateSourcePaths(ctx context.Context, req MakeBackupInternalRequest, cli
 		sourcePaths = append(sourcePaths, fullPath)
 	}
 
-	pathsForExport, err := clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
-	if err != nil {
-		xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
-		return nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
-	}
+	var pathsForExport []string
+	if featureFlags.EnableNewPathsFormat {
+		// We don't need to list directories, it'll be done on the server side.
+		pathsForExport = sourcePaths
+	} else {
+		var err error
+		pathsForExport, err = clientConn.PreparePathsForExport(ctx, client, sourcePaths, req.SourcePathsToExclude)
+		if err != nil {
+			xlog.Error(ctx, "error preparing paths for export", zap.Error(err))
+			return nil, status.Errorf(codes.Unknown, "error preparing paths for export, dsn %s", dsn)
+		}
 
-	if len(pathsForExport) == 0 {
-		xlog.Error(ctx, "empty list of paths for export")
-		return nil, NewEmptyDatabaseError(codes.FailedPrecondition, "empty list of paths for export")
+		if len(pathsForExport) == 0 {
+			xlog.Error(ctx, "empty list of paths for export")
+			return nil, NewEmptyDatabaseError(codes.FailedPrecondition, "empty list of paths for export")
+		}
 	}
 	return pathsForExport, nil
 }
@@ -264,6 +283,7 @@ func MakeBackup(
 	req MakeBackupInternalRequest,
 	subject string,
 	clock clockwork.Clock,
+	featureFlags config.FeatureFlagsConfig,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
 	if req.ScheduleID != nil {
 		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
@@ -311,7 +331,7 @@ func MakeBackup(
 	destinationPrefix := CreateS3DestinationPrefix(req.DatabaseName, s3, clock)
 	ctx = xlog.With(ctx, zap.String("S3DestinationPrefix", destinationPrefix))
 
-	pathsForExport, err := ValidateSourcePaths(ctx, req, clientConn, client, dsn)
+	pathsForExport, err := ValidateSourcePaths(ctx, req, clientConn, client, dsn, featureFlags)
 
 	if err != nil {
 		return nil, nil, err
@@ -330,7 +350,7 @@ func MakeBackup(
 		S3ForcePathStyle:  s3.S3ForcePathStyle,
 	}
 
-	clientOperationID, err := clientConn.ExportToS3(ctx, client, s3Settings)
+	clientOperationID, err := clientConn.ExportToS3(ctx, client, s3Settings, featureFlags)
 	if err != nil {
 		xlog.Error(ctx, "can't start export operation", zap.Error(err))
 		return nil, nil, status.Errorf(codes.Unknown, "can't start export operation, dsn %s", dsn)
