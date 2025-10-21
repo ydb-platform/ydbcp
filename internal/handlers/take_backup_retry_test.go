@@ -353,9 +353,10 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{},
+		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -417,9 +418,10 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{},
+		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -482,9 +484,10 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{},
+		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t3.AsTime()),
-		config.Config{},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -539,9 +542,10 @@ func TestTBWRHandlerError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{},
+		config.ClientConnectionConfig{},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -593,17 +597,15 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -667,17 +669,15 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -742,17 +742,15 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -802,17 +800,15 @@ func TestTBWRHandlerInvalidEndpointError(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -867,17 +863,15 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)
@@ -946,17 +940,15 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		clientConnector,
+		config.S3Config{
+			IsMock: true,
+		},
+		config.ClientConnectionConfig{
+			AllowedEndpointDomains: []string{".valid.com"},
+			AllowInsecureEndpoint:  true,
+		},
 		queries.NewWriteTableQueryMock,
 		clock,
-		config.Config{
-			S3: config.S3Config{
-				IsMock: true,
-			},
-			ClientConnection: config.ClientConnectionConfig{
-				AllowedEndpointDomains: []string{".valid.com"},
-				AllowInsecureEndpoint:  true,
-			},
-		},
 	)
 	err := handler(ctx, &tbwr)
 	assert.Empty(t, err)

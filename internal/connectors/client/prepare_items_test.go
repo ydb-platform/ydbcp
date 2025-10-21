@@ -44,21 +44,15 @@ func TestPrepareItemsForImport(t *testing.T) {
 	assert.NoError(t, err)
 	expected := []Ydb_Import.ImportFromS3Settings_Item{
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/table_1/",
-			},
+			SourcePrefix:    "local/table_1/",
 			DestinationPath: "/cluster/local/table_1",
 		},
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/table_2/",
-			},
+			SourcePrefix:    "local/table_2/",
 			DestinationPath: "/cluster/local/table_2",
 		},
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/folder/table_3/",
-			},
+			SourcePrefix:    "local/folder/table_3/",
 			DestinationPath: "/cluster/local/folder/table_3",
 		},
 	}
@@ -70,21 +64,15 @@ func TestPrepareItemsForImport(t *testing.T) {
 
 	expected = []Ydb_Import.ImportFromS3Settings_Item{
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/table_1/",
-			},
+			SourcePrefix:    "local/table_1/",
 			DestinationPath: "/cluster/local/prefix/table_1",
 		},
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/table_2/",
-			},
+			SourcePrefix:    "local/table_2/",
 			DestinationPath: "/cluster/local/prefix/table_2",
 		},
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/folder/table_3/",
-			},
+			SourcePrefix:    "local/folder/table_3/",
 			DestinationPath: "/cluster/local/prefix/folder/table_3",
 		},
 	}
@@ -96,15 +84,11 @@ func TestPrepareItemsForImport(t *testing.T) {
 
 	expected = []Ydb_Import.ImportFromS3Settings_Item{
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/table_1/",
-			},
+			SourcePrefix:    "local/table_1/",
 			DestinationPath: "/cluster/local/prefix/table_1",
 		},
 		{
-			Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePrefix{
-				SourcePrefix: "local/folder/table_3/",
-			},
+			SourcePrefix:    "local/folder/table_3/",
 			DestinationPath: "/cluster/local/prefix/folder/table_3",
 		},
 	}

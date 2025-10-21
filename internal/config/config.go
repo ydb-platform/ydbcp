@@ -66,8 +66,7 @@ type MetricsServerConfig struct {
 }
 
 type FeatureFlagsConfig struct {
-	DisableTTLDeletion   bool `yaml:"disable_ttl_deletion" default:"false"`
-	EnableNewPathsFormat bool `yaml:"enable_new_paths_format" default:"false"`
+	DisableTTLDeletion bool `yaml:"disable_ttl_deletion" default:"false"`
 }
 
 type LogConfig struct {

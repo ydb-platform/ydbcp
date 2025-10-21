@@ -14,7 +14,7 @@ require (
 	github.com/jonboulle/clockwork v0.5.0
 	github.com/prometheus/client_golang v1.20.4
 	github.com/stretchr/testify v1.10.0
-	github.com/ydb-platform/ydb-go-genproto v0.0.0-20250911135631-b3beddd517d9
+	github.com/ydb-platform/ydb-go-genproto v0.0.0-20241112172322-ea1f63298f77
 	github.com/ydb-platform/ydb-go-sdk-prometheus/v2 v2.1.2
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.108.5
 	go.uber.org/automaxprocs v1.5.3

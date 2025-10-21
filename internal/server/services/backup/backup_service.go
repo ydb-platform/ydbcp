@@ -37,7 +37,6 @@ type BackupService struct {
 	allowedEndpointDomains []string
 	allowInsecureEndpoint  bool
 	clock                  clockwork.Clock
-	featureFlags           config.FeatureFlagsConfig
 }
 
 func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
@@ -141,7 +140,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		tbwr.Ttl = &d
 	}
 
-	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn, s.featureFlags)
+	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn)
 	if err != nil {
 		grpcError := backup_operations.ErrToStatus(err)
 		s.IncApiCallsCounter(methodName, status.Code(grpcError))
@@ -320,7 +319,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
 	}
 
-	if backup.Empty() {
+	if backup.SourcePaths == nil || len(backup.SourcePaths) == 0 {
 		xlog.Info(ctx, "called restore for empty backup")
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is empty, status %s", backup.Status)
@@ -383,7 +382,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		DestinationPrefix: req.GetDestinationPrefix(),
 	}
 
-	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings, s.featureFlags)
+	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings)
 	if err != nil {
 		xlog.Error(ctx, "can't start import operation", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Unknown)
@@ -596,17 +595,18 @@ func (s *BackupService) Register(server server.Server) {
 func NewBackupService(
 	driver db.DBConnector,
 	clientConn client.ClientConnector,
+	s3 config.S3Config,
 	auth ap.AuthProvider,
-	config config.Config,
+	allowedEndpointDomains []string,
+	allowInsecureEndpoint bool,
 ) *BackupService {
 	return &BackupService{
 		driver:                 driver,
 		clientConn:             clientConn,
-		s3:                     config.S3,
+		s3:                     s3,
 		auth:                   auth,
-		allowedEndpointDomains: config.ClientConnection.AllowedEndpointDomains,
-		allowInsecureEndpoint:  config.ClientConnection.AllowInsecureEndpoint,
+		allowedEndpointDomains: allowedEndpointDomains,
+		allowInsecureEndpoint:  allowInsecureEndpoint,
 		clock:                  clockwork.NewRealClock(),
-		featureFlags:           config.FeatureFlags,
 	}
 }

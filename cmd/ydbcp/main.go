@@ -143,8 +143,10 @@ func main() {
 	backup.NewBackupService(
 		dbConnector,
 		clientConnector,
+		configInstance.S3,
 		authProvider,
-		*configInstance,
+		configInstance.ClientConnection.AllowedEndpointDomains,
+		configInstance.ClientConnection.AllowInsecureEndpoint,
 	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
 	backup_schedule.NewBackupScheduleService(
@@ -189,9 +191,10 @@ func main() {
 		handlers.NewTBWROperationHandler(
 			dbConnector,
 			clientConnector,
+			configInstance.S3,
+			configInstance.ClientConnection,
 			queries.NewWriteTableQuery,
 			clockwork.NewRealClock(),
-			*configInstance,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TBWR handler", zap.Error(err))
