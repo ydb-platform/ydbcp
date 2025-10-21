@@ -16,20 +16,20 @@ import (
 var EventsDestination string
 
 type GenericAuditFields struct {
-	ID             string   `json:"request_id"`
-	IdempotencyKey string   `json:"idempotency_key"`
-	Service        string   `json:"service"`
-	SpecVersion    string   `json:"specversion"`
-	Action         Action   `json:"action"`
-	Resource       Resource `json:"resource"`
-	Component      string   `json:"component"`
-	FolderID       string   `json:"folder_id"`
-	Subject        string   `json:"subject"`
-	SanitizedToken string   `json:"sanitized_token,omitempty"`
-	Status         string   `json:"status"`
-	Reason         string   `json:"reason,omitempty"`
-	Timestamp      string   `json:"@timestamp"`
-	IsBackground   bool     `json:"is_background"`
+	ID             string           `json:"request_id"`
+	IdempotencyKey string           `json:"idempotency_key"`
+	Service        string           `json:"service"`
+	SpecVersion    string           `json:"specversion"`
+	Action         Action           `json:"action,omitempty"`
+	Resource       Resource         `json:"resource"`
+	Component      string           `json:"component"`
+	FolderID       string           `json:"folder_id"`
+	Subject        string           `json:"subject"`
+	SanitizedToken string           `json:"sanitized_token,omitempty"`
+	Status         AuditEventStatus `json:"status"`
+	Reason         string           `json:"reason,omitempty"`
+	Timestamp      string           `json:"@timestamp"`
+	IsBackground   bool             `json:"is_background"`
 }
 
 type EventEnvelope struct {
@@ -74,15 +74,24 @@ func makeEnvelope(event any) (*EventEnvelope, error) {
 	}, nil
 }
 
-func getStatus(inProgress bool, err error) (string, string) {
-	var status, reason string
+type AuditEventStatus string
+
+var (
+	StatusInProcess AuditEventStatus = "IN-PROCESS"
+	StatusError     AuditEventStatus = "ERROR"
+	StatusSuccess   AuditEventStatus = "SUCCESS"
+)
+
+func getStatus(inProgress bool, err error) (AuditEventStatus, string) {
+	var status AuditEventStatus
+	var reason string
 	if err != nil {
-		status = "ERROR"
+		status = StatusError
 		reason = err.Error()
 	} else if inProgress {
-		status = "IN-PROCESS"
+		status = StatusInProcess
 	} else {
-		status = "SUCCESS"
+		status = StatusSuccess
 	}
 	return status, reason
 }
@@ -151,40 +160,43 @@ func ReportGRPCCallEnd(
 
 type BackupStateEvent struct {
 	GenericAuditFields
-	Database string `json:"database"`
+	Database   string `json:"database"`
+	ScheduleID string `json:"schedule_id,omitempty"`
+	Attempt    int    `json:"attempt,omitempty"`
 }
 
 func ReportBackupStateAuditEvent(
-	ctx context.Context, operation *types.TakeBackupWithRetryOperation,
-	retry bool, new bool,
+	ctx context.Context, operation *types.TakeBackupWithRetryOperation, fromScheduleHandler bool,
 ) {
-	status := operation.GetState().String()
+	var status AuditEventStatus
 	reason := ""
 	component := "backup_service"
 	switch operation.GetState() {
 	case types.OperationStateRunning:
 		{
-			if retry {
-				status = "RETRYING"
-				reason = "New backup attempt scheduled"
-			} else if new {
+			status = StatusInProcess
+			if !fromScheduleHandler {
+				reason = "New backup attempt started"
+			} else {
 				component = "backup_schedule_service"
-				status = "NEW"
-				reason = "New retryable backup attempt scheduled"
+				reason = "New retryable backup attempt initiated"
 			}
 		}
 	case types.OperationStateDone:
 		{
+			status = StatusSuccess
 			reason = "Backup complete"
 		}
 	case types.OperationStateError:
 		{
+			status = StatusError
 			reason = "Backup and all its retry attempts failed"
 		}
-	case types.OperationStateCancelling:
-	case types.OperationStateCancelled:
-	case types.OperationStateStartCancelling:
+	case types.OperationStateCancelling,
+		types.OperationStateCancelled,
+		types.OperationStateStartCancelling:
 		{
+			status = StatusError
 			reason = "Backup operation cancelled"
 		}
 	}
@@ -195,11 +207,11 @@ func ReportBackupStateAuditEvent(
 			IdempotencyKey: operation.GetID(),
 			Service:        "ydbcp",
 			SpecVersion:    "1.0",
-			Action:         ActionUpdate,
-			Resource:       Backup,
-			Component:      component,
-			FolderID:       operation.GetContainerID(),
-			Subject:        types.OperationCreatorName,
+			//no action
+			Resource:  Backup,
+			Component: component,
+			FolderID:  operation.GetContainerID(),
+			Subject:   types.OperationCreatorName,
 			//no token
 			Status:       status,
 			Reason:       reason,
@@ -207,6 +219,12 @@ func ReportBackupStateAuditEvent(
 			IsBackground: true,
 		},
 		Database: operation.GetDatabaseName(),
+	}
+	if operation.ScheduleID != nil {
+		event.ScheduleID = *operation.ScheduleID
+	}
+	if !fromScheduleHandler {
+		event.Attempt = operation.Retries
 	}
 
 	ReportAuditEvent(ctx, event)
@@ -234,13 +252,13 @@ func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedu
 			IdempotencyKey: schedule.ID,
 			Service:        "ydbcp",
 			SpecVersion:    "1.0",
-			Action:         ActionGet,
-			Resource:       BackupSchedule,
-			Component:      "backup_schedule_service",
-			FolderID:       schedule.ContainerID,
-			Subject:        types.OperationCreatorName,
+			//no action
+			Resource:  BackupSchedule,
+			Component: "backup_schedule_service",
+			FolderID:  schedule.ContainerID,
+			Subject:   types.OperationCreatorName,
 			//no token
-			Status:       "ERROR",
+			Status:       StatusError,
 			Reason:       "Recovery point objective failed for schedule",
 			Timestamp:    time.Now().Format(time.RFC3339Nano),
 			IsBackground: true,

@@ -13,6 +13,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
@@ -46,7 +47,7 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	assert.Equal(t, "subj@as", event.Subject)
 	assert.Equal(t, "cid1", event.FolderID)
 	assert.Equal(t, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, event.MethodName)
-	assert.Equal(t, "ERROR", event.Status)
+	assert.Equal(t, StatusError, event.Status)
 	assert.Equal(t, marshalProtoMessage(msg), event.GRPCRequest)
 }
 
@@ -81,7 +82,7 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(data), `"@timestamp":`)
 }
 
-func TestEventJsonMarshal(t *testing.T) {
+func TestMakeEnvelope(t *testing.T) {
 	event, err := makeEnvelope(&GRPCCallEvent{GenericAuditFields: GenericAuditFields{Component: "test"}})
 	require.NoError(t, err)
 	ej := &EventJson{
@@ -127,4 +128,168 @@ func TestReportAuditEvent(t *testing.T) {
 	assert.Contains(t, output, `"type":"ydbcp-audit"`)
 	assert.Contains(t, output, `\"operation\":\"reportTest\"`)
 	assert.Contains(t, output, "SUCCESS")
+}
+
+func CaptureEventAsString(t *testing.T, writeEvent func()) string {
+	oldStream := os.Stdout
+	r, w, _ := os.Pipe()
+	os.Stdout = w
+
+	writeEvent()
+
+	err := w.Close()
+	require.NoError(t, err)
+	var buf bytes.Buffer
+	_, err = io.Copy(&buf, r)
+	require.NoError(t, err)
+	os.Stdout = oldStream
+	return buf.String()
+}
+
+func TestBackupStateAudit(t *testing.T) {
+	writeEvent := func(tbwr *types.TakeBackupWithRetryOperation, fromSchedule bool) func() {
+		return func() {
+			ctx := context.Background()
+			ReportBackupStateAuditEvent(ctx, tbwr, fromSchedule)
+		}
+	}
+
+	type TestCase struct {
+		op           types.TakeBackupWithRetryOperation
+		entries      []string
+		fromSchedule bool
+	}
+
+	scID := "scheduleID"
+	cases := []TestCase{
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateRunning,
+				},
+				ScheduleID: &scID,
+				Retries:    1,
+			},
+			entries: []string{
+				`\"status\":\"IN-PROCESS\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_service\"`,
+				`\"reason\":\"New backup attempt started\"`,
+				`\"attempt\":1`,
+			},
+			fromSchedule: false,
+		},
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateRunning,
+				},
+				ScheduleID: &scID,
+			},
+			entries: []string{
+				`\"status\":\"IN-PROCESS\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_schedule_service\"`,
+				`\"reason\":\"New retryable backup attempt initiated\"`,
+			},
+			fromSchedule: true,
+		},
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateRunning,
+				},
+				ScheduleID: &scID,
+				Retries:    1,
+			},
+			entries: []string{
+				`\"status\":\"IN-PROCESS\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_service\"`,
+				`\"reason\":\"New backup attempt started\"`,
+				`\"attempt\":1`,
+			},
+			fromSchedule: false,
+		},
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateDone,
+				},
+				ScheduleID: &scID,
+				Retries:    1,
+			},
+			entries: []string{
+				`\"status\":\"SUCCESS\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_service\"`,
+				`\"reason\":\"Backup complete\"`,
+				`\"attempt\":1`,
+			},
+			fromSchedule: false,
+		},
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateError,
+				},
+				ScheduleID: &scID,
+				Retries:    1,
+			},
+			entries: []string{
+				`\"status\":\"ERROR\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_service\"`,
+				`\"reason\":\"Backup and all its retry attempts failed\"`,
+				`\"attempt\":1`,
+			},
+			fromSchedule: false,
+		},
+		{
+			op: types.TakeBackupWithRetryOperation{
+				TakeBackupOperation: types.TakeBackupOperation{
+					ID:          "123",
+					ContainerID: "cid",
+					State:       types.OperationStateCancelled,
+				},
+				ScheduleID: &scID,
+				Retries:    1,
+			},
+			entries: []string{
+				`\"status\":\"ERROR\"`,
+				`\"schedule_id\":\"scheduleID\"`,
+				`\"folder_id\":\"cid\"`,
+				`\"component\":\"backup_service\"`,
+				`\"reason\":\"Backup operation cancelled\"`,
+				`\"attempt\":1`,
+			},
+			fromSchedule: false,
+		},
+	}
+
+	for i, c := range cases {
+		t.Run(
+			fmt.Sprintf("%d", i), func(t *testing.T) {
+				s := CaptureEventAsString(t, writeEvent(&c.op, c.fromSchedule))
+				for _, entry := range c.entries {
+					assert.Contains(t, s, entry)
+				}
+			},
+		)
+	}
 }
