@@ -39,8 +39,9 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 
 	cid := "cid1"
 	event := GRPCCallAuditEvent(
-		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName, msg, "subj", "token.signature", cid,
-		false, err,
+		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName,
+		msg, "subj", "token.signature", cid,
+		"", false, err,
 	)
 
 	assert.Equal(t, "grpc_api", event.Component)
@@ -59,6 +60,7 @@ func TestEventMarshalJSON(t *testing.T) {
 			Component:      "grpc_api",
 			Subject:        "sub@as",
 			FolderID:       "id1",
+			Database:       "mydb",
 			SanitizedToken: "tok",
 			Status:         "SUCCESS",
 			Timestamp:      time.Now().Format(time.RFC3339Nano),
@@ -80,6 +82,7 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(data), `"operation":"Method"`)
 	assert.Contains(t, string(data), `"status":`)
 	assert.Contains(t, string(data), `"@timestamp":`)
+	assert.Contains(t, string(data), `"database":"mydb"`)
 }
 
 func TestMakeEnvelope(t *testing.T) {

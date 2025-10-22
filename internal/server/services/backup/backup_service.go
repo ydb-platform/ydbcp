@@ -80,7 +80,9 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
-	audit.SetContainerIDForRequest(ctx, backup.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -101,7 +103,10 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 
 	ctx = xlog.With(ctx, zap.String("ContainerID", req.ContainerId))
-	audit.SetContainerIDForRequest(ctx, req.ContainerId)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: req.ContainerId, Database: req.DatabaseName},
+	)
+
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, req.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -141,7 +146,9 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		tbwr.Ttl = &d
 	}
 
-	err = backup_operations.OpenConnAndValidateSourcePaths(ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn, s.featureFlags)
+	err = backup_operations.OpenConnAndValidateSourcePaths(
+		ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn, s.featureFlags,
+	)
 	if err != nil {
 		grpcError := backup_operations.ErrToStatus(err)
 		s.IncApiCallsCounter(methodName, status.Code(grpcError))
@@ -204,7 +211,11 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
-	audit.SetContainerIDForRequest(ctx, backup.ContainerID)
+
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+	)
+
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -292,7 +303,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
-	audit.SetContainerIDForRequest(ctx, backup.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(
 		ctx, s.auth, auth.PermissionBackupRestore, backup.ContainerID, "",
 	) // TODO: check access to backup as resource
@@ -442,7 +455,10 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	queryFilters := make([]queries.QueryFilter, 0)
 	//TODO: forbid empty containerId
 	if request.GetContainerId() != "" {
-		audit.SetContainerIDForRequest(ctx, request.ContainerId)
+		audit.SetAuditFieldsForRequest(
+			ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"},
+		)
+
 		queryFilters = append(
 			queryFilters, queries.QueryFilter{
 				Field: "container_id",
@@ -554,7 +570,9 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	backup := backups[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
-	audit.SetContainerIDForRequest(ctx, backup.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, backup.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
