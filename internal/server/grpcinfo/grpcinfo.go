@@ -2,7 +2,6 @@ package grpcinfo
 
 import (
 	"context"
-
 	"ydbcp/internal/util/xlog"
 
 	"github.com/google/uuid"
@@ -39,6 +38,31 @@ func GetRequestID(ctx context.Context) string {
 		}
 	}
 	return uuid.New().String()
+}
+
+func GetGRPCHeaderValue(ctx context.Context, key string) *string {
+	md, ok := metadata.FromIncomingContext(ctx)
+	if !ok {
+		return nil
+	}
+	headerValues := md.Get(key)
+	if len(headerValues) == 0 {
+		return nil
+	}
+	return &headerValues[0]
+}
+
+func GetRemoteAddressChain(ctx context.Context) *string {
+	headers := []string{
+		"x_forwarded_for", "X-Forwarded-For", "downstream_remote_address", "req_headers_x_envoy_external_address",
+	}
+	for _, header := range headers {
+		v := GetGRPCHeaderValue(ctx, header)
+		if v != nil {
+			return v
+		}
+	}
+	return nil
 }
 
 func WithGRPCInfo(ctx context.Context) context.Context {
