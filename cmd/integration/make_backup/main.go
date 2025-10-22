@@ -398,6 +398,7 @@ func main() {
 					Component:      "grpc_api",
 					MethodName:     pb.BackupService_MakeBackup_FullMethodName,
 					ContainerID:    containerID,
+					Database:       databaseName,
 					Subject:        "anonymous@as",
 					SanitizedToken: "",
 					Status:         "SUCCESS",

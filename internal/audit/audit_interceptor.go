@@ -12,23 +12,28 @@ import (
 	"ydbcp/pkg/plugins/auth"
 )
 
+type AuditFields struct {
+	ContainerID string
+	Database    string
+}
+
 var (
 	containerStore = sync.Map{} // map[requestID]string
 )
 
-func SetContainerIDForRequest(ctx context.Context, containerID string) {
-	containerStore.Store(grpcinfo.GetRequestID(ctx), containerID)
+func SetAuditFieldsForRequest(ctx context.Context, fields *AuditFields) {
+	containerStore.Store(grpcinfo.GetRequestID(ctx), fields)
 }
 
-func GetContainerIDForRequest(requestID string) string {
+func GetAuditFieldsForRequest(requestID string) *AuditFields {
 	v, ok := containerStore.Load(requestID)
 	if !ok {
-		return "{none}"
+		return nil
 	}
-	return v.(string)
+	return v.(*AuditFields)
 }
 
-func ClearContainerIDForRequest(requestID string) {
+func ClearAuditFieldsForRequest(requestID string) {
 	containerStore.Delete(requestID)
 }
 
@@ -49,9 +54,9 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 			)
 		}
 		response, grpcErr := handler(ctx, req)
-		containerID := GetContainerIDForRequest(requestID)
-		defer ClearContainerIDForRequest(requestID)
-		ReportGRPCCallEnd(ctx, info.FullMethod, subject, containerID, token, grpcErr)
+		fields := GetAuditFieldsForRequest(requestID)
+		defer ClearAuditFieldsForRequest(requestID)
+		ReportGRPCCallEnd(ctx, info.FullMethod, subject, fields.ContainerID, fields.Database, token, grpcErr)
 		return response, grpcErr
 	}
 }

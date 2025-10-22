@@ -40,7 +40,9 @@ func (s *OperationService) ListOperations(
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
-	audit.SetContainerIDForRequest(ctx, request.ContainerId)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: "{none}"},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -179,7 +181,9 @@ func (s *OperationService) CancelOperation(
 		return nil, status.Errorf(codes.Internal, "unknown operation type: %s", operation.GetType().String())
 	}
 
-	audit.SetContainerIDForRequest(ctx, operation.GetContainerID())
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: operation.GetContainerID(), Database: operation.GetDatabaseName()},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, permission, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -254,7 +258,10 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	operation := operations[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", operation.GetContainerID()))
 	// TODO: Need to check access to operation resource by operationID
-	audit.SetContainerIDForRequest(ctx, operation.GetContainerID())
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: operation.GetContainerID(), Database: operation.GetDatabaseName()},
+	)
+
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, operation.GetContainerID(), "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))

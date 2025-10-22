@@ -24,6 +24,7 @@ type GenericAuditFields struct {
 	Resource       Resource         `json:"resource"`
 	Component      string           `json:"component"`
 	FolderID       string           `json:"folder_id"`
+	Database       string           `json:"database"`
 	Subject        string           `json:"subject"`
 	SanitizedToken string           `json:"sanitized_token,omitempty"`
 	Status         AuditEventStatus `json:"status"`
@@ -96,6 +97,15 @@ func getStatus(inProgress bool, err error) (AuditEventStatus, string) {
 	return status, reason
 }
 
+func formatDatabase(database string) string {
+	switch database {
+	case "", "{none}":
+		return "{none}"
+	default:
+		return database
+	}
+}
+
 func formatSubject(subject string) string {
 	switch subject {
 	case "", "{none}":
@@ -112,6 +122,7 @@ func GRPCCallAuditEvent(
 	subject string,
 	token string,
 	containerID string,
+	database string,
 	inProgress bool,
 	err error,
 ) *GRPCCallEvent {
@@ -126,6 +137,7 @@ func GRPCCallAuditEvent(
 			Resource:       ResourceFromMethodName(ctx, methodName),
 			Component:      "grpc_api",
 			FolderID:       containerID,
+			Database:       formatDatabase(database),
 			Subject:        formatSubject(subject),
 			SanitizedToken: token,
 			Status:         s,
@@ -143,24 +155,23 @@ func ReportGRPCCallBegin(
 	subject string, token string,
 ) {
 	event := GRPCCallAuditEvent(
-		ctx, methodName, req, subject, token, "{none}", true, nil,
+		ctx, methodName, req, subject, token, "{none}", "{none}", true, nil,
 	)
 	ReportAuditEvent(ctx, event)
 }
 
 func ReportGRPCCallEnd(
 	ctx context.Context, methodName string,
-	subject string, containerID string, token string, err error,
+	subject string, containerID string, token string, database string, err error,
 ) {
 	event := GRPCCallAuditEvent(
-		ctx, methodName, nil, subject, token, containerID, false, err,
+		ctx, methodName, nil, subject, token, containerID, database, false, err,
 	)
 	ReportAuditEvent(ctx, event)
 }
 
 type BackupStateEvent struct {
 	GenericAuditFields
-	Database   string `json:"database"`
 	ScheduleID string `json:"schedule_id,omitempty"`
 	Attempt    int    `json:"attempt,omitempty"`
 }
@@ -211,6 +222,7 @@ func ReportBackupStateAuditEvent(
 			Resource:  Backup,
 			Component: component,
 			FolderID:  operation.GetContainerID(),
+			Database:  operation.GetDatabaseName(),
 			Subject:   types.OperationCreatorName,
 			//no token
 			Status:       status,
@@ -218,7 +230,6 @@ func ReportBackupStateAuditEvent(
 			Timestamp:    time.Now().Format(time.RFC3339Nano),
 			IsBackground: true,
 		},
-		Database: operation.GetDatabaseName(),
 	}
 	if operation.ScheduleID != nil {
 		event.ScheduleID = *operation.ScheduleID
@@ -232,7 +243,6 @@ func ReportBackupStateAuditEvent(
 
 type FailedRPOAuditEvent struct {
 	GenericAuditFields
-	Database   string `json:"database"`
 	ScheduleID string `json:"schedule_id"`
 }
 
@@ -256,6 +266,7 @@ func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedu
 			Resource:  BackupSchedule,
 			Component: "backup_schedule_service",
 			FolderID:  schedule.ContainerID,
+			Database:  schedule.DatabaseName,
 			Subject:   types.OperationCreatorName,
 			//no token
 			Status:       StatusError,
@@ -263,7 +274,6 @@ func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedu
 			Timestamp:    time.Now().Format(time.RFC3339Nano),
 			IsBackground: true,
 		},
-		Database:   schedule.DatabaseName,
 		ScheduleID: schedule.ID,
 	}
 	ReportAuditEvent(ctx, event)

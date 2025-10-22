@@ -51,7 +51,9 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
-	audit.SetContainerIDForRequest(ctx, request.ContainerId)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: request.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, request.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -219,7 +221,9 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	schedule := schedules[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
-	audit.SetContainerIDForRequest(ctx, schedule.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -332,7 +336,9 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	audit.SetContainerIDForRequest(ctx, schedule.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
+	)
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
@@ -361,7 +367,10 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	if request.GetContainerId() != "" {
 		ctx = xlog.With(ctx, zap.String("ContainerID", request.GetContainerId()))
 		var err error
-		audit.SetContainerIDForRequest(ctx, request.ContainerId)
+		audit.SetAuditFieldsForRequest(
+			ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"},
+		)
+
 		subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 		if err != nil {
 			s.IncApiCallsCounter(methodName, status.Code(err))
@@ -487,7 +496,9 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	audit.SetContainerIDForRequest(ctx, schedule.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
+	)
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
@@ -578,7 +589,9 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	schedule := schedules[0]
 	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
-	audit.SetContainerIDForRequest(ctx, schedule.ContainerID)
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
+	)
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
