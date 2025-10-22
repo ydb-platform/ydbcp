@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/protobuf/encoding/protojson"
 	"google.golang.org/protobuf/proto"
+	"strings"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
@@ -27,6 +29,7 @@ type GenericAuditFields struct {
 	Database       string           `json:"database"`
 	Subject        string           `json:"subject"`
 	SanitizedToken string           `json:"sanitized_token,omitempty"`
+	RemoteAddress  string           `json:"remote_address,omitempty"`
 	Status         AuditEventStatus `json:"status"`
 	Reason         string           `json:"reason,omitempty"`
 	Timestamp      string           `json:"@timestamp"`
@@ -115,6 +118,21 @@ func formatSubject(subject string) string {
 	}
 }
 
+func remoteAddressFromCtx(ctx context.Context) string {
+	p, ok := peer.FromContext(ctx)
+	if !ok {
+		xlog.Error(ctx, "could not get peer info")
+		return "{none}"
+	} else {
+		lastAddress := p.Addr.String()
+		pref := grpcinfo.GetRemoteAddressChain(ctx)
+		if pref != nil {
+			return strings.Join([]string{*pref, lastAddress}, ",")
+		}
+		return lastAddress
+	}
+}
+
 func GRPCCallAuditEvent(
 	ctx context.Context,
 	methodName string,
@@ -140,6 +158,7 @@ func GRPCCallAuditEvent(
 			Database:       formatDatabase(database),
 			Subject:        formatSubject(subject),
 			SanitizedToken: token,
+			RemoteAddress:  remoteAddressFromCtx(ctx),
 			Status:         s,
 			Reason:         r,
 			Timestamp:      time.Now().Format(time.RFC3339Nano),
