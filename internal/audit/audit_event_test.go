@@ -8,6 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
 	"io"
 	"os"
@@ -52,6 +54,28 @@ func TestGRPCCallAuditEvent(t *testing.T) {
 	assert.Equal(t, marshalProtoMessage(msg), event.GRPCRequest)
 }
 
+func TestGRPCCallAuditEventWithNewFields(t *testing.T) {
+	ctx := context.Background()
+	traceID := "trace-123"
+	ctx = context.WithValue(ctx, "trace_id", traceID)
+	msg := &pb.GetBackupRequest{
+		Id: "id1",
+	}
+	err := status.Error(codes.PermissionDenied, "denied")
+
+	cid := "cid1"
+	database := "test-database"
+	event := GRPCCallAuditEvent(
+		ctx, pb.BackupScheduleService_GetBackupSchedule_FullMethodName,
+		msg, "subj", "token.signature", cid,
+		database, false, err,
+	)
+
+	assert.Equal(t, "test-database", event.Database)
+	assert.Equal(t, "trace-123", event.TraceID)
+	assert.NotEmpty(t, event.RemoteAddress) // Ensure remote address is populated
+}
+
 func TestEventMarshalJSON(t *testing.T) {
 	event := &GRPCCallEvent{
 		GenericAuditFields: GenericAuditFields{
@@ -83,6 +107,36 @@ func TestEventMarshalJSON(t *testing.T) {
 	assert.Contains(t, string(data), `"status":`)
 	assert.Contains(t, string(data), `"@timestamp":`)
 	assert.Contains(t, string(data), `"database":"mydb"`)
+}
+
+func TestEventMarshalJSONWithNewFields(t *testing.T) {
+	event := &GRPCCallEvent{
+		GenericAuditFields: GenericAuditFields{
+			Resource:       "resource",
+			Action:         ActionGet,
+			Component:      "grpc_api",
+			Subject:        "sub@as",
+			FolderID:       "id1",
+			Database:       "mydb",
+			TraceID:        "trace-123",
+			RemoteAddress:  "127.0.0.1",
+			SanitizedToken: "tok",
+			Status:         "SUCCESS",
+			Timestamp:      time.Now().Format(time.RFC3339Nano),
+		},
+		GRPCRequest: marshalProtoMessage(
+			&pb.ListBackupsRequest{
+				ContainerId: "id1",
+			},
+		),
+		MethodName: "Method",
+	}
+
+	data, err := json.Marshal(event)
+	assert.NoError(t, err)
+	assert.Contains(t, string(data), `"database":"mydb"`)
+	assert.Contains(t, string(data), `"trace_id":"trace-123"`)
+	assert.Contains(t, string(data), `"remote_address":"127.0.0.1"`)
 }
 
 func TestMakeEnvelope(t *testing.T) {
@@ -295,4 +349,36 @@ func TestBackupStateAudit(t *testing.T) {
 			},
 		)
 	}
+}
+
+func TestRemoteAddressFromCtx(t *testing.T) {
+	ctx := context.Background()
+	address := remoteAddressFromCtx(ctx)
+	assert.Equal(t, "{none}", address)
+
+	remoteAddr := "192.168.1.1"
+	ctx = peer.NewContext(
+		ctx, &peer.Peer{
+			Addr: &mockAddr{address: remoteAddr},
+		},
+	)
+	address = remoteAddressFromCtx(ctx)
+	assert.Equal(t, remoteAddr, address)
+
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("x_forwarded_for", "10.0.0.1"))
+	address = remoteAddressFromCtx(ctx)
+	assert.Equal(t, "10.0.0.1,192.168.1.1", address)
+}
+
+// mockAddr is a mock implementation of net.Addr for testing purposes
+type mockAddr struct {
+	address string
+}
+
+func (m *mockAddr) Network() string {
+	return "tcp"
+}
+
+func (m *mockAddr) String() string {
+	return m.address
 }
