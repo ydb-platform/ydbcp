@@ -50,6 +50,7 @@ type TakeBackupOperation struct {
 	Audit                *pb.AuditInfo
 	UpdatedAt            *timestamppb.Timestamp
 	ParentOperationID    *string
+	EncryptionSettings   *pb.EncryptionSettings
 }
 
 func (o *TakeBackupOperation) GetID() string {
@@ -115,6 +116,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		Message:              o.Message,
 		UpdatedAt:            o.UpdatedAt,
 		TypeDescription:      o.GetTypeDescription(),
+		EncryptionSettings:   o.EncryptionSettings,
 	}
 	if o.ParentOperationID != nil {
 		op.ParentOperationId = *o.ParentOperationID
@@ -377,8 +379,9 @@ func (o *TakeBackupWithRetryOperation) SpawnNewTBOperation(backupID string, subj
 			Creator:   subject,
 			CreatedAt: timestamppb.Now(),
 		},
-		UpdatedAt:         timestamppb.Now(),
-		ParentOperationID: &o.ID,
+		UpdatedAt:          timestamppb.Now(),
+		ParentOperationID:  &o.ID,
+		EncryptionSettings: o.EncryptionSettings,
 	}
 }
 

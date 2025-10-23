@@ -3,6 +3,7 @@ package backup
 import (
 	"context"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"strconv"
 	"time"
 	"ydbcp/internal/audit"
@@ -110,9 +111,13 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 	now := timestamppb.Now()
 
+	var encryptionSettings *pb.EncryptionSettings
 	if req.EncryptionSettings != nil {
-		s.IncApiCallsCounter(methodName, codes.Unimplemented)
-		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		if !s.featureFlags.EnableBackupEncryption {
+			s.IncApiCallsCounter(methodName, codes.Unimplemented)
+			return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		}
+		encryptionSettings = proto.Clone(req.EncryptionSettings).(*pb.EncryptionSettings)
 	}
 
 	tbwr := &types.TakeBackupWithRetryOperation{
@@ -130,7 +135,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 				Creator:   subject,
 				CreatedAt: now,
 			},
-			UpdatedAt: now,
+			UpdatedAt:          now,
+			EncryptionSettings: encryptionSettings,
 		},
 		Retries: 0,
 		RetryConfig: &pb.RetryConfig{
@@ -381,6 +387,14 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		SourcePaths:       sourcePaths,
 		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
 		DestinationPrefix: req.GetDestinationPrefix(),
+	}
+
+	if backup.EncryptionSettings != nil {
+		// TODO: read encrypted DEK from s3
+		// TODO: decrypt DEC via KMS
+		// TODO: set EncryptionKey
+		_, algorithm, _ := backup_operations.GetEncryptionParams(backup.EncryptionSettings)
+		s3Settings.EncryptionAlgorithm = algorithm
 	}
 
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings, s.featureFlags)
