@@ -40,6 +40,10 @@ func GetRequestID(ctx context.Context) string {
 	return uuid.New().String()
 }
 
+func GetTraceID(ctx context.Context) *string {
+	return getFromCtx(ctx, "trace_id")
+}
+
 func GetGRPCHeaderValue(ctx context.Context, key string) *string {
 	md, ok := metadata.FromIncomingContext(ctx)
 	if !ok {
