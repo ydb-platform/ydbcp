@@ -10,7 +10,6 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/server"
-	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
@@ -37,7 +36,6 @@ func (s *OperationService) ListOperations(
 	request *pb.ListOperationsRequest,
 ) (_ *pb.ListOperationsResponse, responseErr error) {
 	const methodName string = "ListOperations"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	audit.SetAuditFieldsForRequest(
@@ -128,7 +126,6 @@ func (s *OperationService) CancelOperation(
 	request *pb.CancelOperationRequest,
 ) (_ *pb.Operation, responseErr error) {
 	const methodName string = "CancelOperation"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("OperationID", request.OperationId))
 
@@ -223,7 +220,6 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "GetOperation"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	operationID, err := types.ParseObjectID(request.GetId())
 	if err != nil {

@@ -14,7 +14,6 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
-	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/xlog"
@@ -46,7 +45,6 @@ func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (_ *pb.Backup, responseErr error) {
 	const methodName string = "GetBackup"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", request.Id))
 	backupID, err := types.ParseObjectID(request.GetId())
@@ -99,7 +97,6 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "MakeBackup"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 
 	ctx = xlog.With(ctx, zap.String("ContainerID", req.ContainerId))
@@ -173,7 +170,6 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "DeleteBackup"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
@@ -267,7 +263,6 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	operationPb *pb.Operation, responseErr error,
 ) {
 	const methodName string = "MakeRestore"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
 
@@ -442,7 +437,6 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	_ *pb.ListBackupsResponse, responseErr error,
 ) {
 	const methodName string = "ListBackups"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
@@ -536,7 +530,6 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	_ *pb.Backup, responseErr error,
 ) {
 	const methodName string = "UpdateBackupTtl"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("BackupID", request.BackupId))
 	backupID, err := types.ParseObjectID(request.GetBackupId())

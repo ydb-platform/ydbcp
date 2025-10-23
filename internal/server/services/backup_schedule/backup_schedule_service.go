@@ -17,7 +17,6 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
-	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/xlog"
@@ -48,7 +47,6 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx context.Context, request *pb.CreateBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "CreateBackupSchedule"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
 	audit.SetAuditFieldsForRequest(
@@ -191,7 +189,6 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	ctx context.Context, request *pb.UpdateBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "UpdateBackupSchedule"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
@@ -308,7 +305,6 @@ func (s *BackupScheduleService) GetBackupSchedule(
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "GetBackupSchedule"
 	ctx = xlog.With(ctx, zap.String("GRPCCall", pb.BackupScheduleService_GetBackupSchedule_FullMethodName))
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
@@ -357,7 +353,6 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	ctx context.Context, request *pb.ListBackupSchedulesRequest,
 ) (_ *pb.ListBackupSchedulesResponse, responseErr error) {
 	const methodName string = "ListBackupSchedules"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
 
 	queryFilters := make([]queries.QueryFilter, 0)
@@ -468,7 +463,6 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	ctx context.Context, request *pb.ToggleBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "ToggleBackupSchedule"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
@@ -559,7 +553,6 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	ctx context.Context, request *pb.DeleteBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "DeleteBackupSchedule"
-	ctx = grpcinfo.WithGRPCInfo(ctx)
 
 	scheduleID := request.GetId()
 	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
