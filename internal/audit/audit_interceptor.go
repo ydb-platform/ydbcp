@@ -41,6 +41,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 	return func(
 		ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
 	) (interface{}, error) {
+		ctx = grpcinfo.WithGRPCInfo(ctx)
 		requestID := grpcinfo.GetRequestID(ctx)
 		ctx = grpcinfo.SetRequestID(ctx, requestID)
 		subject, _ := authHelper.Authenticate(ctx, provider)
