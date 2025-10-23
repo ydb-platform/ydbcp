@@ -19,6 +19,7 @@ var EventsDestination string
 
 type GenericAuditFields struct {
 	ID             string           `json:"request_id"`
+	TraceID        string           `json:"trace_id,omitempty"`
 	IdempotencyKey string           `json:"idempotency_key"`
 	Service        string           `json:"service"`
 	SpecVersion    string           `json:"specversion"`
@@ -118,6 +119,13 @@ func formatSubject(subject string) string {
 	}
 }
 
+func formatTraceID(traceID *string) string {
+	if traceID == nil {
+		return "{none}"
+	}
+	return *traceID
+}
+
 func remoteAddressFromCtx(ctx context.Context) string {
 	p, ok := peer.FromContext(ctx)
 	if !ok {
@@ -149,6 +157,7 @@ func GRPCCallAuditEvent(
 		GenericAuditFields: GenericAuditFields{
 			ID:             uuid.New().String(),
 			IdempotencyKey: grpcinfo.GetRequestID(ctx),
+			TraceID:        formatTraceID(grpcinfo.GetTraceID(ctx)),
 			Service:        "ydbcp",
 			SpecVersion:    "1.0",
 			Action:         ActionFromMethodName(ctx, methodName),
