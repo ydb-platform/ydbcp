@@ -376,19 +376,25 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		sourcePaths[fullPath] = true
 	}
 
+	// TODO: remove this code after full migration to DestinationPath
+	destinationPath := req.GetDestinationPath()
+	if len(destinationPath) == 0 {
+		destinationPath = req.GetDestinationPrefix()
+	}
+
 	s3Settings := types.ImportSettings{
-		Endpoint:          s.s3.Endpoint,
-		Region:            s.s3.Region,
-		Bucket:            s.s3.Bucket,
-		AccessKey:         accessKey,
-		SecretKey:         secretKey,
-		Description:       "ydbcp restore", // TODO: write description
-		NumberOfRetries:   10,              // TODO: get value from configuration
-		BackupID:          backupID,
-		BucketDbRoot:      backup.S3PathPrefix,
-		SourcePaths:       sourcePaths,
-		S3ForcePathStyle:  s.s3.S3ForcePathStyle,
-		DestinationPrefix: req.GetDestinationPrefix(),
+		Endpoint:         s.s3.Endpoint,
+		Region:           s.s3.Region,
+		Bucket:           s.s3.Bucket,
+		AccessKey:        accessKey,
+		SecretKey:        secretKey,
+		Description:      "ydbcp restore", // TODO: write description
+		NumberOfRetries:  10,              // TODO: get value from configuration
+		BackupID:         backupID,
+		BucketDbRoot:     backup.S3PathPrefix,
+		SourcePaths:      sourcePaths,
+		S3ForcePathStyle: s.s3.S3ForcePathStyle,
+		DestinationPath:  destinationPath,
 	}
 
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings, s.featureFlags)
@@ -414,9 +420,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			CreatedAt: now,
 			Creator:   subject,
 		},
-		SourcePaths:       req.GetSourcePaths(),
-		DestinationPrefix: req.GetDestinationPrefix(),
-		UpdatedAt:         now,
+		SourcePaths:     req.GetSourcePaths(),
+		DestinationPath: destinationPath,
+		UpdatedAt:       now,
 	}
 
 	operationID, err := s.driver.CreateOperation(ctx, op)

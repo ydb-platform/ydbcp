@@ -24,16 +24,16 @@ type ExportSettings struct {
 }
 
 type ImportSettings struct {
-	Endpoint          string
-	Region            string
-	Bucket            string
-	AccessKey         string
-	SecretKey         string
-	Description       string
-	NumberOfRetries   uint32
-	BackupID          string
-	BucketDbRoot      string
-	SourcePaths       map[string]bool
-	S3ForcePathStyle  bool
-	DestinationPrefix string
+	Endpoint         string
+	Region           string
+	Bucket           string
+	AccessKey        string
+	SecretKey        string
+	Description      string
+	NumberOfRetries  uint32
+	BackupID         string
+	BucketDbRoot     string
+	SourcePaths      map[string]bool
+	S3ForcePathStyle bool
+	DestinationPath  string
 }
