@@ -64,7 +64,7 @@ func TestPrepareItemsForImport(t *testing.T) {
 	}
 	assert.ElementsMatch(t, deref(items), expected)
 
-	s3Settings.DestinationPrefix = "prefix"
+	s3Settings.DestinationPath = "prefix"
 	items, err = prepareItemsForImport("/cluster/local", s3Client, s3Settings)
 	assert.NoError(t, err)
 

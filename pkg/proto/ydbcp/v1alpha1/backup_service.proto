@@ -112,9 +112,12 @@ message MakeRestoreRequest {
     // GRPC endpoint of the database.
     string database_endpoint = 4;
     // The prefix for the destination path.
-    string destination_prefix = 5;
+    string destination_prefix = 5 [deprecated = true];
     // Paths to s3 objects to restore.
     repeated string source_paths = 6;
+    // Destination path to restore paths inside database,
+    // (empty field means restoring to the database root).
+    string destination_path = 7;
 }
 
 message UpdateBackupTtlRequest {

@@ -130,13 +130,10 @@ type RestoreBackupOperation struct {
 	Message             string
 	YdbConnectionParams YdbConnectionParams
 	YdbOperationId      string
-	// TODO: this field is not used, because DestinationPaths
-	// will be constructed from SourcePaths and DestinationPrefix
-	DestinationPaths  []string
-	SourcePaths       []string
-	DestinationPrefix string
-	Audit             *pb.AuditInfo
-	UpdatedAt         *timestamppb.Timestamp
+	SourcePaths         []string
+	DestinationPath     string
+	Audit               *pb.AuditInfo
+	UpdatedAt           *timestamppb.Timestamp
 }
 
 func (o *RestoreBackupOperation) GetID() string {
@@ -196,7 +193,6 @@ func (o *RestoreBackupOperation) Proto() *pb.Operation {
 		BackupId:             o.BackupId,
 		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: nil,
-		RestorePaths:         o.DestinationPaths,
 		Audit:                o.Audit,
 		Status:               o.State.Enum(),
 		Message:              o.Message,

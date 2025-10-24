@@ -334,7 +334,7 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 								},
 								DestinationPath: path.Join(
 									dbName,
-									s3Settings.DestinationPrefix,
+									s3Settings.DestinationPath,
 									key[len(backupRoot):],
 								),
 							},
@@ -368,7 +368,7 @@ func (d *ClientYdbConnector) ImportFromS3(
 	var items []*Ydb_Import.ImportFromS3Settings_Item
 	if featureFlags.EnableNewPathsFormat {
 		items = make([]*Ydb_Import.ImportFromS3Settings_Item, 0, len(s3Settings.SourcePaths))
-		for sourcePath, _ := range s3Settings.SourcePaths {
+		for sourcePath := range s3Settings.SourcePaths {
 			items = append(items, &Ydb_Import.ImportFromS3Settings_Item{
 				Source: &Ydb_Import.ImportFromS3Settings_Item_SourcePath{
 					SourcePath: sourcePath[len(s3Settings.BucketDbRoot):],
@@ -422,7 +422,7 @@ func (d *ClientYdbConnector) ImportFromS3(
 
 	if featureFlags.EnableNewPathsFormat {
 		importRequest.Settings.SourcePrefix = s3Settings.BucketDbRoot
-		importRequest.Settings.DestinationPath = path.Join(clientDb.Name(), s3Settings.DestinationPrefix)
+		importRequest.Settings.DestinationPath = path.Join(clientDb.Name(), s3Settings.DestinationPath)
 	}
 
 	response, err := importClient.ImportFromS3(ctx, importRequest)
