@@ -15,6 +15,7 @@ import (
 	"os"
 	"testing"
 	"time"
+	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
@@ -381,4 +382,21 @@ func (m *mockAddr) Network() string {
 
 func (m *mockAddr) String() string {
 	return m.address
+}
+
+func TestWithGRPCInfo(t *testing.T) {
+	ctx := context.Background()
+	ctx = grpcinfo.WithGRPCInfo(ctx)
+	SetAuditFieldsForRequest(
+		ctx, &AuditFields{
+			ContainerID: "container-1",
+			Database:    "db-1",
+		},
+	)
+
+	requestID, _ := grpcinfo.GetRequestID(ctx)
+	fields := GetAuditFieldsForRequest(requestID)
+	require.NotNil(t, fields)
+	require.Equal(t, "container-1", fields.ContainerID)
+	require.Equal(t, "db-1", fields.Database)
 }
