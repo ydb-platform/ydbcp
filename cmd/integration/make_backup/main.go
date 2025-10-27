@@ -702,6 +702,7 @@ func main() {
 	}
 
 	scheduleClient := pb.NewBackupScheduleServiceClient(conn)
+
 	schedules, err := scheduleClient.ListBackupSchedules(
 		context.Background(), &pb.ListBackupSchedulesRequest{
 			ContainerId:      containerID,
@@ -713,6 +714,15 @@ func main() {
 	}
 	if len(schedules.Schedules) > 0 {
 		log.Panicf("got backup schedule, but none created: %s", schedules.Schedules[0].String())
+	}
+	schedules, err = scheduleClient.ListBackupSchedules(
+		context.Background(), &pb.ListBackupSchedulesRequest{
+			ContainerId:      "",
+			DatabaseNameMask: "%",
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backup schedules: %v", err)
 	}
 	_, err = scheduleClient.CreateBackupSchedule(
 		context.Background(), &pb.CreateBackupScheduleRequest{

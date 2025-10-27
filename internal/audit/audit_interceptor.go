@@ -29,7 +29,10 @@ func SetAuditFieldsForRequest(ctx context.Context, fields *AuditFields) {
 func GetAuditFieldsForRequest(requestID string) *AuditFields {
 	v, ok := containerStore.Load(requestID)
 	if !ok {
-		return nil
+		return &AuditFields{
+			ContainerID: "",
+			Database:    "",
+		}
 	}
 	return v.(*AuditFields)
 }
