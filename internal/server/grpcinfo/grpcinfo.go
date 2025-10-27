@@ -27,17 +27,17 @@ func SetRequestID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, ctxKeyRequestID{}, id)
 }
 
-func GetRequestID(ctx context.Context) string {
+func GetRequestID(ctx context.Context) (string, bool) {
 	if id, ok := ctx.Value(ctxKeyRequestID{}).(string); ok {
-		return id
+		return id, false
 	}
 	for _, key := range []string{"RequestID", "RequestId", "request-id", "request_id"} {
 		val := getFromCtx(ctx, key)
 		if val != nil {
-			return *val
+			return *val, false
 		}
 	}
-	return uuid.New().String()
+	return uuid.New().String(), true
 }
 
 func GetTraceID(ctx context.Context) *string {
@@ -76,12 +76,15 @@ func WithGRPCInfo(ctx context.Context) context.Context {
 	if method, ok := grpc.Method(ctx); ok {
 		ctx = xlog.With(ctx, zap.String("GRPCMethod", method))
 	}
-	requestID := GetRequestID(ctx)
+	requestID, newID := GetRequestID(ctx)
 	ctx = xlog.With(ctx, zap.String("RequestID", requestID))
 	err := grpc.SendHeader(ctx, metadata.Pairs("X-Request-ID", requestID))
 	if err != nil {
 		xlog.Error(ctx, "failed to set X-Request-ID header", zap.Error(err))
 	}
 	xlog.Debug(ctx, "New grpc request")
+	if newID {
+		ctx = SetRequestID(ctx, requestID)
+	}
 	return ctx
 }

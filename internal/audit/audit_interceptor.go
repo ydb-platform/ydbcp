@@ -22,7 +22,8 @@ var (
 )
 
 func SetAuditFieldsForRequest(ctx context.Context, fields *AuditFields) {
-	containerStore.Store(grpcinfo.GetRequestID(ctx), fields)
+	requestID, _ := grpcinfo.GetRequestID(ctx)
+	containerStore.Store(requestID, fields)
 }
 
 func GetAuditFieldsForRequest(requestID string) *AuditFields {
@@ -42,8 +43,6 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 		ctx context.Context, req interface{}, info *grpc.UnaryServerInfo, handler grpc.UnaryHandler,
 	) (interface{}, error) {
 		ctx = grpcinfo.WithGRPCInfo(ctx)
-		requestID := grpcinfo.GetRequestID(ctx)
-		ctx = grpcinfo.SetRequestID(ctx, requestID)
 		subject, _ := authHelper.Authenticate(ctx, provider)
 		token, _ := authHelper.GetMaskedToken(ctx, provider)
 		pm, ok := req.(proto.Message)
@@ -55,6 +54,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 			)
 		}
 		response, grpcErr := handler(ctx, req)
+		requestID, _ := grpcinfo.GetRequestID(ctx)
 		fields := GetAuditFieldsForRequest(requestID)
 		defer ClearAuditFieldsForRequest(requestID)
 		ReportGRPCCallEnd(ctx, info.FullMethod, subject, fields.ContainerID, fields.Database, token, grpcErr)

@@ -153,10 +153,11 @@ func GRPCCallAuditEvent(
 	err error,
 ) *GRPCCallEvent {
 	s, r := getStatus(inProgress, err)
+	requestID, _ := grpcinfo.GetRequestID(ctx)
 	return &GRPCCallEvent{
 		GenericAuditFields: GenericAuditFields{
 			ID:             uuid.New().String(),
-			IdempotencyKey: grpcinfo.GetRequestID(ctx),
+			IdempotencyKey: requestID,
 			TraceID:        formatTraceID(grpcinfo.GetTraceID(ctx)),
 			Service:        "ydbcp",
 			SpecVersion:    "1.0",
