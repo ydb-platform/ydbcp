@@ -18,7 +18,7 @@ import (
 )
 
 func deadlineExceeded(createdAt *timestamppb.Timestamp, config config.Config) bool {
-	return time.Since(createdAt.AsTime()) > time.Duration(config.GetOperationTtlSeconds())*time.Second
+	return time.Since(createdAt.AsTime()) > time.Duration(config.OperationProcessor.OperationTtlSeconds)*time.Second
 }
 func isValidStatus(status Ydb.StatusIds_StatusCode) bool {
 	return status == Ydb.StatusIds_SUCCESS || status == Ydb.StatusIds_CANCELLED

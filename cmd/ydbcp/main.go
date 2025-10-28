@@ -60,10 +60,10 @@ func main() {
 	var wg sync.WaitGroup
 
 	var logger *xlog.LogConfig
-	if configInstance.GetDuplicateLogToFile() != "" {
-		logger, err = xlog.SetupLoggingWithFile(configInstance.GetLogLevel(), configInstance.GetDuplicateLogToFile())
+	if configInstance.Log.DuplicateToFile != "" {
+		logger, err = xlog.SetupLoggingWithFile(configInstance.Log.Level, configInstance.Log.DuplicateToFile)
 	} else {
-		logger, err = xlog.SetupLogging(configInstance.GetLogLevel())
+		logger, err = xlog.SetupLogging(configInstance.Log.Level)
 	}
 	if err != nil {
 		log.Error(err)
@@ -116,7 +116,7 @@ func main() {
 	xlog.Info(ctx, "Initialized AuthProvider")
 	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
-	audit.EventsDestination = configInstance.GetAuditEventsDestination()
+	audit.EventsDestination = configInstance.Audit.EventsDestination
 	server, err := server.NewServer(&configInstance.GRPCServer, authProvider)
 	if err != nil {
 		xlog.Error(ctx, "failed to initialize GRPC server", zap.Error(err))
@@ -199,11 +199,11 @@ func main() {
 	}
 
 	processor.NewOperationProcessor(
-		ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector, handlersRegistry,
+		ctx, &wg, configInstance.OperationProcessor.ProcessorIntervalSeconds, dbConnector, handlersRegistry,
 	)
 	xlog.Info(ctx, "Initialized OperationProcessor")
 
-	if configInstance.GetDisableTTLDeletion() {
+	if configInstance.FeatureFlags.DisableTTLDeletion {
 		xlog.Info(ctx, "TtlWatcher is disabled, old backups won't be deleted")
 	} else {
 		ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
@@ -213,7 +213,7 @@ func main() {
 	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
 
 	schedule_watcher.NewScheduleWatcher(
-		ctx, &wg, configInstance.GetProcessorIntervalSeconds(), dbConnector,
+		ctx, &wg, configInstance.OperationProcessor.ProcessorIntervalSeconds, dbConnector,
 		backupScheduleHandler, clockwork.NewRealClock(),
 	)
 	xlog.Info(ctx, "Created ScheduleWatcher")
