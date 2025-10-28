@@ -65,7 +65,7 @@ type GRPCCallEvent struct {
 	GenericAuditFields
 
 	MethodName  string          `json:"operation"`
-	GRPCRequest json.RawMessage `json:"grpc_request"`
+	GRPCRequest json.RawMessage `json:"grpc_request,omitempty"`
 }
 
 func makeEnvelope(event any) (*EventEnvelope, error) {
@@ -99,6 +99,15 @@ func getStatus(inProgress bool, err error) (AuditEventStatus, string) {
 		status = StatusSuccess
 	}
 	return status, reason
+}
+
+func formatContainerID(containerID string) string {
+	switch containerID {
+	case "", "{none}":
+		return "{none}"
+	default:
+		return containerID
+	}
 }
 
 func formatDatabase(database string) string {
@@ -164,7 +173,7 @@ func GRPCCallAuditEvent(
 			Action:         ActionFromMethodName(ctx, methodName),
 			Resource:       ResourceFromMethodName(ctx, methodName),
 			Component:      "grpc_api",
-			FolderID:       containerID,
+			FolderID:       formatContainerID(containerID),
 			Database:       formatDatabase(database),
 			Subject:        formatSubject(subject),
 			SanitizedToken: token,
@@ -191,7 +200,7 @@ func ReportGRPCCallBegin(
 
 func ReportGRPCCallEnd(
 	ctx context.Context, methodName string,
-	subject string, containerID string, token string, database string, err error,
+	subject string, token string, containerID string, database string, err error,
 ) {
 	event := GRPCCallAuditEvent(
 		ctx, methodName, nil, subject, token, containerID, database, false, err,
