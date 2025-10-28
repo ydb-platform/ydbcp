@@ -400,3 +400,82 @@ func TestWithGRPCInfo(t *testing.T) {
 	require.Equal(t, "container-1", fields.ContainerID)
 	require.Equal(t, "db-1", fields.Database)
 }
+
+func TestReportGRPCCallBeginJSON(t *testing.T) {
+	ctx := grpcinfo.WithGRPCInfo(context.Background())
+	ctx = peer.NewContext(
+		ctx, &peer.Peer{
+			Addr: &mockAddr{address: "192.168.1.1"},
+		},
+	)
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("x_forwarded_for", "10.0.0.1"))
+
+	req := &pb.GetBackupRequest{Id: "id-req"}
+	method := pb.BackupScheduleService_GetBackupSchedule_FullMethodName
+	subj := "subj"
+	token := "tok.***"
+
+	out := CaptureEventAsString(
+		t, func() {
+			ReportGRPCCallBegin(ctx, req, method, subj, token)
+		},
+	)
+
+	var ej EventJson
+	require.NoError(t, json.Unmarshal([]byte(out), &ej))
+
+	var evt GRPCCallEvent
+	require.NoError(t, json.Unmarshal([]byte(ej.Event.TextData), &evt))
+
+	assert.Equal(t, method, evt.MethodName)
+	assert.Equal(t, StatusInProcess, evt.Status)
+	assert.Equal(t, formatSubject(subj), evt.Subject)
+	assert.Equal(t, token, evt.SanitizedToken)
+	assert.Equal(t, "{none}", evt.FolderID)
+	assert.Equal(t, "{none}", evt.Database)
+	requestID, _ := grpcinfo.GetRequestID(ctx)
+	assert.Equal(t, requestID, evt.IdempotencyKey)
+	assert.Contains(t, string(evt.GRPCRequest), "id-req")
+	assert.Contains(t, evt.RemoteAddress, "10.0.0.1")
+	assert.Contains(t, evt.RemoteAddress, "192.168.1.1")
+}
+
+func TestReportGRPCCallEndJSON(t *testing.T) {
+	ctx := grpcinfo.WithGRPCInfo(context.Background())
+	// add peer info and forwarded header
+	ctx = peer.NewContext(
+		ctx, &peer.Peer{
+			Addr: &mockAddr{address: "192.168.2.2"},
+		},
+	)
+	ctx = metadata.NewIncomingContext(ctx, metadata.Pairs("x_forwarded_for", "172.16.0.5"))
+
+	method := pb.BackupScheduleService_GetBackupSchedule_FullMethodName
+	subj := "end-subj"
+	token := "end-tok"
+	database := "db-1"
+	err := status.Error(codes.NotFound, "not found")
+
+	out := CaptureEventAsString(
+		t, func() {
+			ReportGRPCCallEnd(ctx, method, subj, token, "", database, err)
+		},
+	)
+
+	var ej EventJson
+	require.NoError(t, json.Unmarshal([]byte(out), &ej))
+
+	var evt GRPCCallEvent
+	require.NoError(t, json.Unmarshal([]byte(ej.Event.TextData), &evt))
+
+	assert.Equal(t, method, evt.MethodName)
+	assert.Equal(t, formatSubject(subj), evt.Subject)
+	assert.Equal(t, token, evt.SanitizedToken)
+	assert.Equal(t, "{none}", evt.FolderID)
+	assert.Equal(t, database, evt.Database)
+	assert.Equal(t, StatusError, evt.Status)
+	assert.Equal(t, err.Error(), evt.Reason)
+	assert.Nil(t, evt.GRPCRequest)
+	assert.Contains(t, evt.RemoteAddress, "172.16.0.5")
+	assert.Contains(t, evt.RemoteAddress, "192.168.2.2")
+}

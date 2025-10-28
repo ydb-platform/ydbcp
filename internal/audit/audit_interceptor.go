@@ -30,8 +30,8 @@ func GetAuditFieldsForRequest(requestID string) *AuditFields {
 	v, ok := containerStore.Load(requestID)
 	if !ok {
 		return &AuditFields{
-			ContainerID: "",
-			Database:    "",
+			ContainerID: "{none}",
+			Database:    "{none}",
 		}
 	}
 	return v.(*AuditFields)
@@ -60,7 +60,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 		requestID, _ := grpcinfo.GetRequestID(ctx)
 		fields := GetAuditFieldsForRequest(requestID)
 		defer ClearAuditFieldsForRequest(requestID)
-		ReportGRPCCallEnd(ctx, info.FullMethod, subject, fields.ContainerID, fields.Database, token, grpcErr)
+		ReportGRPCCallEnd(ctx, info.FullMethod, subject, token, fields.ContainerID, fields.Database, grpcErr)
 		return response, grpcErr
 	}
 }
