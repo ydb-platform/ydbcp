@@ -1,5 +1,3 @@
-operation_ttl_seconds: 86400 # 24 hours
-
 db_connection:
   connection_string: "grpcs://localhost:2135/domain/database"
   insecure: true
@@ -37,3 +35,6 @@ metrics_server:
   bind_address: 127.0.0.1
   #tls_certificate_path: path/to/tls.crt
   #tls_key_path: path/to/tls.key
+
+operation_processor:
+  operation_ttl_seconds: 86400 # 24 hours

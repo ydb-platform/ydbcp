@@ -133,7 +133,7 @@ func TestRBOperationHandlerRunningOperationInProgress(t *testing.T) {
 
 	// try to handle pending rb operation with ttl
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -187,7 +187,7 @@ func TestRBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -240,7 +240,7 @@ func TestRBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(10)
+	config.OperationProcessor.OperationTtlSeconds = 10
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -344,7 +344,7 @@ func TestRBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -398,7 +398,7 @@ func TestRBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(10)
+	config.OperationProcessor.OperationTtlSeconds = 10
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -452,7 +452,7 @@ func TestRBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(10)
+	config.OperationProcessor.OperationTtlSeconds = 10
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,
@@ -506,7 +506,7 @@ func TestRBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	dbConnector := db.NewMockDBConnector(db.WithOperations(opMap))
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(10)
+	config.OperationProcessor.OperationTtlSeconds = 10
 	handler := NewRBOperationHandler(
 		dbConnector,
 		clientConnector,

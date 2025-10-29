@@ -1,5 +1,3 @@
-operation_ttl_seconds: 86400 # 24 hours
-
 db_connection:
   connection_string: "grpcs://${YDB_NAME}:2135/local"
   insecure: true
@@ -24,15 +22,21 @@ s3:
 
 grpc_server:
   bind_port: 50051
-  log_level: INFO
 
 metrics_server:
   bind_address: 127.0.0.1
   bind_port: 9090
 
-schedules_limit_per_db: 1
-processor_interval_seconds: 2
-duplicate_log_to_file: /var/log/main.log
+operation_processor:
+  operation_ttl_seconds: 86400 # 24 hours
+  processor_interval_seconds: 2
+
+quota:
+  schedules_per_db: 1
+
+log:
+  duplicate_to_file: /var/log/main.log
+  level: INFO
 
 feature_flags:
   enable_new_paths_format: ${ENABLE_NEW_PATHS_FORMAT}

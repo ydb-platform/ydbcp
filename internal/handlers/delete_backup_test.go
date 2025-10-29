@@ -52,7 +52,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 
 	config := config.Config{}
-	config.SetOperationTtlSeconds(0)
+	config.OperationProcessor.OperationTtlSeconds = 0
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
@@ -124,7 +124,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 
 	metrics.InitializeMockMetricsRegistry()
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
@@ -204,7 +204,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 
 	metrics.InitializeMockMetricsRegistry()
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
@@ -281,7 +281,7 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
@@ -351,7 +351,7 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 
 	metrics.InitializeMockMetricsRegistry()
 	config := config.Config{}
-	config.SetOperationTtlSeconds(1000)
+	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
 		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
 	)
