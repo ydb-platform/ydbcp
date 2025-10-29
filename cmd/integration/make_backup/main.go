@@ -600,11 +600,11 @@ func main() {
 
 	restoreOperation, err := client.MakeRestore(
 		context.Background(), &pb.MakeRestoreRequest{
-			ContainerId:       containerID,
-			BackupId:          backupOperation.BackupId,
-			DatabaseName:      databaseName,
-			DatabaseEndpoint:  databaseEndpoint,
-			DestinationPrefix: "/tmp",
+			ContainerId:      containerID,
+			BackupId:         backupOperation.BackupId,
+			DatabaseName:     databaseName,
+			DatabaseEndpoint: databaseEndpoint,
+			DestinationPath:  "/tmp",
 		},
 	)
 	if err != nil {
@@ -632,12 +632,12 @@ func main() {
 
 	partialRestoreOperation, err := client.MakeRestore(
 		context.Background(), &pb.MakeRestoreRequest{
-			ContainerId:       containerID,
-			BackupId:          backupOperation.BackupId,
-			DatabaseName:      databaseName,
-			DatabaseEndpoint:  databaseEndpoint,
-			DestinationPrefix: "/partial_restore",
-			SourcePaths:       []string{"kv_test"},
+			ContainerId:      containerID,
+			BackupId:         backupOperation.BackupId,
+			DatabaseName:     databaseName,
+			DatabaseEndpoint: databaseEndpoint,
+			DestinationPath:  "/partial_restore",
+			SourcePaths:      []string{"kv_test"},
 		},
 	)
 	if err != nil {

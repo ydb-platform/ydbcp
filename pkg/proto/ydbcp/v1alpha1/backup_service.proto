@@ -111,8 +111,7 @@ message MakeRestoreRequest {
     string database_name = 3;
     // GRPC endpoint of the database.
     string database_endpoint = 4;
-    // The prefix for the destination path.
-    string destination_prefix = 5 [deprecated = true];
+    reserved 5;
     // Paths to s3 objects to restore.
     repeated string source_paths = 6;
     // Destination path to restore paths inside database,

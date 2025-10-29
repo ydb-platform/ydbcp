@@ -376,12 +376,6 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		sourcePaths[fullPath] = true
 	}
 
-	// TODO: remove this code after full migration to DestinationPath
-	destinationPath := req.GetDestinationPath()
-	if len(destinationPath) == 0 {
-		destinationPath = req.GetDestinationPrefix()
-	}
-
 	s3Settings := types.ImportSettings{
 		Endpoint:         s.s3.Endpoint,
 		Region:           s.s3.Region,
@@ -394,7 +388,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		BucketDbRoot:     backup.S3PathPrefix,
 		SourcePaths:      sourcePaths,
 		S3ForcePathStyle: s.s3.S3ForcePathStyle,
-		DestinationPath:  destinationPath,
+		DestinationPath:  req.GetDestinationPath(),
 	}
 
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings, s.featureFlags)
@@ -421,7 +415,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 			Creator:   subject,
 		},
 		SourcePaths:     req.GetSourcePaths(),
-		DestinationPath: destinationPath,
+		DestinationPath: req.GetDestinationPath(),
 		UpdatedAt:       now,
 	}
 
