@@ -359,6 +359,18 @@ func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedu
 		schedule.ID,
 		scheduleNameLabel,
 	)
+
+	s.backupsFailedCount.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		scheduleNameLabel,
+	)
+
+	s.backupsSucceededCount.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		scheduleNameLabel,
+	)
 }
 
 func InitializeMetricsRegistry(
