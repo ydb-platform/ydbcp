@@ -268,7 +268,7 @@ func (d *ClientYdbConnector) ExportToS3(
 	}
 
 	if featureFlags.EnableNewPathsFormat {
-		exportRequest.Settings.SourcePath = clientDb.Name()
+		exportRequest.Settings.SourcePath = path.Join(clientDb.Name(), s3Settings.RootPath)
 		exportRequest.Settings.DestinationPrefix = s3Settings.DestinationPrefix
 	}
 

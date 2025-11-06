@@ -67,6 +67,7 @@ func BackupScheduleHandler(
 					Endpoint:     schedule.DatabaseEndpoint,
 					DatabaseName: schedule.DatabaseName,
 				},
+				RootPath:             schedule.RootPath,
 				SourcePaths:          schedule.SourcePaths,
 				SourcePathsToExclude: schedule.SourcePathsToExclude,
 				Audit: &pb.AuditInfo{

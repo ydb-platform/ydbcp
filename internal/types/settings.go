@@ -18,6 +18,7 @@ type ExportSettings struct {
 	SecretKey         string
 	Description       string
 	NumberOfRetries   uint32
+	RootPath          string
 	SourcePaths       []string
 	DestinationPrefix string
 	S3ForcePathStyle  bool

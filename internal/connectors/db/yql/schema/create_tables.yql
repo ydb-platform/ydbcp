@@ -51,6 +51,7 @@ CREATE TABLE Operations (
     status String,
     message String,
 
+    root_path String,
     paths String,
     paths_to_exclude String,
     operation_id String,
@@ -79,6 +80,7 @@ CREATE TABLE BackupSchedules (
 
     crontab String NOT NULL,
     ttl Interval,
+    root_path String,
     paths String,
     paths_to_exclude String,
 

@@ -93,3 +93,20 @@ jobs:
       - name: docker compose down
         run: |
           docker compose down
+      - name: docker compose up     
+        if: ${{ matrix.enable_new_paths_format }}
+        run: |
+          docker compose up -d
+      - name: run new_paths_format tests
+        if: ${{ matrix.enable_new_paths_format }}
+        run: |
+          while [ "$(docker inspect -f {{.State.Health.Status}} local-ydbcp)" != "healthy" ]; do
+            echo "Waiting for container to become healthy..."
+            sleep 1
+          done
+          echo "Starting new_paths_format tests!"
+          docker exec local-ydbcp sh -c './test_new_paths_format'
+      - name: docker compose down
+        if: ${{ matrix.enable_new_paths_format }}
+        run: |
+          docker compose down

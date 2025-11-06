@@ -45,6 +45,7 @@ type TakeBackupOperation struct {
 	Message              string
 	YdbConnectionParams  YdbConnectionParams
 	YdbOperationId       string
+	RootPath             string
 	SourcePaths          []string
 	SourcePathsToExclude []string
 	Audit                *pb.AuditInfo
@@ -107,6 +108,7 @@ func (o *TakeBackupOperation) Proto() *pb.Operation {
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
 		BackupId:             o.BackupID,
+		RootPath:             o.RootPath,
 		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: o.SourcePathsToExclude,
 		RestorePaths:         nil,
@@ -342,6 +344,7 @@ func (o *TakeBackupWithRetryOperation) Proto() *pb.Operation {
 		DatabaseEndpoint:     o.YdbConnectionParams.Endpoint,
 		YdbServerOperationId: o.YdbOperationId,
 		BackupId:             o.BackupID,
+		RootPath:             o.RootPath,
 		SourcePaths:          o.SourcePaths,
 		SourcePathsToExclude: o.SourcePathsToExclude,
 		RestorePaths:         nil,

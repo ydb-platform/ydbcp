@@ -72,4 +72,7 @@ message BackupSchedule {
     google.protobuf.Timestamp next_launch = 11;
     // Information about the last successful backup.
     ScheduledBackupInfo last_successful_backup_info = 12;
+    // Root path for all objects included in the backup,
+    // it must be relative to the db root.
+    string root_path = 13;
 }

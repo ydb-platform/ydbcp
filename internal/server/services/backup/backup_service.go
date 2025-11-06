@@ -112,6 +112,11 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
 	now := timestamppb.Now()
 
+	if len(req.RootPath) > 0 && !s.featureFlags.EnableNewPathsFormat {
+		s.IncApiCallsCounter(methodName, codes.Unimplemented)
+		return nil, status.Error(codes.Unimplemented, "backup root path is not supported yet")
+	}
+
 	if req.EncryptionSettings != nil {
 		s.IncApiCallsCounter(methodName, codes.Unimplemented)
 		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
@@ -126,6 +131,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 				Endpoint:     req.DatabaseEndpoint,
 				DatabaseName: req.DatabaseName,
 			},
+			RootPath:             req.RootPath,
 			SourcePaths:          req.SourcePaths,
 			SourcePathsToExclude: req.SourcePathsToExclude,
 			Audit: &pb.AuditInfo{

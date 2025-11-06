@@ -2,10 +2,6 @@ package main
 
 import (
 	"context"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"google.golang.org/grpc"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"log"
 	"reflect"
 	"time"
@@ -16,6 +12,11 @@ import (
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -44,6 +45,7 @@ func OperationsToInsert() []types.TakeBackupWithRetryOperation {
 					Endpoint:     ydbcpEndpoint,
 					DatabaseName: databaseName,
 				},
+				RootPath:             "root",
 				SourcePaths:          []string{"path"},
 				SourcePathsToExclude: []string{"exclude"},
 				Audit: &pb.AuditInfo{
@@ -68,6 +70,7 @@ func OperationsToInsert() []types.TakeBackupWithRetryOperation {
 					Endpoint:     ydbcpEndpoint,
 					DatabaseName: databaseName,
 				},
+				RootPath:             "root",
 				SourcePaths:          []string{"path"},
 				SourcePathsToExclude: []string{"exclude"},
 				Audit: &pb.AuditInfo{
