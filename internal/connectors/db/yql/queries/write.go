@@ -117,6 +117,9 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			"$operation_id",
 			table_types.StringValueFromString(tb.YdbOperationId),
 		)
+		if len(tb.RootPath) > 0 {
+			d.AddValueParam("$root_path", table_types.StringValueFromString(tb.RootPath))
+		}
 		if len(tb.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tb.SourcePaths)))
 		}
@@ -146,6 +149,9 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			"$endpoint",
 			table_types.StringValueFromString(tbwr.YdbConnectionParams.Endpoint),
 		)
+		if len(tbwr.RootPath) > 0 {
+			d.AddValueParam("$root_path", table_types.StringValueFromString(tbwr.RootPath))
+		}
 		if len(tbwr.SourcePaths) > 0 {
 			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tbwr.SourcePaths)))
 		}
@@ -356,6 +362,9 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	}
 	if schedule.ScheduleSettings.Ttl != nil {
 		d.AddValueParam("$ttl", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()))
+	}
+	if len(schedule.RootPath) > 0 {
+		d.AddValueParam("$root_path", table_types.StringValueFromString(schedule.RootPath))
 	}
 	if len(schedule.SourcePaths) > 0 {
 		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths)))

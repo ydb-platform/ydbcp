@@ -143,6 +143,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		ydbOperationId       *string
 		operationStateBuf    *string
 		message              *string
+		rootPath             *string
 		sourcePaths          *string
 		sourcePathsToExclude *string
 		creator              *string
@@ -168,6 +169,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 		query.Named("operation_id", &ydbOperationId),
 		query.Named("status", &operationStateBuf),
 		query.Named("message", &message),
+		query.Named("root_path", &rootPath),
 		query.Named("paths", &sourcePaths),
 		query.Named("paths_to_exclude", &sourcePathsToExclude),
 
@@ -223,6 +225,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 				Endpoint:     databaseEndpoint,
 				DatabaseName: databaseName,
 			},
+			RootPath:             StringOrEmpty(rootPath),
 			SourcePaths:          sourcePathsSlice,
 			SourcePathsToExclude: sourcePathsToExcludeSlice,
 			YdbOperationId:       StringOrEmpty(ydbOperationId),
@@ -301,6 +304,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 					Endpoint:     databaseEndpoint,
 					DatabaseName: databaseName,
 				},
+				RootPath:             StringOrEmpty(rootPath),
 				SourcePaths:          sourcePathsSlice,
 				SourcePathsToExclude: sourcePathsToExcludeSlice,
 				Audit:                auditFromDb(creator, createdAt, completedAt),
@@ -330,6 +334,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		createdAt              *time.Time
 		name                   *string
 		ttl                    *time.Duration
+		rootPath               *string
 		sourcePaths            *string
 		sourcePathsToExclude   *string
 		recoveryPointObjective *time.Duration
@@ -351,6 +356,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		query.Named("created_at", &createdAt),
 		query.Named("name", &name),
 		query.Named("ttl", &ttl),
+		query.Named("root_path", &rootPath),
 		query.Named("paths", &sourcePaths),
 		query.Named("paths_to_exclude", &sourcePathsToExclude),
 		query.Named("recovery_point_objective", &recoveryPointObjective),
@@ -400,6 +406,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		ContainerID:          containerID,
 		DatabaseName:         databaseName,
 		DatabaseEndpoint:     databaseEndpoint,
+		RootPath:             StringOrEmpty(rootPath),
 		SourcePaths:          sourcePathsSlice,
 		SourcePathsToExclude: sourcePathsToExcludeSlice,
 		Audit:                auditFromDb(initiated, createdAt, nil),

@@ -25,6 +25,7 @@ type BackupSchedule struct {
 	ContainerID            string
 	DatabaseName           string
 	DatabaseEndpoint       string
+	RootPath               string
 	SourcePaths            []string
 	SourcePathsToExclude   []string
 	Audit                  *pb.AuditInfo
@@ -74,6 +75,7 @@ func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 		Id:                       b.ID,
 		ContainerId:              b.ContainerID,
 		DatabaseName:             b.DatabaseName,
+		RootPath:                 b.RootPath,
 		Endpoint:                 b.DatabaseEndpoint,
 		Audit:                    b.Audit,
 		Status:                   pb.BackupSchedule_Status(pb.BackupSchedule_Status_value[b.Status]),

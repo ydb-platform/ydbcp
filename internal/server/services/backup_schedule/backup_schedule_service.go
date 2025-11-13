@@ -129,6 +129,11 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.FailedPrecondition, "recovery point objective should be greater than 0")
 	}
 
+	if len(request.RootPath) > 0 && !s.config.FeatureFlags.EnableNewPathsFormat {
+		s.IncApiCallsCounter(methodName, codes.Unimplemented)
+		return nil, status.Error(codes.Unimplemented, "backup root path is not supported yet")
+	}
+
 	var scheduleName *string
 	if len(request.ScheduleName) > 0 {
 		scheduleName = &request.ScheduleName
@@ -139,6 +144,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		ContainerID:          request.ContainerId,
 		DatabaseName:         request.DatabaseName,
 		DatabaseEndpoint:     request.Endpoint,
+		RootPath:             request.RootPath,
 		SourcePaths:          request.SourcePaths,
 		SourcePathsToExclude: request.SourcePathsToExclude,
 		Audit: &pb.AuditInfo{

@@ -49,6 +49,9 @@ message CreateBackupScheduleRequest {
     string schedule_name = 6;
     // The settings for the backup schedule.
     BackupScheduleSettings schedule_settings = 7;
+    // Root path for all objects included in the backup,
+    // it must be relative to the db root.
+    string root_path = 8;
 }
 
 message UpdateBackupScheduleRequest {

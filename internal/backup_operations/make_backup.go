@@ -30,6 +30,7 @@ type MakeBackupInternalRequest struct {
 	ContainerID          string
 	DatabaseEndpoint     string
 	DatabaseName         string
+	RootPath             string
 	SourcePaths          []string
 	SourcePathsToExclude []string
 	ScheduleID           *string
@@ -42,6 +43,7 @@ func FromBackupSchedule(schedule *types.BackupSchedule) MakeBackupInternalReques
 		ContainerID:          schedule.ContainerID,
 		DatabaseEndpoint:     schedule.DatabaseEndpoint,
 		DatabaseName:         schedule.DatabaseName,
+		RootPath:             schedule.RootPath,
 		SourcePaths:          schedule.SourcePaths,
 		SourcePathsToExclude: schedule.SourcePathsToExclude,
 		ScheduleID:           &schedule.ID,
@@ -57,6 +59,7 @@ func FromTBWROperation(tbwr *types.TakeBackupWithRetryOperation) MakeBackupInter
 		ContainerID:          tbwr.ContainerID,
 		DatabaseEndpoint:     tbwr.YdbConnectionParams.Endpoint,
 		DatabaseName:         tbwr.YdbConnectionParams.DatabaseName,
+		RootPath:             tbwr.RootPath,
 		SourcePaths:          tbwr.SourcePaths,
 		SourcePathsToExclude: tbwr.SourcePathsToExclude,
 		ScheduleID:           tbwr.ScheduleID,
@@ -141,9 +144,14 @@ func ValidateSourcePaths(
 	if req.ScheduleID != nil {
 		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
 	}
+	basePath, ok := SafePathJoin(req.DatabaseName, req.RootPath)
+	if !ok {
+		xlog.Error(ctx, "incorrect root path", zap.String("path", req.RootPath))
+		return nil, status.Errorf(codes.InvalidArgument, "incorrect root path %s", req.RootPath)
+	}
 	sourcePaths := make([]string, 0, len(req.SourcePaths))
 	for _, p := range req.SourcePaths {
-		fullPath, ok := SafePathJoin(req.DatabaseName, p)
+		fullPath, ok := SafePathJoin(basePath, p)
 		if !ok {
 			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
 			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
@@ -345,6 +353,7 @@ func MakeBackup(
 		SecretKey:         secretKey,
 		Description:       "ydbcp backup", // TODO: the description shoud be better
 		NumberOfRetries:   10,             // TODO: get it from configuration
+		RootPath:          req.RootPath,
 		SourcePaths:       pathsForExport,
 		DestinationPrefix: destinationPrefix,
 		S3ForcePathStyle:  s3.S3ForcePathStyle,
@@ -393,6 +402,7 @@ func MakeBackup(
 			Endpoint:     req.DatabaseEndpoint,
 			DatabaseName: req.DatabaseName,
 		},
+		RootPath:             req.RootPath,
 		SourcePaths:          req.SourcePaths,
 		SourcePathsToExclude: req.SourcePathsToExclude,
 		Audit: &pb.AuditInfo{

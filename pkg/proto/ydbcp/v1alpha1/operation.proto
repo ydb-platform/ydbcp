@@ -54,4 +54,7 @@ message Operation {
     RetryConfig retry_config = 16;
     // Human readable description for the operation type.
     string type_description = 17;
+    // Root path for all objects included in the backup,
+    // it must be relative to the db root.
+    string root_path = 18;
 }

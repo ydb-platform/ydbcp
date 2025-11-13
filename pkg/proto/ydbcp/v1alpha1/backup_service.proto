@@ -94,6 +94,9 @@ message MakeBackupRequest {
     // Backup encryption settings,
     // unspecified field means the backup will be unencrypted.
     EncryptionSettings encryption_settings = 7;
+    // Root path for all objects included in the backup,
+    // it must be relative to the db root.
+    string root_path = 8;
 }
 
 message DeleteBackupRequest {
