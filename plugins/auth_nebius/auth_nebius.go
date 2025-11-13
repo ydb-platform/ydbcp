@@ -29,16 +29,6 @@ type pluginConfig struct {
 	RootCAPath            string `yaml:"root_ca_path"`
 }
 
-func parseEndpoint(e string) (string, bool) {
-	if strings.HasPrefix(e, "grpcs://") {
-		return e[8:], true
-	}
-	if strings.HasPrefix(e, "grpc://") {
-		return e[7:], false
-	}
-	return e, false
-}
-
 func (p *authProviderNebius) loadTLSCredentials() (grpc.DialOption, error) {
 	if !p.tls {
 		return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
@@ -53,7 +43,7 @@ func (p *authProviderNebius) Init(ctx context.Context, config string) error {
 		xlog.Error(ctx, "Unable to parse configuration file", zap.Error(err))
 		return fmt.Errorf("unable to parse configuration %w", err)
 	}
-	p.endpoint, p.tls = parseEndpoint(p.config.AccessServiceEndpoint)
+	p.endpoint, p.tls = tls_setup.ParseEndpoint(p.config.AccessServiceEndpoint)
 	return nil
 }
 

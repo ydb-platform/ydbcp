@@ -1,0 +1,80 @@
+syntax = "proto3";
+
+package nebius.kms.v1;
+
+import "nebius/annotations.proto";
+import "nebius/audit/annotations.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "SymmetricCryptoServiceProto";
+option java_package = "ai.nebius.kms.v1";
+option go_package = "ydbcp/plugins/kms_nebius/proto";
+
+// --- Data plane for KMS symmetric cryptography operations
+
+// Set of methods that perform symmetric encryption and decryption.
+service SymmetricCryptoService {
+  option (api_service_name) = "dpl.kms";
+  option (audit.service_audit).enabled = true;
+
+  // Encrypts given plaintext with the specified key.
+  rpc Encrypt(SymmetricEncryptRequest) returns (SymmetricEncryptResponse) {
+    option (region_routing).nid = "key_id";
+    option (region_routing).strict = true;
+
+    option (audit.method_audit).enabled.default_activity = {action: ENCRYPT, resource_type: "kmssymkey"};
+  }
+
+  // Decrypts the given ciphertext with the specified key.
+  rpc Decrypt(SymmetricDecryptRequest) returns (SymmetricDecryptResponse) {
+    option (region_routing).nid = "key_id";
+    option (region_routing).strict = true;
+
+    option (audit.method_audit).enabled.default_activity = {action: DECRYPT, resource_type: "kmssymkey"};
+  }
+
+}
+
+message SymmetricEncryptRequest {
+  // ID of the symmetric KMS key to use for encryption.
+  string key_id = 1;
+
+  // Additional authenticated data (AAD context), optional.
+  // If specified, this data will be required for decryption with the [SymmetricDecryptRequest].
+  // Should be encoded with base64.
+  bytes aad_context = 2 [(nebius.sensitive) = true];
+
+  // Plaintext to be encrypted.
+  // Should be encoded with base64.
+  bytes plaintext = 3 [(nebius.sensitive) = true];
+}
+
+message SymmetricEncryptResponse {
+  // ID of the symmetric KMS key that was used for encryption.
+  string key_id = 1;
+
+  // Resulting ciphertext.
+  bytes ciphertext = 2 [(nebius.sensitive) = true];
+}
+
+message SymmetricDecryptRequest {
+  // ID of the symmetric KMS key to use for decryption.
+  string key_id = 1;
+
+  // Additional authenticated data, must be the same as was provided
+  // in the corresponding [SymmetricEncryptRequest].
+  // Should be encoded with base64.
+  bytes aad_context = 2 [(nebius.sensitive) = true];
+
+  // Ciphertext to be decrypted.
+  // Should be encoded with base64.
+  bytes ciphertext = 3 [(nebius.sensitive) = true];
+}
+
+message SymmetricDecryptResponse {
+  // ID of the symmetric KMS key that was used for decryption.
+  string key_id = 1;
+
+  // Decrypted plaintext.
+  bytes plaintext = 2 [(nebius.sensitive) = true];
+}
