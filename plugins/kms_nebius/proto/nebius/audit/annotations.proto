@@ -1,0 +1,45 @@
+syntax = "proto3";
+
+package nebius.audit;
+
+import "google/protobuf/descriptor.proto";
+import "nebius/audit/v1/common/action.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "AnnotationsProto";
+option java_package = "ai.nebius.audit";
+option go_package = "ydbcp/plugins/kms_nebius/proto/nebius/audit";
+
+extend google.protobuf.ServiceOptions {
+  ServiceAudit service_audit = 50004;
+}
+
+extend google.protobuf.MethodOptions {
+  MethodAudit method_audit = 50002;
+}
+
+message MethodAuditMetadata {
+  oneof activities {
+    string resource_type = 1;
+    AuditedActivity default_activity = 3;
+  }
+}
+
+message ServiceAudit {
+  oneof decision {
+    bool enabled = 1;
+  }
+}
+
+message MethodAudit {
+  oneof decision {
+    MethodAuditMetadata enabled = 1;
+  }
+}
+
+message AuditedActivity {
+  oneof resource {
+    string resource_type = 1;
+  }
+  nebius.audit.v1.common.Action action = 2;
+}

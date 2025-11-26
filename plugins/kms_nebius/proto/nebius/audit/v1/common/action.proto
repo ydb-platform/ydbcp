@@ -1,0 +1,14 @@
+syntax = "proto3";
+
+package nebius.audit.v1.common;
+
+option java_multiple_files = true;
+option java_outer_classname = "ActionProto";
+option java_package = "ai.nebius.audit.v1.common";
+option go_package = "ydbcp/plugins/kms_nebius/proto/nebius/audit/v1/common";
+
+enum Action {
+  ACTION_UNSPECIFIED = 0;
+  ENCRYPT = 24;
+  DECRYPT = 25;
+}

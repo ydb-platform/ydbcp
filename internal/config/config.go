@@ -45,7 +45,7 @@ type ClientConnectionConfig struct {
 	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint" default:"false"`
 }
 
-type AuthConfig struct {
+type PluginConfig struct {
 	PluginPath    string      `yaml:"plugin_path"`
 	Configuration interface{} `yaml:"configuration"`
 }
@@ -95,7 +95,7 @@ type Config struct {
 	DBConnection       YDBConnectionConfig      `yaml:"db_connection"`
 	ClientConnection   ClientConnectionConfig   `yaml:"client_connection"`
 	S3                 S3Config                 `yaml:"s3"`
-	Auth               AuthConfig               `yaml:"auth"`
+	Auth               PluginConfig             `yaml:"auth"`
 	GRPCServer         GRPCServerConfig         `yaml:"grpc_server"`
 	MetricsServer      MetricsServerConfig      `yaml:"metrics_server"`
 	OperationProcessor OperationProcessorConfig `yaml:"operation_processor"`
@@ -223,7 +223,7 @@ func (c *S3Config) SecretKey() (string, error) {
 
 }
 
-func (c *AuthConfig) ConfigurationString() (string, error) {
+func (c *PluginConfig) ConfigurationString() (string, error) {
 	txt, err := yaml.Marshal(c.Configuration)
 	if err != nil {
 		return "", fmt.Errorf("can't marshal Auth.Configuration to YAML: %w", err)

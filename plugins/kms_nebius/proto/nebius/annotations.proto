@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package nebius;
+
+import "google/protobuf/descriptor.proto";
+
+option java_multiple_files = true;
+option java_outer_classname = "AnnotationsProto";
+option java_package = "ai.nebius";
+option go_package = "ydbcp/plugins/kms_nebius/proto/nebius";
+
+extend google.protobuf.ServiceOptions {
+  string api_service_name = 1191;
+}
+
+extend google.protobuf.MethodOptions {
+  RegionRouting region_routing = 50003;
+}
+
+extend google.protobuf.FieldOptions {
+  bool sensitive = 1192;
+}
+
+message RegionRouting {
+  repeated string nid = 1;
+  bool strict = 3;
+}
+
