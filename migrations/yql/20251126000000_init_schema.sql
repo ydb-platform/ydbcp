@@ -1,3 +1,4 @@
+-- +goose Up
 CREATE TABLE Backups (
     id String NOT NULL,
     container_id String NOT NULL,
@@ -51,7 +52,6 @@ CREATE TABLE Operations (
     status String,
     message String,
 
-    root_path String,
     paths String,
     paths_to_exclude String,
     operation_id String,
@@ -80,7 +80,6 @@ CREATE TABLE BackupSchedules (
 
     crontab String NOT NULL,
     ttl Interval,
-    root_path String,
     paths String,
     paths_to_exclude String,
 
@@ -91,4 +90,17 @@ CREATE TABLE BackupSchedules (
 
     next_launch Timestamp,
     PRIMARY KEY (id)
-)
+);
+
+UPSERT INTO OperationTypes (code, description, is_cancellable) VALUES
+    ('TB', 'Take backup', True),
+    ('RB', 'Restore backup', True),
+    ('DB', 'Delete backup', False),
+    ('TBWR', 'Take backup with retries', True);
+
+-- +goose Down
+DROP TABLE BackupSchedules;
+DROP TABLE Operations;
+DROP TABLE OperationTypes;
+DROP TABLE Backups;
+

@@ -21,20 +21,41 @@ services:
     networks:
       - ydbcp-net
 
+  init_ydb_schema:
+    image: golang:1.23-alpine
+    platform: linux/amd64
+    container_name: ${YDB_NAME}-init-schema
+    volumes:
+      - ./migrations:/migrations
+    environment:
+      - YDB_ENDPOINT=grpc://${YDB_NAME}:2136
+      - YDB_DATABASE=/local
+      - GOOSE_YDB_PARAMS=go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
+    depends_on:
+      ydb:
+        condition: service_healthy
+    restart: "no"
+    command: >
+      sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest &&
+      goose -dir /migrations/yql ydb \"$$YDB_ENDPOINT/$$YDB_DATABASE?$$GOOSE_YDB_PARAMS\" up"
+    networks:
+      - ydbcp-net
+
   setup_ydb:
     image: cr.yandex/yc/yandex-docker-local-ydb:24.1
     platform: linux/amd64
     container_name: ${YDB_NAME}-setup
     volumes:
-      - ./init_db:/init_db
-      - ./internal/connectors/db/yql/schema:/init_db/schema
+      - ./cmd/integration/scripts:/scripts
     environment:
       - YDB_ENDPOINT=grpc://${YDB_NAME}:2136
     depends_on:
       ydb:
         condition: service_healthy
+      init_ydb_schema:
+        condition: service_completed_successfully
     restart: "no"
-    command: bash -c "chmod +x ./init_db/create_tables.sh && ./init_db/create_tables.sh"
+    command: bash -c "chmod +x ./scripts/create_test_tables.sh && ./scripts/create_test_tables.sh"
     networks:
       - ydbcp-net
 
