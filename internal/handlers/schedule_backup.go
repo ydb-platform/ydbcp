@@ -8,6 +8,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/audit"
+	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
@@ -20,11 +21,13 @@ type BackupScheduleHandlerType func(context.Context, db.DBConnector, *types.Back
 func NewBackupScheduleHandler(
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	featureFlags config.FeatureFlagsConfig,
 ) BackupScheduleHandlerType {
 	return func(ctx context.Context, driver db.DBConnector, schedule *types.BackupSchedule) error {
 		return BackupScheduleHandler(
 			ctx, driver, schedule,
 			queryBuilderFactory, clock,
+			featureFlags,
 		)
 	}
 }
@@ -46,6 +49,7 @@ func BackupScheduleHandler(
 	schedule *types.BackupSchedule,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
+	featureFlags config.FeatureFlagsConfig,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active", zap.String("ScheduleID", schedule.ID))
@@ -85,6 +89,10 @@ func BackupScheduleHandler(
 			if schedule.ScheduleSettings.Ttl != nil {
 				d := schedule.ScheduleSettings.Ttl.AsDuration()
 				tbwr.Ttl = &d
+			}
+
+			if schedule.ScheduleSettings.EncryptionSettings != nil && featureFlags.EnableBackupsEncryption {
+				tbwr.EncryptionSettings = schedule.ScheduleSettings.EncryptionSettings
 			}
 		}
 

@@ -4,7 +4,6 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/log"
 	"net/http"
 	_ "net/http/pprof"
 	"os"
@@ -19,6 +18,7 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/handlers"
+	"ydbcp/internal/kms"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/processor"
 	"ydbcp/internal/server"
@@ -32,6 +32,9 @@ import (
 	"ydbcp/internal/watchers/schedule_watcher"
 	"ydbcp/internal/watchers/ttl_watcher"
 	ap "ydbcp/pkg/plugins/auth"
+	kp "ydbcp/pkg/plugins/kms"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/log"
 
 	"github.com/jonboulle/clockwork"
 
@@ -114,6 +117,24 @@ func main() {
 		}
 	}()
 	xlog.Info(ctx, "Initialized AuthProvider")
+
+	var kmsProvider kp.KmsProvider
+	if len(configInstance.KMS.PluginPath) == 0 {
+		kmsProvider, err = kms.NewDummyKmsProvider(ctx)
+	} else {
+		kmsProvider, err = kms.NewKmsProvider(ctx, configInstance.KMS)
+	}
+	if err != nil {
+		xlog.Error(ctx, "Error init KmsProvider", zap.Error(err))
+		os.Exit(1)
+	}
+	defer func() {
+		if err := kmsProvider.Close(ctx); err != nil {
+			xlog.Error(ctx, "Error close kms provider", zap.Error(err))
+		}
+	}()
+	xlog.Info(ctx, "Initialized KmsProvider")
+
 	metrics.InitializeMetricsRegistry(ctx, &wg, &configInstance.MetricsServer, clockwork.NewRealClock())
 	xlog.Info(ctx, "Initialized metrics registry")
 	audit.EventsDestination = configInstance.Audit.EventsDestination
@@ -143,7 +164,9 @@ func main() {
 	backup.NewBackupService(
 		dbConnector,
 		clientConnector,
+		s3Connector,
 		authProvider,
+		kmsProvider,
 		*configInstance,
 	).Register(server)
 	operation.NewOperationService(dbConnector, authProvider).Register(server)
@@ -189,9 +212,11 @@ func main() {
 		handlers.NewTBWROperationHandler(
 			dbConnector,
 			clientConnector,
+			s3Connector,
 			queries.NewWriteTableQuery,
 			clockwork.NewRealClock(),
 			*configInstance,
+			kmsProvider,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TBWR handler", zap.Error(err))
@@ -210,7 +235,7 @@ func main() {
 		xlog.Info(ctx, "Created TtlWatcher")
 	}
 
-	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock())
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock(), configInstance.FeatureFlags)
 
 	schedule_watcher.NewScheduleWatcher(
 		ctx, &wg, configInstance.OperationProcessor.ProcessorIntervalSeconds, dbConnector,

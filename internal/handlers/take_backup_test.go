@@ -14,7 +14,6 @@ import (
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
@@ -252,18 +251,9 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 	dbConnector := db.NewMockDBConnector(
 		db.WithBackups(backupMap),
@@ -571,18 +561,9 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 	dbConnector := db.NewMockDBConnector(
 		db.WithBackups(backupMap),
@@ -740,18 +721,9 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 	dbConnector := db.NewMockDBConnector(
 		db.WithBackups(backupMap),

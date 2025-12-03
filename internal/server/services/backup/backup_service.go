@@ -2,7 +2,7 @@ package backup
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
+	"path"
 	"strconv"
 	"time"
 	"ydbcp/internal/audit"
@@ -12,13 +12,18 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
+	s3connector "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
+	kp "ydbcp/pkg/plugins/kms"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
@@ -31,8 +36,10 @@ type BackupService struct {
 	pb.UnimplementedBackupServiceServer
 	driver                 db.DBConnector
 	clientConn             client.ClientConnector
+	s3Connector            s3connector.S3Connector
 	s3                     config.S3Config
 	auth                   ap.AuthProvider
+	kms                    kp.KmsProvider
 	allowedEndpointDomains []string
 	allowInsecureEndpoint  bool
 	clock                  clockwork.Clock
@@ -117,9 +124,19 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		return nil, status.Error(codes.Unimplemented, "backup root path is not supported yet")
 	}
 
+	var encryptionSettings *pb.EncryptionSettings
 	if req.EncryptionSettings != nil {
-		s.IncApiCallsCounter(methodName, codes.Unimplemented)
-		return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		if !s.featureFlags.EnableBackupsEncryption {
+			s.IncApiCallsCounter(methodName, codes.Unimplemented)
+			return nil, status.Error(codes.Unimplemented, "backup encryption is not supported yet")
+		}
+
+		if req.EncryptionSettings.GetKeyEncryptionKey() == nil {
+			s.IncApiCallsCounter(methodName, codes.InvalidArgument)
+			return nil, status.Error(codes.InvalidArgument, "encryption key is required")
+		}
+
+		encryptionSettings = proto.Clone(req.EncryptionSettings).(*pb.EncryptionSettings)
 	}
 
 	tbwr := &types.TakeBackupWithRetryOperation{
@@ -138,7 +155,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 				Creator:   subject,
 				CreatedAt: now,
 			},
-			UpdatedAt: now,
+			UpdatedAt:          now,
+			EncryptionSettings: encryptionSettings,
 		},
 		Retries: 0,
 		RetryConfig: &pb.RetryConfig{
@@ -397,6 +415,31 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		DestinationPath:  req.GetDestinationPath(),
 	}
 
+	if backup.EncryptionSettings != nil {
+		dekKey := path.Join(backup.S3PathPrefix, "dek.encrypted")
+		encryptedDEK, err := s.s3Connector.GetObject(dekKey, s.s3.Bucket)
+		if err != nil {
+			xlog.Error(ctx, "can't read encrypted DEK from S3", zap.Error(err), zap.String("dekKey", dekKey))
+			s.IncApiCallsCounter(methodName, codes.Internal)
+			return nil, status.Errorf(codes.Internal, "can't read encrypted DEK from S3: %v", err)
+		}
+
+		decryptResp, err := s.kms.Decrypt(ctx, &kp.DecryptRequest{
+			KeyID:      backup.EncryptionSettings.GetKmsKey().GetKeyId(),
+			Ciphertext: encryptedDEK,
+		})
+
+		if err != nil {
+			xlog.Error(ctx, "can't decrypt data encryption key", zap.Error(err))
+			s.IncApiCallsCounter(methodName, codes.Internal)
+			return nil, status.Error(codes.Internal, "can't decrypt data encryption key")
+		}
+
+		_, algorithm, _ := backup_operations.GetEncryptionParams(backup.EncryptionSettings)
+		s3Settings.EncryptionAlgorithm = algorithm
+		s3Settings.EncryptionKey = decryptResp.Plaintext
+	}
+
 	clientOperationID, err := s.clientConn.ImportFromS3(ctx, clientDriver, s3Settings, s.featureFlags)
 	if err != nil {
 		xlog.Error(ctx, "can't start import operation", zap.Error(err))
@@ -613,14 +656,18 @@ func (s *BackupService) Register(server server.Server) {
 func NewBackupService(
 	driver db.DBConnector,
 	clientConn client.ClientConnector,
+	s3Connector s3connector.S3Connector,
 	auth ap.AuthProvider,
+	kms kp.KmsProvider,
 	config config.Config,
 ) *BackupService {
 	return &BackupService{
 		driver:                 driver,
 		clientConn:             clientConn,
+		s3Connector:            s3Connector,
 		s3:                     config.S3,
 		auth:                   auth,
+		kms:                    kms,
 		allowedEndpointDomains: config.ClientConnection.AllowedEndpointDomains,
 		allowInsecureEndpoint:  config.ClientConnection.AllowInsecureEndpoint,
 		clock:                  clockwork.NewRealClock(),

@@ -57,4 +57,7 @@ message Operation {
     // Root path for all objects included in the backup,
     // it must be relative to the db root.
     string root_path = 18;
+    // Backup encryption settings,
+    // unspecified field means the backup is unencrypted (only for MakeBackup operation).
+    EncryptionSettings encryption_settings = 19;
 }
