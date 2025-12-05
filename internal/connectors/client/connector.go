@@ -139,7 +139,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 	}
 
 	result := make([]string, 0)
-	if dir.Entry.IsTable() {
+	if dir.Entry.IsTable() || dir.Entry.IsTopic() {
 		if !excluded(initialPath) {
 			xlog.Debug(ctx, "Included path", zap.String("path", initialPath))
 			result = append(result, initialPath)
@@ -164,7 +164,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 			}
 
 			result = append(result, list...)
-		} else if child.IsTable() {
+		} else if child.IsTable() || child.IsTopic() {
 			if !excluded(childPath) {
 				xlog.Debug(ctx, "Included path", zap.String("path", childPath))
 				result = append(result, childPath)
@@ -321,8 +321,11 @@ func prepareItemsForImport(dbName string, s3Client S3API, s3Settings types.Impor
 		},
 		func(p *s3.ListObjectsOutput, last bool) (shouldContinue bool) {
 			for _, object := range p.Contents {
-
+				// Check for table (scheme.pb) or topic (create_topic.pb)
 				key, found := strings.CutSuffix(*object.Key, "scheme.pb")
+				if !found {
+					key, found = strings.CutSuffix(*object.Key, "create_topic.pb")
+				}
 				if found {
 					shouldRestore := backupEverything || pathPrefixes[key]
 					if shouldRestore {
