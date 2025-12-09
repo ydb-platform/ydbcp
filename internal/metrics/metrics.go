@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/jonboulle/clockwork"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"net/http"
 	"sync"
 	"time"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/types"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/util/xlog"
@@ -23,6 +24,8 @@ import (
 
 const (
 	NO_SCHEDULE_ID_LABEL = "without_schedule"
+	ENCRYPTED_LABEL      = "encrypted"
+	UNENCRYPTED_LABEL    = "unencrypted"
 )
 
 var GlobalMetricsRegistry MetricsRegistry
@@ -41,7 +44,7 @@ type MetricsRegistry interface {
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
-	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode)
+	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, isEncrypted bool)
 	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
 	ResetScheduleCounters(schedule *types.BackupSchedule)
 }
@@ -86,6 +89,7 @@ type MetricsRegistryImpl struct {
 	scheduleRPOMarginRatio             *prometheus.GaugeVec
 	scheduleElapsedTimeSinceLastBackup *prometheus.GaugeVec
 	scheduleRPODuration                *prometheus.GaugeVec
+	scheduleWithEncryptionEnabled      *prometheus.GaugeVec
 }
 
 func (s *MetricsRegistryImpl) GetReg() *prometheus.Registry {
@@ -210,7 +214,7 @@ func (s *MetricsRegistryImpl) IncSuccessfulHandlerRunsCount(containerId string, 
 }
 
 func (s *MetricsRegistryImpl) IncCompletedBackupsCount(
-	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode,
+	containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, encrypted bool,
 ) {
 	var scheduleIdLabel string
 	if scheduleId != nil {
@@ -219,11 +223,17 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(
 		scheduleIdLabel = NO_SCHEDULE_ID_LABEL
 	}
 
+	encryptedLabel := UNENCRYPTED_LABEL
+	if encrypted {
+		encryptedLabel = ENCRYPTED_LABEL
+	}
+
 	if code == Ydb.StatusIds_SUCCESS {
-		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel, encryptedLabel).Set(1)
 		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
 	} else {
-		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(0)
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel, ENCRYPTED_LABEL).Set(0)
+		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel, UNENCRYPTED_LABEL).Set(0)
 		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
 	}
 }
@@ -322,6 +332,22 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(
 	} else {
 		audit.ReportedMissedRPOs[schedule.ID] = false
 	}
+
+	if schedule.ScheduleSettings.EncryptionSettings != nil {
+		s.scheduleWithEncryptionEnabled.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(1)
+	} else {
+		s.scheduleWithEncryptionEnabled.WithLabelValues(
+			schedule.ContainerID,
+			schedule.DatabaseName,
+			schedule.ID,
+			scheduleNameLabel,
+		).Set(0)
+	}
 }
 
 func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule) {
@@ -360,6 +386,13 @@ func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedu
 		scheduleNameLabel,
 	)
 
+	s.scheduleWithEncryptionEnabled.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
 	s.backupsFailedCount.DeleteLabelValues(
 		schedule.ContainerID,
 		schedule.DatabaseName,
@@ -370,6 +403,14 @@ func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedu
 		schedule.ContainerID,
 		schedule.DatabaseName,
 		scheduleNameLabel,
+		ENCRYPTED_LABEL,
+	)
+
+	s.backupsSucceededCount.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		scheduleNameLabel,
+		UNENCRYPTED_LABEL,
 	)
 }
 
@@ -507,7 +548,7 @@ func newMetricsRegistry(
 			Subsystem: "backups",
 			Name:      "succeeded_count",
 			Help:      "Total count of successful backups",
-		}, []string{"container_id", "database", "schedule_id"},
+		}, []string{"container_id", "database", "schedule_id", "encrypted"},
 	)
 
 	s.scheduleActionFailedCount = promauto.With(s.reg).NewCounterVec(
@@ -555,6 +596,14 @@ func newMetricsRegistry(
 			Subsystem: "schedules",
 			Name:      "rpo_duration_seconds",
 			Help:      "Maximum length of time permitted, that backup can be restored for this schedule",
+		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
+	)
+
+	s.scheduleWithEncryptionEnabled = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "schedules",
+			Name:      "with_encryption_enabled",
+			Help:      "Indicates whether encryption is enabled for this schedule (1 = enabled, 0 = disabled)",
 		}, []string{"container_id", "database", "schedule_id", "schedule_name"},
 	)
 

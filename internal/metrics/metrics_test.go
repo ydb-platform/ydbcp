@@ -3,7 +3,6 @@ package metrics
 import (
 	"bytes"
 	"context"
-	"github.com/jonboulle/clockwork"
 	"io"
 	"net/http"
 	"strconv"
@@ -12,9 +11,11 @@ import (
 	"time"
 	"ydbcp/internal/types"
 
+	"github.com/jonboulle/clockwork"
+
 	"ydbcp/internal/config"
 
-	"github.com/prometheus/client_model/go"
+	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -101,7 +102,7 @@ func TestResetScheduleMetrics(t *testing.T) {
 		scheduleName,
 	).Set(float64(time.Now().Unix()))
 
-	s.backupsSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, scheduleName).Set(1)
+	s.backupsSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, scheduleName, UNENCRYPTED_LABEL).Set(1)
 	s.backupsFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, scheduleName).Set(0)
 
 	getMetricValue := func(metricFamilies []*io_prometheus_client.MetricFamily, familyName string) (float64, bool) {

@@ -272,6 +272,17 @@ func (d *ClientYdbConnector) ExportToS3(
 		exportRequest.Settings.DestinationPrefix = s3Settings.DestinationPrefix
 	}
 
+	if featureFlags.EnableBackupsEncryption && len(s3Settings.EncryptionKey) > 0 {
+		exportRequest.Settings.EncryptionSettings = &Ydb_Export.EncryptionSettings{
+			EncryptionAlgorithm: s3Settings.EncryptionAlgorithm,
+			Key: &Ydb_Export.EncryptionSettings_SymmetricKey_{
+				SymmetricKey: &Ydb_Export.EncryptionSettings_SymmetricKey{
+					Key: s3Settings.EncryptionKey,
+				},
+			},
+		}
+	}
+
 	response, err := exportClient.ExportToS3(ctx, exportRequest)
 
 	if err != nil {
@@ -423,6 +434,17 @@ func (d *ClientYdbConnector) ImportFromS3(
 	if featureFlags.EnableNewPathsFormat {
 		importRequest.Settings.SourcePrefix = s3Settings.BucketDbRoot
 		importRequest.Settings.DestinationPath = path.Join(clientDb.Name(), s3Settings.DestinationPath)
+	}
+
+	if len(s3Settings.EncryptionKey) > 0 {
+		importRequest.Settings.EncryptionSettings = &Ydb_Export.EncryptionSettings{
+			EncryptionAlgorithm: s3Settings.EncryptionAlgorithm,
+			Key: &Ydb_Export.EncryptionSettings_SymmetricKey_{
+				SymmetricKey: &Ydb_Export.EncryptionSettings_SymmetricKey{
+					Key: s3Settings.EncryptionKey,
+				},
+			},
+		}
 	}
 
 	response, err := importClient.ImportFromS3(ctx, importRequest)

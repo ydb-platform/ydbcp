@@ -3,7 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/s3"
 	"testing"
 	"ydbcp/internal/metrics"
 
@@ -14,7 +13,6 @@ import (
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -101,18 +99,9 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
 	dbConnector := db.NewMockDBConnector(
@@ -181,18 +170,9 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
 	dbConnector := db.NewMockDBConnector(
@@ -260,18 +240,9 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
 	s3ObjectsMap["bucket"] = s3Client.Bucket{
-		"pathPrefix/data_1.csv": {
-			Key:  aws.String("data_1.csv"),
-			Size: aws.Int64(100),
-		},
-		"pathPrefix/data_2.csv": {
-			Key:  aws.String("data_2.csv"),
-			Size: aws.Int64(150),
-		},
-		"pathPrefix/data_3.csv": {
-			Key:  aws.String("data_3.csv"),
-			Size: aws.Int64(200),
-		},
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
 	dbConnector := db.NewMockDBConnector(
@@ -335,11 +306,7 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 	s3ObjectsMap["bucket"] = make(s3Client.Bucket)
 	for i := 0; i < objectsListSize; i++ {
 		bucket := s3ObjectsMap["bucket"]
-
-		bucket[fmt.Sprintf("pathPrefix/data_%d.csv", i)] = &s3.Object{
-			Key:  aws.String(fmt.Sprintf("data_%d.csv", i)),
-			Size: aws.Int64(10),
-		}
+		bucket[fmt.Sprintf("pathPrefix/data_%d.csv", i)] = make([]byte, 10)
 	}
 
 	dbConnector := db.NewMockDBConnector(

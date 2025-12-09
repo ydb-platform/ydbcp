@@ -3,10 +3,6 @@ package handlers
 import (
 	"context"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/db"
@@ -15,6 +11,11 @@ import (
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewTBOperationHandler(
@@ -68,7 +69,7 @@ func TBOperationHandler(
 		)
 
 		if err == nil {
-			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, backup.ScheduleID, status)
+			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil)
 		}
 
 		return err

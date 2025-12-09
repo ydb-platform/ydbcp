@@ -9,6 +9,7 @@ import (
 	"sync"
 	"testing"
 	"time"
+	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/handlers"
@@ -65,7 +66,7 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -178,7 +179,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -299,7 +300,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -416,7 +417,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -527,7 +528,7 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock,
+		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
