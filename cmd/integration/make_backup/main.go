@@ -6,11 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"io"
 	"log"
 	"os"
@@ -21,6 +16,10 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"google.golang.org/grpc"
 )
@@ -33,25 +32,8 @@ const (
 	invalidDatabaseEndpoint = "xzche"
 )
 
-func OpenYdb() *ydb.Driver {
-	dialTimeout := time.Second * 5
-	opts := []ydb.Option{
-		ydb.WithDialTimeout(dialTimeout),
-		ydb.WithTLSSInsecureSkipVerify(),
-		ydb.WithBalancer(balancers.SingleConn()),
-		ydb.WithAnonymousCredentials(),
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	driver, err := ydb.Open(ctx, databaseEndpoint+"/"+databaseName, opts...)
-	cancel()
-	if err != nil {
-		log.Panicf("failed to open database: %v", err)
-	}
-	return driver
-}
-
 func ExecuteDataQuery(ctx context.Context, query string) {
-	driver := OpenYdb()
+	driver := common.OpenYdb(databaseEndpoint, databaseName)
 	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
 	err := driver.Table().Do(
 		ctx, func(ctx context.Context, s table.Session) error {
