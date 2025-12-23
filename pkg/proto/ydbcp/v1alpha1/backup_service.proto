@@ -33,6 +33,11 @@ service BackupService {
     // Updates the TTL of the specified backup.
     // Required YDB permissions: `ydb.databases.backup`
     rpc UpdateBackupTtl(UpdateBackupTtlRequest) returns (Backup);
+
+    // Returns the list of objects (paths) stored in the specified backup.
+    // This method allows you to inspect what objects are available in a backup before restoring it.
+    // Required YDB permissions: `ydb.databases.get`
+    rpc ListBackupObjects(ListBackupObjectsRequest) returns (ListBackupObjectsResponse);
 }
 
 message ListBackupsOrder {
@@ -127,4 +132,14 @@ message UpdateBackupTtlRequest {
     string backup_id = 1;
     // The new time-to-live for the backup.
     google.protobuf.Duration ttl = 2;
+}
+
+message ListBackupObjectsRequest {
+    // The ID of the backup to list objects from.
+    string backup_id = 1;
+}
+
+message ListBackupObjectsResponse {
+    // The list of object paths stored in the backup.
+    repeated string objects = 1;
 }

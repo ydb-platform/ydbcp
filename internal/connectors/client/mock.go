@@ -192,3 +192,16 @@ func (m *MockClientConnector) ListExportOperations(_ context.Context, _ *ydb.Dri
 		Operations: operations,
 	}, nil
 }
+
+func (m *MockClientConnector) ListObjectsInS3Export(_ context.Context, _ *ydb.Driver, s3Settings types.ListObjectsSettings) ([]string, error) {
+	objects := make([]string, 0)
+	for objectPath := range m.storage {
+		if objectPath.Bucket == s3Settings.Bucket {
+			if s3Settings.Prefix == "" || strings.HasPrefix(objectPath.KeyPrefix, s3Settings.Prefix) {
+				objects = append(objects, objectPath.KeyPrefix)
+			}
+		}
+	}
+
+	return objects, nil
+}
