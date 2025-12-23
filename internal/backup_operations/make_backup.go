@@ -379,17 +379,19 @@ func MakeBackup(
 	}
 
 	s3Settings := types.ExportSettings{
-		Endpoint:          s3.Endpoint,
-		Region:            s3.Region,
-		Bucket:            s3.Bucket,
-		AccessKey:         accessKey,
-		SecretKey:         secretKey,
+		S3Settings: types.S3Settings{
+			Endpoint:         s3.Endpoint,
+			Region:           s3.Region,
+			Bucket:           s3.Bucket,
+			AccessKey:        accessKey,
+			SecretKey:        secretKey,
+			S3ForcePathStyle: s3.S3ForcePathStyle,
+		},
 		Description:       "ydbcp backup", // TODO: the description shoud be better
 		NumberOfRetries:   10,             // TODO: get it from configuration
 		RootPath:          req.RootPath,
 		SourcePaths:       pathsForExport,
 		DestinationPrefix: destinationPrefix,
-		S3ForcePathStyle:  s3.S3ForcePathStyle,
 	}
 
 	if req.EncryptionSettings != nil {

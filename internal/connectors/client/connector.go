@@ -49,6 +49,9 @@ type ClientConnector interface {
 	ListExportOperations(
 		ctx context.Context, clientDb *ydb.Driver,
 	) (*Ydb_Operations.ListOperationsResponse, error)
+	ListObjectsInS3Export(
+		ctx context.Context, clientDb *ydb.Driver, s3Settings types.ListObjectsSettings,
+	) ([]string, error)
 }
 
 type ClientYdbConnector struct {
@@ -556,4 +559,75 @@ func (d *ClientYdbConnector) ListExportOperations(
 		PageSize: 1,
 	})
 
+}
+
+func (d *ClientYdbConnector) ListObjectsInS3Export(
+	ctx context.Context, clientDb *ydb.Driver, s3Settings types.ListObjectsSettings,
+) ([]string, error) {
+	if clientDb == nil {
+		return nil, fmt.Errorf("unititialized client db driver")
+	}
+
+	client := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
+	xlog.Info(ctx, "Listing objects in s3 export", zap.String("Bucket", s3Settings.Bucket), zap.String("Prefix", s3Settings.Prefix))
+	listObjectsRequest := &Ydb_Import.ListObjectsInS3ExportRequest{
+		OperationParams: &Ydb_Operations.OperationParams{
+			OperationTimeout: durationpb.New(time.Second),
+			CancelAfter:      durationpb.New(time.Second),
+		},
+		Settings: &Ydb_Import.ListObjectsInS3ExportSettings{
+			Endpoint:                 s3Settings.Endpoint,
+			Region:                   s3Settings.Region,
+			AccessKey:                s3Settings.AccessKey,
+			SecretKey:                s3Settings.SecretKey,
+			NumberOfRetries:          s3Settings.NumberOfRetries,
+			DisableVirtualAddressing: s3Settings.S3ForcePathStyle,
+			Bucket:                   s3Settings.Bucket,
+			Prefix:                   s3Settings.Prefix,
+			Scheme:                   Ydb_Import.ImportFromS3Settings_HTTPS,
+		},
+	}
+
+	if len(s3Settings.EncryptionKey) > 0 {
+		listObjectsRequest.Settings.EncryptionSettings = &Ydb_Export.EncryptionSettings{
+			EncryptionAlgorithm: s3Settings.EncryptionAlgorithm,
+			Key: &Ydb_Export.EncryptionSettings_SymmetricKey_{
+				SymmetricKey: &Ydb_Export.EncryptionSettings_SymmetricKey{
+					Key: s3Settings.EncryptionKey,
+				},
+			},
+		}
+	}
+
+	response, err := client.ListObjectsInS3Export(ctx, listObjectsRequest)
+
+	if err != nil {
+		return nil, fmt.Errorf("error listing objects in S3 export: %w", err)
+	}
+
+	if response.GetOperation().GetStatus() != Ydb.StatusIds_SUCCESS {
+		return nil, fmt.Errorf("listing objects in S3 export failed: %v", response.GetOperation().GetIssues())
+	}
+
+	operation := response.GetOperation()
+	if operation.GetResult() == nil {
+		return []string{}, nil
+	}
+
+	var result Ydb_Import.ListObjectsInS3ExportResult
+	if err := operation.GetResult().UnmarshalTo(&result); err != nil {
+		return nil, fmt.Errorf("error unmarshaling operation result: %w", err)
+	}
+
+	items := result.GetItems()
+	objects := make([]string, 0, len(items))
+	for _, item := range items {
+		if path := item.GetPath(); path != "" {
+			objects = append(objects, path)
+		} else if prefix := item.GetPrefix(); prefix != "" {
+			objects = append(objects, prefix)
+		}
+	}
+
+	return objects, nil
 }

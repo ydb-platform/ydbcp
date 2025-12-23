@@ -26,7 +26,9 @@ func TestPrepareItemsForImport(t *testing.T) {
 	}
 
 	s3Settings := types.ImportSettings{
-		Bucket:       "bucket",
+		S3Settings: types.S3Settings{
+			Bucket: "bucket",
+		},
 		BucketDbRoot: "local",
 		SourcePaths:  nil,
 	}

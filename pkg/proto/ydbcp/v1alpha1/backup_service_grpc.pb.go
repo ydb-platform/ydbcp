@@ -8,6 +8,7 @@ package ydbcp
 
 import (
 	context "context"
+
 	grpc "google.golang.org/grpc"
 	codes "google.golang.org/grpc/codes"
 	status "google.golang.org/grpc/status"
@@ -19,12 +20,13 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	BackupService_ListBackups_FullMethodName     = "/ydbcp.v1alpha1.BackupService/ListBackups"
-	BackupService_GetBackup_FullMethodName       = "/ydbcp.v1alpha1.BackupService/GetBackup"
-	BackupService_MakeBackup_FullMethodName      = "/ydbcp.v1alpha1.BackupService/MakeBackup"
-	BackupService_DeleteBackup_FullMethodName    = "/ydbcp.v1alpha1.BackupService/DeleteBackup"
-	BackupService_MakeRestore_FullMethodName     = "/ydbcp.v1alpha1.BackupService/MakeRestore"
-	BackupService_UpdateBackupTtl_FullMethodName = "/ydbcp.v1alpha1.BackupService/UpdateBackupTtl"
+	BackupService_ListBackups_FullMethodName       = "/ydbcp.v1alpha1.BackupService/ListBackups"
+	BackupService_GetBackup_FullMethodName         = "/ydbcp.v1alpha1.BackupService/GetBackup"
+	BackupService_MakeBackup_FullMethodName        = "/ydbcp.v1alpha1.BackupService/MakeBackup"
+	BackupService_DeleteBackup_FullMethodName      = "/ydbcp.v1alpha1.BackupService/DeleteBackup"
+	BackupService_MakeRestore_FullMethodName       = "/ydbcp.v1alpha1.BackupService/MakeRestore"
+	BackupService_UpdateBackupTtl_FullMethodName   = "/ydbcp.v1alpha1.BackupService/UpdateBackupTtl"
+	BackupService_ListBackupObjects_FullMethodName = "/ydbcp.v1alpha1.BackupService/ListBackupObjects"
 )
 
 // BackupServiceClient is the client API for BackupService service.
@@ -52,6 +54,10 @@ type BackupServiceClient interface {
 	// Updates the TTL of the specified backup.
 	// Required YDB permissions: `ydb.databases.backup`
 	UpdateBackupTtl(ctx context.Context, in *UpdateBackupTtlRequest, opts ...grpc.CallOption) (*Backup, error)
+	// Returns the list of objects (paths) stored in the specified backup.
+	// This method allows you to inspect what objects are available in a backup before restoring it.
+	// Required YDB permissions: `ydb.databases.get`
+	ListBackupObjects(ctx context.Context, in *ListBackupObjectsRequest, opts ...grpc.CallOption) (*ListBackupObjectsResponse, error)
 }
 
 type backupServiceClient struct {
@@ -122,6 +128,16 @@ func (c *backupServiceClient) UpdateBackupTtl(ctx context.Context, in *UpdateBac
 	return out, nil
 }
 
+func (c *backupServiceClient) ListBackupObjects(ctx context.Context, in *ListBackupObjectsRequest, opts ...grpc.CallOption) (*ListBackupObjectsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ListBackupObjectsResponse)
+	err := c.cc.Invoke(ctx, BackupService_ListBackupObjects_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // BackupServiceServer is the server API for BackupService service.
 // All implementations must embed UnimplementedBackupServiceServer
 // for forward compatibility.
@@ -147,6 +163,10 @@ type BackupServiceServer interface {
 	// Updates the TTL of the specified backup.
 	// Required YDB permissions: `ydb.databases.backup`
 	UpdateBackupTtl(context.Context, *UpdateBackupTtlRequest) (*Backup, error)
+	// Returns the list of objects (paths) stored in the specified backup.
+	// This method allows you to inspect what objects are available in a backup before restoring it.
+	// Required YDB permissions: `ydb.databases.get`
+	ListBackupObjects(context.Context, *ListBackupObjectsRequest) (*ListBackupObjectsResponse, error)
 	mustEmbedUnimplementedBackupServiceServer()
 }
 
@@ -174,6 +194,9 @@ func (UnimplementedBackupServiceServer) MakeRestore(context.Context, *MakeRestor
 }
 func (UnimplementedBackupServiceServer) UpdateBackupTtl(context.Context, *UpdateBackupTtlRequest) (*Backup, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpdateBackupTtl not implemented")
+}
+func (UnimplementedBackupServiceServer) ListBackupObjects(context.Context, *ListBackupObjectsRequest) (*ListBackupObjectsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ListBackupObjects not implemented")
 }
 func (UnimplementedBackupServiceServer) mustEmbedUnimplementedBackupServiceServer() {}
 func (UnimplementedBackupServiceServer) testEmbeddedByValue()                       {}
@@ -304,6 +327,24 @@ func _BackupService_UpdateBackupTtl_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _BackupService_ListBackupObjects_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ListBackupObjectsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(BackupServiceServer).ListBackupObjects(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: BackupService_ListBackupObjects_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(BackupServiceServer).ListBackupObjects(ctx, req.(*ListBackupObjectsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // BackupService_ServiceDesc is the grpc.ServiceDesc for BackupService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -334,6 +375,10 @@ var BackupService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "UpdateBackupTtl",
 			Handler:    _BackupService_UpdateBackupTtl_Handler,
+		},
+		{
+			MethodName: "ListBackupObjects",
+			Handler:    _BackupService_ListBackupObjects_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
