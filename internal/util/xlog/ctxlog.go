@@ -19,8 +19,8 @@ func SetInternalLogger(logConfig *LogConfig) {
 }
 
 func Logger(ctx context.Context) *zap.Logger {
-	if l, ok := ctx.Value(loggerKey{}).(*LogConfig); ok {
-		return l.logger
+	if l, ok := ctx.Value(loggerKey{}).(*zap.Logger); ok {
+		return l
 	}
 	if l, ok := internalLogger.Load().(*LogConfig); ok {
 		return l.logger

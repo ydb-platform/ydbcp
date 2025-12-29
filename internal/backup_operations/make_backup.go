@@ -147,9 +147,6 @@ func ValidateSourcePaths(
 	dsn string,
 	featureFlags config.FeatureFlagsConfig,
 ) ([]string, error) {
-	if req.ScheduleID != nil {
-		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
-	}
 	basePath, ok := SafePathJoin(req.DatabaseName, req.RootPath)
 	if !ok {
 		xlog.Error(ctx, "incorrect root path", zap.String("path", req.RootPath))
@@ -350,7 +347,9 @@ func MakeBackup(
 	client, err := clientConn.Open(ctx, dsn)
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
-		return nil, nil, NewClientConnectionError(codes.Unknown, fmt.Sprintf("can't open client connection, dsn %s", dsn))
+		return nil, nil, NewClientConnectionError(
+			codes.Unknown, fmt.Sprintf("can't open client connection, dsn %s", dsn),
+		)
 	}
 	defer func() {
 		if err := clientConn.Close(ctx, client); err != nil {

@@ -2,18 +2,24 @@ package handlers
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/xlog"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
 
 func TestBackupScheduleHandler(t *testing.T) {
+	metrics.InitializeMockMetricsRegistry()
 	ctx := context.Background()
 	clock := clockwork.NewFakeClockAt(time.Now())
 	now := clock.Now()
@@ -30,6 +36,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 		},
 		NextLaunch: &now,
 	}
+
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
 	scheduleMap := make(map[string]types.BackupSchedule)
@@ -40,11 +47,15 @@ func TestBackupScheduleHandler(t *testing.T) {
 		db.WithBackupSchedules(scheduleMap),
 	)
 
+	observed := xlog.SetupLoggingWithObserver()
+	ctx = xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
+
 	handler := NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)
+	assert.Equal(t, len(observed.All()), len(observed.FilterField(zap.String("ScheduleID", schedule.ID)).All()))
 
 	// check operation status (should be running)
 	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})

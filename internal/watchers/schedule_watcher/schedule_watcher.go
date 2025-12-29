@@ -2,9 +2,6 @@ package schedule_watcher
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
 	"sync"
 	"time"
 	"ydbcp/internal/connectors/db"
@@ -14,6 +11,10 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
+
+	"github.com/jonboulle/clockwork"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	"go.uber.org/zap"
 )
 
 func NewScheduleWatcher(
@@ -67,10 +68,11 @@ func ScheduleWatcherAction(
 	}
 
 	for _, schedule := range schedules {
-		err = handler(ctx, db, schedule)
-		metrics.GlobalMetricsRegistry.IncScheduleCounters(ctx, schedule, err)
+		handlerCtx := xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
+		err = handler(handlerCtx, db, schedule)
+		metrics.GlobalMetricsRegistry.IncScheduleCounters(handlerCtx, schedule, err)
 		if err != nil {
-			xlog.Error(ctx, "error handling backup schedule", zap.String("ScheduleID", schedule.ID), zap.Error(err))
+			xlog.Error(handlerCtx, "error handling backup schedule", zap.Error(err))
 		}
 	}
 }
