@@ -3,10 +3,6 @@ package handlers
 import (
 	"context"
 	"errors"
-	"github.com/jonboulle/clockwork"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db"
@@ -14,6 +10,11 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type BackupScheduleHandlerType func(context.Context, db.DBConnector, *types.BackupSchedule) error
@@ -52,7 +53,7 @@ func BackupScheduleHandler(
 	featureFlags config.FeatureFlagsConfig,
 ) error {
 	if schedule.Status != types.BackupScheduleStateActive {
-		xlog.Error(ctx, "backup schedule is not active", zap.String("ScheduleID", schedule.ID))
+		xlog.Error(ctx, "backup schedule is not active")
 		return errors.New("backup schedule is not active")
 	}
 	if schedule.NextLaunch != nil && schedule.NextLaunch.Before(clock.Now()) {
@@ -97,7 +98,7 @@ func BackupScheduleHandler(
 		}
 
 		xlog.Info(
-			ctx, "create TakeBackupWithRetryOperation for schedule", zap.String("ScheduleID", schedule.ID),
+			ctx, "create TakeBackupWithRetryOperation for schedule",
 			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
 		)
 

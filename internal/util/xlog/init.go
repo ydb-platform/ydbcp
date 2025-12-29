@@ -2,11 +2,13 @@ package xlog
 
 import (
 	"fmt"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"io"
 	"log"
 	"os"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 func rawPrint(ws zapcore.WriteSyncer) func(msg string) {
@@ -31,6 +33,35 @@ type LogConfig struct {
 
 func (c *LogConfig) Sync() error {
 	return c.logger.Sync()
+}
+
+func SetupLoggingWithObserver() *observer.ObservedLogs {
+	level, _ := zapcore.ParseLevel("debug")
+	cfg := zap.NewDevelopmentConfig()
+	cfg.Level.SetLevel(level)
+	cfg.EncoderConfig.MessageKey = "message"
+
+	core, observed := observer.New(level)
+	l, err := cfg.Build(
+		zap.WrapCore(
+			func(zapcore.Core) zapcore.Core {
+				return core
+			},
+		),
+	)
+	if err != nil {
+		log.Fatalln("Failed to create logger:", err)
+	}
+
+	SetInternalLogger(
+		&LogConfig{
+			logger: l,
+			rawPrint: func(msg string) {
+				fmt.Fprintln(os.Stdout, msg)
+			},
+		},
+	)
+	return observed
 }
 
 func SetupLogging(logLevel string) (*LogConfig, error) {

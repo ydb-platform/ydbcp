@@ -163,7 +163,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
 	}
-
+	ctx = xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
 	if schedule.ScheduleSettings.RecoveryPointObjective == nil {
 		duration, err := schedule.GetCronDuration()
 		if err != nil {
