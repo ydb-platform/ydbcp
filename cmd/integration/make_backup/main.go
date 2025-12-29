@@ -6,14 +6,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"google.golang.org/protobuf/types/known/durationpb"
 	"io"
 	"log"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -21,6 +17,12 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3"
+	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"google.golang.org/grpc"
 )
@@ -450,13 +452,14 @@ func main() {
 		},
 	)
 
+	sourcePaths := []string{"kv_test", "stocks/orderLines", "stocks/orders", "stocks/stock"}
 	tracker.CaptureEvents()
 	tbwr, err := client.MakeBackup(
 		context.Background(), &pb.MakeBackupRequest{
 			ContainerId:          containerID,
 			DatabaseName:         databaseName,
 			DatabaseEndpoint:     databaseEndpoint,
-			SourcePaths:          nil,
+			SourcePaths:          sourcePaths,
 			SourcePathsToExclude: nil,
 		},
 	)
@@ -540,6 +543,22 @@ func main() {
 	}
 	if tbwr.UpdatedAt == nil || !tbwr.UpdatedAt.AsTime().Equal(tbwr.Audit.CompletedAt.AsTime()) {
 		log.Panicf("unexpected operation updatedAt/completedAt: %v, %v", tbwr.UpdatedAt, tbwr.Audit.CompletedAt)
+	}
+
+	objects, err := client.ListBackupObjects(
+		context.Background(), &pb.ListBackupObjectsRequest{
+			BackupId: backupPb.Id,
+		},
+	)
+	if err != nil {
+		log.Panicf("failed to list backup objects: %v", err)
+	}
+
+	slices.Sort(objects.Objects)
+	slices.Sort(sourcePaths)
+
+	if !slices.Equal(objects.Objects, sourcePaths) {
+		log.Panicf("expected backup objects: %v, got: %v", sourcePaths, objects.Objects)
 	}
 
 	// set ttl to 1 hour

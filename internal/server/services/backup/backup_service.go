@@ -401,18 +401,20 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	}
 
 	s3Settings := types.ImportSettings{
-		Endpoint:         s.s3.Endpoint,
-		Region:           s.s3.Region,
-		Bucket:           s.s3.Bucket,
-		AccessKey:        accessKey,
-		SecretKey:        secretKey,
-		Description:      "ydbcp restore", // TODO: write description
-		NumberOfRetries:  10,              // TODO: get value from configuration
-		BackupID:         backupID,
-		BucketDbRoot:     backup.S3PathPrefix,
-		SourcePaths:      sourcePaths,
-		S3ForcePathStyle: s.s3.S3ForcePathStyle,
-		DestinationPath:  req.GetDestinationPath(),
+		S3Settings: types.S3Settings{
+			Endpoint:         s.s3.Endpoint,
+			Region:           s.s3.Region,
+			Bucket:           s.s3.Bucket,
+			AccessKey:        accessKey,
+			SecretKey:        secretKey,
+			S3ForcePathStyle: s.s3.S3ForcePathStyle,
+		},
+		Description:     "ydbcp restore", // TODO: write description
+		NumberOfRetries: 10,              // TODO: get value from configuration
+		BackupID:        backupID,
+		BucketDbRoot:    backup.S3PathPrefix,
+		SourcePaths:     sourcePaths,
+		DestinationPath: req.GetDestinationPath(),
 	}
 
 	if backup.EncryptionSettings != nil {
@@ -647,6 +649,135 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	xlog.Debug(ctx, methodName, zap.Stringer("backup", backup))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return backup.Proto(), nil
+}
+
+func (s *BackupService) ListBackupObjects(ctx context.Context, request *pb.ListBackupObjectsRequest) (_ *pb.ListBackupObjectsResponse, responseErr error) {
+	const methodName string = "ListBackupObjects"
+	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
+	ctx = xlog.With(ctx, zap.String("BackupID", request.GetBackupId()))
+	backupID, err := types.ParseObjectID(request.GetBackupId())
+	if err != nil {
+		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
+		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
+	}
+
+	backups, err := s.driver.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "can't select backups", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "can't select backups")
+	}
+	if len(backups) == 0 {
+		xlog.Error(ctx, "backup not found")
+		s.IncApiCallsCounter(methodName, codes.NotFound)
+		return nil, status.Error(codes.NotFound, "backup not found")
+	}
+	backup := backups[0]
+	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+
+	audit.SetAuditFieldsForRequest(
+		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+	)
+	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "")
+	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+
+	clientConnectionParams := types.YdbConnectionParams{
+		Endpoint:     backup.DatabaseEndpoint,
+		DatabaseName: backup.DatabaseName,
+	}
+	dsn := types.MakeYdbConnectionString(clientConnectionParams)
+	clientDriver, err := helpers.GetClientDbAccess(ctx, s.clientConn, clientConnectionParams)
+	if err != nil {
+		s.IncApiCallsCounter(methodName, status.Code(err))
+		return nil, err
+	}
+	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	defer func() {
+		err := clientDriver.Close(ctx)
+		if err != nil {
+			xlog.Error(ctx, "failed to close client driver", zap.Error(err))
+		}
+	}()
+
+	accessKey, err := s.s3.AccessKey()
+	if err != nil {
+		xlog.Error(ctx, "can't get S3AccessKey", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "can't get S3AccessKey")
+	}
+	secretKey, err := s.s3.SecretKey()
+	if err != nil {
+		xlog.Error(ctx, "can't get S3SecretKey", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "can't get S3SecretKey")
+	}
+
+	s3Settings := types.ListObjectsSettings{
+		S3Settings: types.S3Settings{
+			Endpoint:         s.s3.Endpoint,
+			Region:           s.s3.Region,
+			Bucket:           s.s3.Bucket,
+			AccessKey:        accessKey,
+			SecretKey:        secretKey,
+			S3ForcePathStyle: s.s3.S3ForcePathStyle,
+		},
+		NumberOfRetries: 10,
+		Prefix:          backup.S3PathPrefix,
+	}
+
+	if backup.EncryptionSettings != nil {
+		dekKey := path.Join(backup.S3PathPrefix, "dek.encrypted")
+		encryptedDEK, err := s.s3Connector.GetObject(dekKey, s.s3.Bucket)
+		if err != nil {
+			xlog.Error(ctx, "can't read encrypted DEK from S3", zap.Error(err), zap.String("dekKey", dekKey))
+			s.IncApiCallsCounter(methodName, codes.Internal)
+			return nil, status.Errorf(codes.Internal, "can't read encrypted DEK from S3: %v", err)
+		}
+
+		decryptResp, err := s.kms.Decrypt(ctx, &kp.DecryptRequest{
+			KeyID:      backup.EncryptionSettings.GetKmsKey().GetKeyId(),
+			Ciphertext: encryptedDEK,
+		})
+
+		if err != nil {
+			xlog.Error(ctx, "can't decrypt data encryption key", zap.Error(err))
+			s.IncApiCallsCounter(methodName, codes.Internal)
+			return nil, status.Error(codes.Internal, "can't decrypt data encryption key")
+		}
+
+		_, algorithm, _ := backup_operations.GetEncryptionParams(backup.EncryptionSettings)
+		s3Settings.EncryptionAlgorithm = algorithm
+		s3Settings.EncryptionKey = decryptResp.Plaintext
+	}
+
+	objects, err := s.clientConn.ListObjectsInS3Export(ctx, clientDriver, s3Settings)
+	if err != nil {
+		xlog.Error(ctx, "can't list backup objects", zap.Error(err))
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "can't list backup objects")
+	}
+
+	resp := &pb.ListBackupObjectsResponse{
+		Objects: objects,
+	}
+
+	s.IncApiCallsCounter(methodName, codes.OK)
+	return resp, nil
 }
 
 func (s *BackupService) Register(server server.Server) {
