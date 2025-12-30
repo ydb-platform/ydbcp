@@ -15,7 +15,7 @@ require (
 	github.com/prometheus/client_golang v1.20.4
 	github.com/prometheus/client_model v0.6.1
 	github.com/stretchr/testify v1.10.0
-	github.com/ydb-platform/ydb-go-genproto v0.0.0-20250911135631-b3beddd517d9
+	github.com/ydb-platform/ydb-go-genproto v0.0.0-20251222105147-0bf751469a4a
 	github.com/ydb-platform/ydb-go-sdk-prometheus/v2 v2.1.2
 	github.com/ydb-platform/ydb-go-sdk/v3 v3.108.5
 	go.uber.org/automaxprocs v1.5.3
