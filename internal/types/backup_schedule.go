@@ -2,10 +2,11 @@ package types
 
 import (
 	"fmt"
+	"time"
+
 	"github.com/adhocore/gronx"
 	"github.com/gorhill/cronexpr"
 	"github.com/jonboulle/clockwork"
-	"time"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -56,7 +57,6 @@ func (b *BackupSchedule) GetBackupInfo(clock clockwork.Clock) *pb.ScheduledBacku
 			backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
 			if b.ScheduleSettings.RecoveryPointObjective != nil {
 				rpoMargin := clock.Since(*b.RecoveryPoint)
-				backupInfo.RecoveryPoint = timestamppb.New(*b.RecoveryPoint)
 				backupInfo.LastBackupRpoMarginInterval = durationpb.New(rpoMargin)
 				backupInfo.LastBackupRpoMarginRatio = rpoMargin.Seconds() / float64(b.ScheduleSettings.RecoveryPointObjective.Seconds)
 			}
