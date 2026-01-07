@@ -3,10 +3,6 @@ package main
 import (
 	"bytes"
 	"context"
-	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/proto"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"io"
 	"log"
 	"net/http"
@@ -18,6 +14,11 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/metrics"
+
+	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"ydbcp/internal/types"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -346,9 +347,9 @@ func main() {
 			case "2":
 				{
 
-					if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
+					if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != threePM {
 						log.Panicf(
-							"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
+							"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", threePM.String(),
 							s.LastSuccessfulBackupInfo.String(),
 							s.Id,
 						)
@@ -359,7 +360,7 @@ func main() {
 				{
 					info := &pb.ScheduledBackupInfo{
 						BackupId:      "6",
-						RecoveryPoint: timestamppb.New(fourPM),
+						RecoveryPoint: timestamppb.New(threePM),
 					}
 					if !proto.Equal(info, s.LastSuccessfulBackupInfo) {
 						log.Panicf(
@@ -407,9 +408,9 @@ func main() {
 			if s.Id != "1" {
 				log.Panicf("wrong schedule id, expected 1, got %s", s.Id)
 			}
-			if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fivePM {
+			if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
 				log.Panicf(
-					"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fivePM.String(),
+					"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
 					s.LastSuccessfulBackupInfo.String(),
 					s.Id,
 				)
@@ -451,9 +452,9 @@ func main() {
 		if err != nil {
 			log.Panicf("failed to get backup schedule: %v", err)
 		}
-		if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fivePM {
+		if s.LastSuccessfulBackupInfo.BackupId != "2" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
 			log.Panicf(
-				"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fivePM.String(),
+				"Expected BackupID = 2, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
 				s.LastSuccessfulBackupInfo.String(),
 				s.Id,
 			)
@@ -464,9 +465,9 @@ func main() {
 		if err != nil {
 			log.Panicf("failed to get backup schedule: %v", err)
 		}
-		if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != fourPM {
+		if s.LastSuccessfulBackupInfo.BackupId != "4" || s.LastSuccessfulBackupInfo.RecoveryPoint.AsTime() != threePM {
 			log.Panicf(
-				"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", fourPM.String(),
+				"Expected BackupID = 4, RecoveryPoint = %s, got %s for scheduleID %s", threePM.String(),
 				s.LastSuccessfulBackupInfo.String(),
 				s.Id,
 			)
@@ -480,7 +481,7 @@ func main() {
 		}
 		info := &pb.ScheduledBackupInfo{
 			BackupId:      "6",
-			RecoveryPoint: timestamppb.New(fourPM),
+			RecoveryPoint: timestamppb.New(threePM),
 		}
 		if !proto.Equal(info, s.LastSuccessfulBackupInfo) {
 			log.Panicf(
