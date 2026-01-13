@@ -25,6 +25,7 @@ type pluginConfig struct {
 	RootCAPath            string `yaml:"root_ca_path"`
 	ClientKeyPath         string `yaml:"client_key_path"`
 	ClientCertificatePath string `yaml:"client_certificate_path"`
+	UseRootKms            bool   `yaml:"use_root_kms" default:"false"`
 }
 
 func (p *kmsProviderNebius) Init(ctx context.Context, rawConfig string) error {
@@ -39,13 +40,15 @@ func (p *kmsProviderNebius) Init(ctx context.Context, rawConfig string) error {
 	if len(p.config.RootCAPath) == 0 {
 		return fmt.Errorf("kms: root ca path is required in configuration")
 	}
-	if len(p.config.ClientKeyPath) == 0 {
-		return fmt.Errorf("kms: client key path is required in configuration")
+	if p.config.UseRootKms {
+		// Root KMS works over mTLS and requires client certificates
+		if len(p.config.ClientKeyPath) == 0 {
+			return fmt.Errorf("kms: client key path is required in configuration")
+		}
+		if len(p.config.ClientCertificatePath) == 0 {
+			return fmt.Errorf("kms: client certificate path is required in configuration")
+		}
 	}
-	if len(p.config.ClientCertificatePath) == 0 {
-		return fmt.Errorf("kms: client certificate path is required in configuration")
-	}
-
 	p.endpoint, _ = tls_setup.ParseEndpoint(p.config.CryptoServiceEndpoint)
 
 	xlog.Info(ctx, "KmsNebiusProvider was initialized successfully")
@@ -65,7 +68,20 @@ func (p *kmsProviderNebius) Encrypt(ctx context.Context, req *kms.EncryptRequest
 		return nil, fmt.Errorf("kms: key id is required in encryption request")
 	}
 
-	tlsOption, err := tls_setup.LoadMTLSCredentials(&p.config.RootCAPath, &p.config.ClientCertificatePath, &p.config.ClientKeyPath, p.config.Insecure)
+	var tlsOption grpc.DialOption
+	var err error
+	if p.config.UseRootKms {
+		// Root KMS works over mTLS
+		tlsOption, err = tls_setup.LoadMTLSCredentials(
+			&p.config.RootCAPath,
+			&p.config.ClientCertificatePath,
+			&p.config.ClientKeyPath,
+			p.config.Insecure,
+		)
+	} else {
+		tlsOption, err = tls_setup.LoadTLSCredentials(&p.config.RootCAPath, p.config.Insecure)
+	}
+
 	if err != nil {
 		return nil, err
 	}
@@ -99,7 +115,20 @@ func (p *kmsProviderNebius) Decrypt(ctx context.Context, req *kms.DecryptRequest
 		return nil, fmt.Errorf("kms: key id is required in decryption request")
 	}
 
-	tlsOption, err := tls_setup.LoadTLSCredentials(&p.config.RootCAPath, p.config.Insecure)
+	var tlsOption grpc.DialOption
+	var err error
+	if p.config.UseRootKms {
+		// Root KMS works over mTLS
+		tlsOption, err = tls_setup.LoadMTLSCredentials(
+			&p.config.RootCAPath,
+			&p.config.ClientCertificatePath,
+			&p.config.ClientKeyPath,
+			p.config.Insecure,
+		)
+	} else {
+		tlsOption, err = tls_setup.LoadTLSCredentials(&p.config.RootCAPath, p.config.Insecure)
+	}
+
 	if err != nil {
 		return nil, err
 	}
