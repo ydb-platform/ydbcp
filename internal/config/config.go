@@ -27,22 +27,74 @@ type S3Config struct {
 	IsMock              bool
 }
 
+// K8sJWTAuthConfig configures authentication using a Kubernetes projected volume JWT.
+// This is an alternative to OAuth2KeyFile for environments where K8s service account
+// tokens are available and automatically rotated.
+type K8sJWTAuthConfig struct {
+	K8sTokenPath         string `yaml:"k8s_token_path"`
+	TokenServiceEndpoint string `yaml:"token_service_endpoint"`
+	SubjectToken         string `yaml:"subject_token"`
+	SubjectTokenType     string `yaml:"subject_token_type"`
+}
+
 type YDBConnectionConfig struct {
-	ConnectionString   string `yaml:"connection_string"`
-	Insecure           bool   `yaml:"insecure" default:"false"`
-	Discovery          bool   `yaml:"discovery" default:"true"`
-	DialTimeoutSeconds uint32 `yaml:"dial_timeout_seconds" default:"5"`
-	OAuth2KeyFile      string `yaml:"oauth2_key_file"`
-	EnableSDKMetrics   bool   `yaml:"enable_sdk_metrics" default:"true"`
+	ConnectionString   string            `yaml:"connection_string"`
+	Insecure           bool              `yaml:"insecure" default:"false"`
+	Discovery          bool              `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds uint32            `yaml:"dial_timeout_seconds" default:"5"`
+	OAuth2KeyFile      string            `yaml:"oauth2_key_file"`
+	K8sJWTAuth         *K8sJWTAuthConfig `yaml:"k8s_jwt_auth,omitempty"`
+	EnableSDKMetrics   bool              `yaml:"enable_sdk_metrics" default:"true"`
 }
 
 type ClientConnectionConfig struct {
-	Insecure               bool     `yaml:"insecure" default:"false"`
-	Discovery              bool     `yaml:"discovery" default:"true"`
-	DialTimeoutSeconds     uint32   `yaml:"dial_timeout_seconds" default:"5"`
-	OAuth2KeyFile          string   `yaml:"oauth2_key_file"`
-	AllowedEndpointDomains []string `yaml:"allowed_endpoint_domains"`
-	AllowInsecureEndpoint  bool     `yaml:"allow_insecure_endpoint" default:"false"`
+	Insecure               bool              `yaml:"insecure" default:"false"`
+	Discovery              bool              `yaml:"discovery" default:"true"`
+	DialTimeoutSeconds     uint32            `yaml:"dial_timeout_seconds" default:"5"`
+	OAuth2KeyFile          string            `yaml:"oauth2_key_file"`
+	K8sJWTAuth             *K8sJWTAuthConfig `yaml:"k8s_jwt_auth,omitempty"`
+	AllowedEndpointDomains []string          `yaml:"allowed_endpoint_domains"`
+	AllowInsecureEndpoint  bool              `yaml:"allow_insecure_endpoint" default:"false"`
+}
+
+func (c *K8sJWTAuthConfig) Validate() error {
+	if c.K8sTokenPath == "" {
+		return errors.New("k8s_token_path is required")
+	}
+	if c.TokenServiceEndpoint == "" {
+		return errors.New("token_service_endpoint is required")
+	}
+	if c.SubjectToken == "" {
+		return errors.New("subject_token is required")
+	}
+	if c.SubjectTokenType == "" {
+		return errors.New("subject_token_type is required")
+	}
+	return nil
+}
+
+func (c *YDBConnectionConfig) Validate() error {
+	if c.OAuth2KeyFile != "" && c.K8sJWTAuth != nil {
+		return errors.New("oauth2_key_file and k8s_jwt_auth are mutually exclusive")
+	}
+	if c.K8sJWTAuth != nil {
+		if err := c.K8sJWTAuth.Validate(); err != nil {
+			return fmt.Errorf("k8s_jwt_auth: %w", err)
+		}
+	}
+	return nil
+}
+
+func (c *ClientConnectionConfig) Validate() error {
+	if c.OAuth2KeyFile != "" && c.K8sJWTAuth != nil {
+		return errors.New("oauth2_key_file and k8s_jwt_auth are mutually exclusive")
+	}
+	if c.K8sJWTAuth != nil {
+		if err := c.K8sJWTAuth.Validate(); err != nil {
+			return fmt.Errorf("k8s_jwt_auth: %w", err)
+		}
+	}
+	return nil
 }
 
 type PluginConfig struct {
@@ -185,6 +237,12 @@ func (c Config) Validate() error {
 	emp := YDBConnectionConfig{}
 	if c.DBConnection == emp {
 		return errors.New("empty config")
+	}
+	if err := c.DBConnection.Validate(); err != nil {
+		return fmt.Errorf("db_connection: %w", err)
+	}
+	if err := c.ClientConnection.Validate(); err != nil {
+		return fmt.Errorf("client_connection: %w", err)
 	}
 	for _, domain := range c.ClientConnection.AllowedEndpointDomains {
 		if !validDomainFilter.MatchString(domain) {
