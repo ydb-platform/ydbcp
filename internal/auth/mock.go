@@ -164,24 +164,27 @@ func (p *MockAuthProvider) Authorize(
 		"MockAuthProvider Authorize",
 		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
 	)
+
+	info, ok := p.tokens[token]
+	code := auth.AuthCodeInvalidToken
+	if ok {
+		code = info.authCode
+		subject = string(info.subject)
+	}
+
 	if len(checks) == 0 {
 		xlog.Error(ctx, "MockAuthProvider AuthorizeCheck list is empty")
 		return nil, "", errors.New("AuthorizeCheck list is empty")
 	}
 	results = make([]auth.AuthorizeResult, 0, len(checks))
 
-	info, ok := p.tokens[token]
-	code := auth.AuthCodeInvalidToken
-	if ok {
-		code = info.authCode
-	}
 	if code != auth.AuthCodeSuccess {
 		for range len(checks) {
 			results = append(results, auth.AuthorizeResult{Code: code})
 		}
-		return results, "", nil
+		return results, subject, nil
 	}
-	subject = string(info.subject)
+
 	results = make([]auth.AuthorizeResult, 0, len(checks))
 	for _, c := range checks {
 		results = append(results, p.checkSubjectPermission(subject, c))
@@ -192,6 +195,27 @@ func (p *MockAuthProvider) Authorize(
 		zap.String("SubjectID", anonymousSubject),
 	)
 	return results, subject, nil
+}
+
+func (p *MockAuthProvider) Authenticate(
+	ctx context.Context, token string,
+) (string, error) {
+	xlog.Info(ctx, "MockAuthProvider Authenticate")
+	if len(token) == 0 {
+		return "", nil
+	}
+	info, ok := p.tokens[token]
+	if !ok {
+		return "", errors.New("invalid token")
+	}
+	return string(info.subject), nil
+}
+
+func (p *MockAuthProvider) MaskToken(token string) string {
+	if len(token) > 5 {
+		return token[:3] + "****"
+	}
+	return token
 }
 
 func NewMockAuthProvider(options ...Option) *MockAuthProvider {
