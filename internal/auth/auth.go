@@ -27,6 +27,22 @@ var (
 	ErrGetAuthToken = errors.New("can't get auth token")
 )
 
+type AuthError struct {
+	Code          auth.AuthCode
+	Message       string
+	Permission    string
+	ContainerID   string
+	Subject       string
+	InternalError error
+}
+
+func (e *AuthError) Error() string {
+	return fmt.Sprintf(
+		"authorization failed: subject=%s, permission=%s, container=%s, code=%s, message=%s",
+		e.Subject, e.Permission, e.ContainerID, e.Code.String(), e.Message,
+	)
+}
+
 func NewAuthProvider(ctx context.Context, cfg config.PluginConfig) (auth.AuthProvider, error) {
 	return plugin.Load[auth.AuthProvider](ctx, cfg, "AuthProvider", "auth")
 }
@@ -69,22 +85,32 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 	resp, subject, err := provider.Authorize(ctx, token, check)
 	if err != nil {
 		xlog.Error(ctx, "auth plugin authorize error", zap.Error(err))
-		return "", status.Error(codes.Internal, "authorize error")
+		return "", status.Error(codes.Internal, err.Error())
 	}
 	if len(resp) != 1 {
-		xlog.Error(ctx, "incorrect auth plugin response length != 1")
-		return "", status.Error(codes.Internal, "authorize error")
+		msg := "incorrect auth plugin response length != 1"
+		xlog.Error(ctx, msg)
+		return "", status.Error(codes.Internal, msg)
 	}
 	if resp[0].Code != auth.AuthCodeSuccess {
 		xlog.Error(
 			ctx, "auth plugin response", zap.String("AuthCode", resp[0].Code.String()),
 			zap.String("AuthMessage", resp[0].Message),
 		)
-		return "", status.Errorf(
-			codes.PermissionDenied, "Code: %s, Message: %s", resp[0].Code.String(), resp[0].Message,
-		)
+		authErr := formatAuthError(resp[0].Code, resp[0].Message, subject, permission, containerID)
+		return "", status.Error(codes.PermissionDenied, authErr.Error())
 	}
 	return subject, nil
+}
+
+func formatAuthError(code auth.AuthCode, message, subject, permission, containerID string) *AuthError {
+	return &AuthError{
+		Code:        code,
+		Message:     message,
+		Subject:     subject,
+		Permission:  permission,
+		ContainerID: containerID,
+	}
 }
 
 func TokenFromGRPCContext(ctx context.Context) (string, error) {
