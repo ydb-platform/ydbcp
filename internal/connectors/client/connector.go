@@ -7,12 +7,9 @@ import (
 	"regexp"
 	"strings"
 	"time"
-	"ydbcp/internal/config"
-	"ydbcp/internal/types"
-	"ydbcp/internal/util/xlog"
 
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/aws/credentials"
+	awsCredentials "github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/ydb-platform/ydb-go-genproto/Ydb_Export_V1"
@@ -28,6 +25,11 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/scheme"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
+
+	"ydbcp/internal/config"
+	"ydbcp/internal/credentials"
+	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 )
 
 type ClientConnector interface {
@@ -73,7 +75,21 @@ func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver,
 	if !d.config.Discovery {
 		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
 	}
-	if len(d.config.OAuth2KeyFile) > 0 {
+	// Auth options (mutually exclusive)
+	if d.config.K8sJWTAuth != nil {
+		// K8s projected volume JWT authentication
+		creds, err := credentials.NewK8sJWTCredentials(credentials.K8sJWTConfig{
+			K8sTokenPath:         d.config.K8sJWTAuth.K8sTokenPath,
+			TokenServiceEndpoint: d.config.K8sJWTAuth.TokenServiceEndpoint,
+			SubjectToken:         d.config.K8sJWTAuth.SubjectToken,
+			SubjectTokenType:     d.config.K8sJWTAuth.SubjectTokenType,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create K8s JWT credentials: %w", err)
+		}
+		opts = append(opts, ydb.WithCredentials(creds))
+	} else if len(d.config.OAuth2KeyFile) > 0 {
+		// OAuth2 key file authentication
 		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(d.config.OAuth2KeyFile))
 	} else {
 		opts = append(opts, ydb.WithAnonymousCredentials())
@@ -392,7 +408,7 @@ func (d *ClientYdbConnector) ImportFromS3(
 		s3Client := s3.New(s,
 			&aws.Config{
 				Region:           &s3Settings.Region,
-				Credentials:      credentials.NewStaticCredentials(s3Settings.AccessKey, s3Settings.SecretKey, ""),
+				Credentials:      awsCredentials.NewStaticCredentials(s3Settings.AccessKey, s3Settings.SecretKey, ""),
 				Endpoint:         &s3Settings.Endpoint,
 				S3ForcePathStyle: &s3Settings.S3ForcePathStyle,
 			},

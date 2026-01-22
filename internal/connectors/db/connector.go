@@ -4,16 +4,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	ydbPrometheus "github.com/ydb-platform/ydb-go-sdk-prometheus/v2"
-	"google.golang.org/grpc"
 	"io"
 	"time"
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
-	"ydbcp/internal/types"
-	"ydbcp/internal/util/xlog"
 
+	ydbPrometheus "github.com/ydb-platform/ydb-go-sdk-prometheus/v2"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
 	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"github.com/ydb-platform/ydb-go-sdk/v3/query"
@@ -21,7 +15,15 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"ydbcp/internal/config"
+	"ydbcp/internal/connectors/db/yql/queries"
+	"ydbcp/internal/credentials"
+	"ydbcp/internal/metrics"
+	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 )
 
 var (
@@ -112,7 +114,21 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 	if !config.Discovery {
 		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
 	}
-	if len(config.OAuth2KeyFile) > 0 {
+	// Auth options (mutually exclusive)
+	if config.K8sJWTAuth != nil {
+		// K8s projected volume JWT authentication
+		creds, err := credentials.NewK8sJWTCredentials(credentials.K8sJWTConfig{
+			K8sTokenPath:         config.K8sJWTAuth.K8sTokenPath,
+			TokenServiceEndpoint: config.K8sJWTAuth.TokenServiceEndpoint,
+			SubjectToken:         config.K8sJWTAuth.SubjectToken,
+			SubjectTokenType:     config.K8sJWTAuth.SubjectTokenType,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("failed to create K8s JWT credentials: %w", err)
+		}
+		opts = append(opts, ydb.WithCredentials(creds))
+	} else if len(config.OAuth2KeyFile) > 0 {
+		// OAuth2 key file authentication
 		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(config.OAuth2KeyFile))
 	} else {
 		opts = append(opts, ydb.WithAnonymousCredentials())
