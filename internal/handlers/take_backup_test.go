@@ -21,6 +21,7 @@ import (
 )
 
 func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
+	metrics.InitializeMockMetricsRegistry()
 	ctx := context.Background()
 	opId := types.GenerateObjectID()
 	backupID := types.GenerateObjectID()
@@ -841,4 +842,83 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	ydbOpStatus, err := clientConnector.GetOperationStatus(ctx, nil, tbOp.YdbOperationId)
 	assert.Empty(t, err)
 	assert.Equal(t, Ydb.StatusIds_UNAVAILABLE, ydbOpStatus.GetOperation().GetStatus())
+}
+
+func TestTBOperationHandlerReportsLastBackupSize(t *testing.T) {
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	scheduleID := "test-schedule-id"
+	containerID := "test-container"
+	databaseName := "test-db"
+
+	tbOp := types.TakeBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		State:               types.OperationStateRunning,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:           backupID,
+		ContainerID:  containerID,
+		DatabaseName: databaseName,
+		Status:       types.BackupStateRunning,
+		S3PathPrefix: "pathPrefix",
+		S3Bucket:     "bucket",
+		ScheduleID:   &scheduleID,
+	}
+
+	ydbOp := &Ydb_Operations.Operation{
+		Id:     "1",
+		Ready:  true,
+		Status: Ydb.StatusIds_SUCCESS,
+		Issues: nil,
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
+
+	backupMap[backupID] = backup
+	opMap[opId] = &tbOp
+	ydbOpMap["1"] = ydbOp
+	// Create S3 objects with known sizes: 100 + 150 + 200 = 450 bytes
+	s3ObjectsMap["bucket"] = s3Client.Bucket{
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+	)
+	clientConnector := client.NewMockClientConnector(
+		client.WithOperations(ydbOpMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+	metrics.InitializeMockMetricsRegistry()
+
+	handler := NewTBOperationHandler(
+		dbConnector, clientConnector, s3Connector, config.Config{}, queries.NewWriteTableQueryMock,
+	)
+	err := handler(ctx, &tbOp)
+	assert.Empty(t, err)
+
+	b, err := dbConnector.GetBackup(ctx, backupID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, b)
+	assert.Equal(t, types.BackupStateAvailable, b.Status)
+	assert.Equal(t, int64(450), b.Size)
+
+	metricsMap := metrics.GetMetrics()
+	assert.NotEmpty(t, metricsMap)
+	assert.Equal(t, float64(450), metricsMap["backups_last_size_bytes"], "last backup size metric should be 450 bytes")
 }
