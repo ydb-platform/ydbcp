@@ -69,7 +69,12 @@ func TBOperationHandler(
 		)
 
 		if err == nil {
-			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil)
+			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
+				containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
+			)
+			metrics.GlobalMetricsRegistry.ReportLastBackupSize(
+				containerId, database, backup.ScheduleID, backup.Size,
+			)
 		}
 
 		return err
@@ -180,7 +185,9 @@ func TBOperationHandler(
 			}
 			backup.Message = operation.GetMessage()
 			backup.Size = size
-			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
+			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(
+				backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size,
+			)
 		}
 	case types.OperationStateStartCancelling:
 		{
@@ -233,7 +240,9 @@ func TBOperationHandler(
 					return err
 				}
 
-				metrics.GlobalMetricsRegistry.IncBytesDeletedCounter(backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size)
+				metrics.GlobalMetricsRegistry.IncBytesDeletedCounter(
+					backup.ContainerID, backup.S3Bucket, backup.DatabaseName, size,
+				)
 
 				backup.Status = types.BackupStateCancelled
 				operation.SetState(types.OperationStateCancelled)
@@ -245,7 +254,9 @@ func TBOperationHandler(
 				operation.SetMessage(ydbOpResponse.IssueString())
 			}
 			backup.Message = operation.GetMessage()
-			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size)
+			metrics.GlobalMetricsRegistry.IncBytesWrittenCounter(
+				backup.ContainerID, backup.DatabaseName, backup.S3Bucket, size,
+			)
 		}
 	default:
 		return fmt.Errorf("unexpected operation state %s", tb.State)

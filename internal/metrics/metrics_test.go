@@ -102,8 +102,8 @@ func TestResetScheduleMetrics(t *testing.T) {
 		scheduleName,
 	).Set(float64(time.Now().Unix()))
 
-	s.backupsSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, scheduleName, UNENCRYPTED_LABEL).Set(1)
-	s.backupsFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, scheduleName).Set(0)
+	s.backupsSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID, UNENCRYPTED_LABEL).Set(1)
+	s.backupsFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(0)
 
 	getMetricValue := func(metricFamilies []*io_prometheus_client.MetricFamily, familyName string) (float64, bool) {
 		for _, mf := range metricFamilies {
