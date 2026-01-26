@@ -44,7 +44,10 @@ type MetricsRegistry interface {
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
-	IncCompletedBackupsCount(containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, isEncrypted bool)
+	IncCompletedBackupsCount(
+		containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, isEncrypted bool,
+	)
+	ReportLastBackupSize(containerId string, database string, scheduleId *string, sizeBytes int64)
 	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
 	ResetScheduleCounters(schedule *types.BackupSchedule)
 }
@@ -81,6 +84,7 @@ type MetricsRegistryImpl struct {
 	// backup metrics
 	backupsFailedCount    *prometheus.GaugeVec
 	backupsSucceededCount *prometheus.GaugeVec
+	lastBackupSizeBytes   *prometheus.GaugeVec
 
 	// schedule metrics
 	scheduleActionFailedCount          *prometheus.CounterVec
@@ -236,6 +240,19 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(
 		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel, UNENCRYPTED_LABEL).Set(0)
 		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
 	}
+}
+
+func (s *MetricsRegistryImpl) ReportLastBackupSize(
+	containerId string, database string, scheduleId *string, sizeBytes int64,
+) {
+	var scheduleIdLabel string
+	if scheduleId != nil {
+		scheduleIdLabel = *scheduleId
+	} else {
+		scheduleIdLabel = NO_SCHEDULE_ID_LABEL
+	}
+
+	s.lastBackupSizeBytes.WithLabelValues(containerId, database, scheduleIdLabel).Set(float64(sizeBytes))
 }
 
 func (s *MetricsRegistryImpl) IncScheduleCounters(
@@ -549,6 +566,14 @@ func newMetricsRegistry(
 			Name:      "succeeded_count",
 			Help:      "Total count of successful backups",
 		}, []string{"container_id", "database", "schedule_id", "encrypted"},
+	)
+
+	s.lastBackupSizeBytes = promauto.With(s.reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "backups",
+			Name:      "size_bytes",
+			Help:      "Bytes size of the last successful backup",
+		}, []string{"container_id", "database", "schedule_id"},
 	)
 
 	s.scheduleActionFailedCount = promauto.With(s.reg).NewCounterVec(

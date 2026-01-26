@@ -54,6 +54,14 @@ func (s *MockMetricsRegistry) IncCompletedBackupsCount(
 	}
 }
 
+func (s *MockMetricsRegistry) ReportLastBackupSize(
+	containerId string, database string, scheduleId *string, sizeBytes int64,
+) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.metrics["backups_last_size_bytes"] = float64(sizeBytes)
+}
+
 func (s *MockMetricsRegistry) GetMetrics() map[string]float64 {
 	return s.metrics
 }
