@@ -4,6 +4,7 @@ package ydbcp.v1alpha1;
 option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
 
 import "ydbcp/v1alpha1/backup.proto";
+import "ydbcp/v1alpha1/date_range.proto";
 import "ydbcp/v1alpha1/operation.proto";
 import "google/protobuf/duration.proto";
 
@@ -52,6 +53,8 @@ message ListBackupsRequest {
     repeated Backup.Status display_status = 3;
     // The order in which to list the backups.
     ListBackupsOrder order = 4;
+    // Filter backups by creation date range.
+    DateRange created_at = 5;
 
     // The maximum number of results per page that should be returned. If the number of available
     // results is larger than `page_size`, the service returns a `next_page_token` that can be used

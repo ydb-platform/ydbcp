@@ -236,6 +236,44 @@ func TestOrderSpec(t *testing.T) {
 	)
 }
 
+func TestQueryBuilderOperator(t *testing.T) {
+	const (
+		queryString = `SELECT * FROM table1 WHERE (created_at >= $param0) AND (created_at <= $param1)`
+	)
+	var (
+		queryParams = table.NewQueryParameters(
+			table.ValueParam("$param0", table_types.StringValueFromString("2021-01-01T00:00:00Z")),
+			table.ValueParam("$param1", table_types.StringValueFromString("2021-12-31T23:59:59Z")),
+		)
+	)
+	builder := NewReadTableQuery(
+		WithTableName("table1"),
+		WithQueryFilters(
+			QueryFilter{
+				Field:    "created_at",
+				Operator: ">=",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("2021-01-01T00:00:00Z"),
+				},
+			},
+			QueryFilter{
+				Field:    "created_at",
+				Operator: "<=",
+				Values: []table_types.Value{
+					table_types.StringValueFromString("2021-12-31T23:59:59Z"),
+				},
+			},
+		),
+	)
+	query, err := builder.FormatQuery(context.Background())
+	assert.Empty(t, err)
+	assert.Equal(
+		t, queryString, query.QueryText,
+		"bad query format",
+	)
+	assert.Equal(t, queryParams, query.QueryParams, "bad query params")
+}
+
 func TestIndex(t *testing.T) {
 	const (
 		query = `SELECT * FROM table1 VIEW index`
