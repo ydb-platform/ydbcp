@@ -31,12 +31,19 @@ import (
 	"sync/atomic"
 	"syscall"
 	"time"
+
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/config"
+	ydbcpCredentials "ydbcp/internal/credentials"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/util/tls_setup"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+)
+
+const (
+	grantTypeTokenExchange   = "urn:ietf:params:oauth:grant-type:token-exchange"
+	requestedTokenTypeAccess = "urn:ietf:params:oauth:token-type:access_token"
 )
 
 type Oauth2Config credentials.OAuth2Config
@@ -103,7 +110,7 @@ func processTokenExchangeResponse(
 
 func getRequestParams(oauth2 *Oauth2Config, token string) string {
 	params := url.Values{}
-	params.Set("grant_type", "urn:ietf:params:oauth:grant-type:token-exchange")
+	params.Set("grant_type", grantTypeTokenExchange)
 	if oauth2.Resource != nil {
 		for _, res := range oauth2.Resource.Values {
 			if res != "" {
@@ -120,19 +127,31 @@ func getRequestParams(oauth2 *Oauth2Config, token string) string {
 		}
 	}
 
-	params.Set("requested_token_type", "urn:ietf:params:oauth:token-type:access_token")
+	params.Set("requested_token_type", requestedTokenTypeAccess)
 	params.Set("subject_token", token)
-	params.Set("subject_token_type", "urn:ietf:params:oauth:token-type:jwt")
+	params.Set("subject_token_type", ydbcpCredentials.JWTTokenType)
 
 	return params.Encode()
 }
 
-func performExchangeTokenRequest(ctx context.Context, oauth2 *Oauth2Config, token string) (resp *tokenResponse, final error) {
+func getK8sJWTRequestParams(cfg *config.K8sJWTAuthConfig, actorToken string) string {
+	params := url.Values{}
+	params.Set("grant_type", grantTypeTokenExchange)
+	params.Set("requested_token_type", requestedTokenTypeAccess)
+	// Actor = K8s JWT from projected volume
+	params.Set("actor_token", actorToken)
+	params.Set("actor_token_type", ydbcpCredentials.JWTTokenType)
+	// Subject = Service Account ID (static)
+	params.Set("subject_token", cfg.SubjectToken)
+	params.Set("subject_token_type", cfg.SubjectTokenType)
+
+	return params.Encode()
+}
+
+func performExchangeTokenRequest(ctx context.Context, endpoint, body string) (resp *tokenResponse, final error) {
 	now := time.Now()
 
-	body := getRequestParams(oauth2, token)
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, oauth2.TokenEndpoint, strings.NewReader(body))
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, strings.NewReader(body))
 	if err != nil {
 		return nil, err
 	}
@@ -208,9 +227,11 @@ func getToken(ctx context.Context, key *rsa.PrivateKey, oauth2 *Oauth2Config, po
 	signedToken, err := token.SignedString(key)
 	if err != nil {
 		xlog.Error(ctx, "Failed to sign token", zap.Error(err))
+		return
 	}
 
-	result, err := performExchangeTokenRequest(ctx, oauth2, signedToken)
+	body := getRequestParams(oauth2, signedToken)
+	result, err := performExchangeTokenRequest(ctx, oauth2.TokenEndpoint, body)
 	if err != nil {
 		xlog.Error(ctx, "Failed to perform token exchange", zap.Error(err))
 	} else {
@@ -218,6 +239,23 @@ func getToken(ctx context.Context, key *rsa.PrivateKey, oauth2 *Oauth2Config, po
 		xlog.Info(ctx, "Token exchanged")
 		pointer.Store(&newToken)
 	}
+}
+
+func startCredentialsRefreshLoop(ctx context.Context, wg *sync.WaitGroup, refreshToken func()) {
+	refreshToken()
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		ticker := time.NewTicker(55 * time.Minute)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				refreshToken()
+			}
+		}
+	}()
 }
 
 func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile string, tokenPtr *atomic.Pointer[string]) {
@@ -229,20 +267,33 @@ func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile str
 		os.Exit(1)
 	}
 
-	getToken(ctx, key, oauth2, tokenPtr)
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ticker := time.NewTicker(55 * time.Minute)
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				getToken(ctx, key, oauth2, tokenPtr)
-			}
-		}
-	}()
+	startCredentialsRefreshLoop(ctx, wg, func() {
+		getToken(ctx, key, oauth2, tokenPtr)
+	})
+}
+
+func getK8sJWTToken(ctx context.Context, cfg *config.K8sJWTAuthConfig, pointer *atomic.Pointer[string]) {
+	k8sToken, err := os.ReadFile(cfg.K8sTokenPath)
+	if err != nil {
+		xlog.Error(ctx, "Failed to read K8s token", zap.Error(err), zap.String("path", cfg.K8sTokenPath))
+		return
+	}
+
+	body := getK8sJWTRequestParams(cfg, strings.TrimSpace(string(k8sToken)))
+	result, err := performExchangeTokenRequest(ctx, cfg.TokenServiceEndpoint, body)
+	if err != nil {
+		xlog.Error(ctx, "Failed to perform token exchange", zap.Error(err))
+	} else {
+		newToken := "Bearer " + result.AccessToken
+		xlog.Info(ctx, "Token exchanged")
+		pointer.Store(&newToken)
+	}
+}
+
+func StartK8sJWTCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, cfg *config.K8sJWTAuthConfig, tokenPtr *atomic.Pointer[string]) {
+	startCredentialsRefreshLoop(ctx, wg, func() {
+		getK8sJWTToken(ctx, cfg, tokenPtr)
+	})
 }
 
 func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupScheduleServiceClient) map[string]bool {
@@ -327,8 +378,19 @@ func main() {
 		os.Exit(1)
 	}
 
-	StartCredentialsHelper(ctx, &wg, configInstance.ClusterConnection.OAuth2KeyFile, &ydbToken)
-	StartCredentialsHelper(ctx, &wg, configInstance.ControlPlaneConnection.OAuth2KeyFile, &ydbcpToken)
+	// Start credentials helper for YDB cluster connection
+	if configInstance.ClusterConnection.K8sJWTAuth != nil {
+		StartK8sJWTCredentialsHelper(ctx, &wg, configInstance.ClusterConnection.K8sJWTAuth, &ydbToken)
+	} else if configInstance.ClusterConnection.OAuth2KeyFile != "" {
+		StartCredentialsHelper(ctx, &wg, configInstance.ClusterConnection.OAuth2KeyFile, &ydbToken)
+	}
+
+	// Start credentials helper for YDBCP control plane connection
+	if configInstance.ControlPlaneConnection.K8sJWTAuth != nil {
+		StartK8sJWTCredentialsHelper(ctx, &wg, configInstance.ControlPlaneConnection.K8sJWTAuth, &ydbcpToken)
+	} else if configInstance.ControlPlaneConnection.OAuth2KeyFile != "" {
+		StartCredentialsHelper(ctx, &wg, configInstance.ControlPlaneConnection.OAuth2KeyFile, &ydbcpToken)
+	}
 
 	var opts []grpc.DialOption
 	opts = append(opts, opt)

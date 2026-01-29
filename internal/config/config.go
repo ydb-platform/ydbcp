@@ -160,13 +160,39 @@ type Config struct {
 }
 
 type ClusterConnectionConfig struct {
-	Endpoint      string `yaml:"endpoint"`
-	OAuth2KeyFile string `yaml:"oauth2_key_file"`
+	Endpoint      string            `yaml:"endpoint"`
+	OAuth2KeyFile string            `yaml:"oauth2_key_file"`
+	K8sJWTAuth    *K8sJWTAuthConfig `yaml:"k8s_jwt_auth,omitempty"`
+}
+
+func (c *ClusterConnectionConfig) Validate() error {
+	if c.OAuth2KeyFile != "" && c.K8sJWTAuth != nil {
+		return errors.New("oauth2_key_file and k8s_jwt_auth are mutually exclusive")
+	}
+	if c.K8sJWTAuth != nil {
+		if err := c.K8sJWTAuth.Validate(); err != nil {
+			return fmt.Errorf("k8s_jwt_auth: %w", err)
+		}
+	}
+	return nil
 }
 
 type ControlPlaneConnectionConfig struct {
-	Endpoint      string `yaml:"endpoint"`
-	OAuth2KeyFile string `yaml:"oauth2_key_file"`
+	Endpoint      string            `yaml:"endpoint"`
+	OAuth2KeyFile string            `yaml:"oauth2_key_file"`
+	K8sJWTAuth    *K8sJWTAuthConfig `yaml:"k8s_jwt_auth,omitempty"`
+}
+
+func (c *ControlPlaneConnectionConfig) Validate() error {
+	if c.OAuth2KeyFile != "" && c.K8sJWTAuth != nil {
+		return errors.New("oauth2_key_file and k8s_jwt_auth are mutually exclusive")
+	}
+	if c.K8sJWTAuth != nil {
+		if err := c.K8sJWTAuth.Validate(); err != nil {
+			return fmt.Errorf("k8s_jwt_auth: %w", err)
+		}
+	}
+	return nil
 }
 
 type WatcherConfig struct {
@@ -253,9 +279,14 @@ func (c Config) Validate() error {
 }
 
 func (c WatcherConfig) Validate() error {
-	emp := ClusterConnectionConfig{}
-	if c.ClusterConnection == emp {
+	if c.ClusterConnection.Endpoint == "" {
 		return errors.New("empty config")
+	}
+	if err := c.ClusterConnection.Validate(); err != nil {
+		return fmt.Errorf("ydb: %w", err)
+	}
+	if err := c.ControlPlaneConnection.Validate(); err != nil {
+		return fmt.Errorf("ydbcp: %w", err)
 	}
 	return nil
 }
