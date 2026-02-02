@@ -7,6 +7,18 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"os"
+	"os/signal"
+	"strconv"
+	"strings"
+	"sync"
+	"sync/atomic"
+	"syscall"
+	"time"
+
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promauto"
@@ -20,17 +32,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"io"
-	"net/http"
-	"net/url"
-	"os"
-	"os/signal"
-	"strconv"
-	"strings"
-	"sync"
-	"sync/atomic"
-	"syscall"
-	"time"
 
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/config"
@@ -206,9 +207,13 @@ func TokenInterceptor(header string, tokenPtr *atomic.Pointer[string]) grpc.Unar
 	) error {
 		token := tokenPtr.Load()
 		if token != nil {
-			ctx = metadata.NewOutgoingContext(ctx, metadata.New(map[string]string{
-				header: *token,
-			}))
+			ctx = metadata.NewOutgoingContext(
+				ctx, metadata.New(
+					map[string]string{
+						header: *token,
+					},
+				),
+			)
 		}
 		return invoker(ctx, method, req, reply, cc, opts...)
 	}
@@ -267,9 +272,11 @@ func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile str
 		os.Exit(1)
 	}
 
-	startCredentialsRefreshLoop(ctx, wg, func() {
-		getToken(ctx, key, oauth2, tokenPtr)
-	})
+	startCredentialsRefreshLoop(
+		ctx, wg, func() {
+			getToken(ctx, key, oauth2, tokenPtr)
+		},
+	)
 }
 
 func getK8sJWTToken(ctx context.Context, cfg *config.K8sJWTAuthConfig, pointer *atomic.Pointer[string]) {
@@ -290,13 +297,20 @@ func getK8sJWTToken(ctx context.Context, cfg *config.K8sJWTAuthConfig, pointer *
 	}
 }
 
-func StartK8sJWTCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, cfg *config.K8sJWTAuthConfig, tokenPtr *atomic.Pointer[string]) {
-	startCredentialsRefreshLoop(ctx, wg, func() {
-		getK8sJWTToken(ctx, cfg, tokenPtr)
-	})
+func StartK8sJWTCredentialsHelper(
+	ctx context.Context, wg *sync.WaitGroup, cfg *config.K8sJWTAuthConfig, tokenPtr *atomic.Pointer[string],
+) {
+	startCredentialsRefreshLoop(
+		ctx, wg, func() {
+			getK8sJWTToken(ctx, cfg, tokenPtr)
+		},
+	)
 }
 
-func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupScheduleServiceClient) map[string]bool {
+func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupScheduleServiceClient) (
+	map[string]bool,
+	error,
+) {
 	schedules := make(map[string]bool)
 	statusFilter := []pb.BackupSchedule_Status{pb.BackupSchedule_ACTIVE}
 	pageToken := ""
@@ -311,7 +325,7 @@ func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupSchedule
 		)
 		if err != nil {
 			xlog.Error(ctx, "Error listing backup schedules", zap.Error(err))
-			break
+			return nil, err
 		} else {
 			xlog.Info(ctx, "Got schedules from YDBCP", zap.String("proto", pbSchedules.String()))
 			for _, pbSchedule := range pbSchedules.Schedules {
@@ -323,7 +337,7 @@ func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupSchedule
 			pageToken = pbSchedules.NextPageToken
 		}
 	}
-	return schedules
+	return schedules, nil
 }
 
 func main() {
@@ -425,11 +439,20 @@ func main() {
 
 	reg := prometheus.NewRegistry()
 
-	noScheduleDbs := promauto.With(reg).NewGaugeVec(prometheus.GaugeOpts{
-		Subsystem: "healthcheck",
-		Name:      "no_schedule_dbs",
-		Help:      "Number of databases with no schedules on a cluster",
-	}, []string{})
+	noScheduleDbs := promauto.With(reg).NewGaugeVec(
+		prometheus.GaugeOpts{
+			Subsystem: "healthcheck",
+			Name:      "no_schedule_dbs",
+			Help:      "Number of databases with no schedules on a cluster",
+		}, []string{},
+	)
+	watcherErrors := promauto.With(reg).NewCounterVec(
+		prometheus.CounterOpts{
+			Subsystem: "healthcheck",
+			Name:      "ydbcp_watcher_errors",
+			Help:      "Total number of ydbcp-watcher errors when querying databases and schedules",
+		}, []string{"service"},
+	)
 
 	_ = metrics.CreateMetricsServer(ctx, &wg, reg, &configInstance.MetricsServer)
 
@@ -461,21 +484,29 @@ LOOP:
 		case <-ticker.C:
 			{
 				cnt := 0
-				schedules := GetSchedulesFromYDBCP(ctx, scheduleClient)
-
-				op, err := cmsService.ListDatabases(ctx, &Ydb_Cms.ListDatabasesRequest{
-					OperationParams: &Ydb_Operations.OperationParams{
-						OperationTimeout: durationpb.New(time.Second * 10),
+				schedules, err := GetSchedulesFromYDBCP(ctx, scheduleClient)
+				if err != nil {
+					xlog.Error(ctx, "Error listing schedules", zap.Error(err))
+					watcherErrors.WithLabelValues("ydbcp").Inc()
+					continue
+				}
+				op, err := cmsService.ListDatabases(
+					ctx, &Ydb_Cms.ListDatabasesRequest{
+						OperationParams: &Ydb_Operations.OperationParams{
+							OperationTimeout: durationpb.New(time.Second * 10),
+						},
 					},
-				})
+				)
 				if err != nil {
 					xlog.Error(ctx, "Error listing databases", zap.Error(err))
+					watcherErrors.WithLabelValues("ydb").Inc()
 					continue
 				}
 				var databases Ydb_Cms.ListDatabasesResult
 				err = op.Operation.Result.UnmarshalTo(&databases)
 				if err != nil {
 					xlog.Error(ctx, "Error unmarshalling databases", zap.Error(err))
+					watcherErrors.WithLabelValues("ydb").Inc()
 					continue
 				}
 				xlog.Info(ctx, "got databases from cluster", zap.Strings("databases", databases.Paths))
