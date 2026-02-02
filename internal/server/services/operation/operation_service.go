@@ -83,6 +83,26 @@ func (s *OperationService) ListOperations(
 			},
 		)
 	}
+	if request.GetCreatedAt() != nil {
+		if request.GetCreatedAt().GetFrom() != nil {
+			queryFilters = append(queryFilters, queries.QueryFilter{
+				Field:    "created_at",
+				Operator: ">=",
+				Values: []table_types.Value{
+					table_types.TimestampValueFromTime(request.GetCreatedAt().GetFrom().AsTime()),
+				},
+			})
+		}
+		if request.GetCreatedAt().GetTo() != nil {
+			queryFilters = append(queryFilters, queries.QueryFilter{
+				Field:    "created_at",
+				Operator: "<=",
+				Values: []table_types.Value{
+					table_types.TimestampValueFromTime(request.GetCreatedAt().GetTo().AsTime()),
+				},
+			})
+		}
+	}
 
 	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
 	if err != nil {

@@ -22,9 +22,10 @@ const (
 )
 
 type QueryFilter struct {
-	Field  string
-	Values []table_types.Value
-	IsLike bool
+	Field    string
+	Values   []table_types.Value
+	IsLike   bool
+	Operator string // Optional: ">=", "<=", ">", "<". Defaults to "=" when empty.
 }
 
 type FormatQueryResult struct {
@@ -98,6 +99,7 @@ type ReadTableQueryImpl struct {
 	filters          [][]table_types.Value
 	filterFields     []string
 	isLikeFilter     map[string]bool
+	filterOperators  map[int]string
 	index            *string
 	orderBy          *OrderSpec
 	pageSpec         *PageSpec
@@ -111,6 +113,7 @@ func NewReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
 	d.filters = make([][]table_types.Value, 0)
 	d.filterFields = make([]string, 0)
 	d.isLikeFilter = make(map[string]bool)
+	d.filterOperators = make(map[int]string)
 
 	for _, opt := range options {
 		opt(d)
@@ -143,12 +146,16 @@ func WithTableName(tableName string) ReadTableQueryOption {
 func WithQueryFilters(filters ...QueryFilter) ReadTableQueryOption {
 	return func(d *ReadTableQueryImpl) {
 		for _, filter := range filters {
+			idx := len(d.filterFields)
 			d.filterFields = append(d.filterFields, filter.Field)
 			newFilters := make([]table_types.Value, 0, len(filter.Values))
 			newFilters = append(newFilters, filter.Values...)
 			d.filters = append(d.filters, newFilters)
 			if filter.IsLike {
 				d.isLikeFilter[filter.Field] = true
+			}
+			if filter.Operator != "" {
+				d.filterOperators[idx] = filter.Operator
 			}
 		}
 	}
@@ -187,10 +194,12 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 	filterStrings := make([]string, 0, len(d.filters))
 	for i := 0; i < len(d.filterFields); i++ {
 		fieldFilterStrings := make([]string, 0, len(d.filters[i]))
-		op := "="
 		for _, value := range d.filters[i] {
 			paramName := d.AddTableQueryParam(value)
-			if d.isLikeFilter[d.filterFields[i]] {
+			op := "="
+			if customOp, ok := d.filterOperators[i]; ok {
+				op = customOp
+			} else if d.isLikeFilter[d.filterFields[i]] {
 				op = "LIKE"
 				paramName = fmt.Sprintf("\"%%\" || %s || \"%%\"", paramName)
 			}
