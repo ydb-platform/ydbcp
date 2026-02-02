@@ -1,0 +1,75 @@
+name: tag-version
+
+on:
+  workflow_dispatch:
+    inputs:
+      version-change:
+        description: Version part
+        required: true
+        type: choice
+        options:
+          - PATCH
+          - MINOR
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      VERSION_CHANGE: ${{ github.event.inputs.version-change }}
+      GITHUB_TOKEN: ${{ secrets.YDB_PLATFORM_BOT_TOKEN_REPO }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.YDB_PLATFORM_BOT_TOKEN_REPO }}
+          ref: main
+
+      - name: Calculate next version and tag main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          git fetch --tags --force
+
+          # Find latest tag like 0.6.4 (no prefix, no suffix)
+          LAST_TAG="$(git tag -l '[0-9]*.[0-9]*.[0-9]*' --sort=-v:refname | head -n 1)"
+          if [[ -z "${LAST_TAG}" ]]; then
+            exit 1
+          fi
+
+          IFS='.' read -r MAJOR MINOR PATCH <<< "${LAST_TAG}"
+
+          case "${VERSION_CHANGE}" in
+            MINOR)
+              MINOR=$((MINOR + 1))
+              PATCH=0
+              ;;
+            PATCH)
+              PATCH=$((PATCH + 1))
+              ;;
+            *)
+              echo "Unknown VERSION_CHANGE: ${VERSION_CHANGE}"
+              exit 1
+              ;;
+          esac
+
+          NEW_TAG="${MAJOR}.${MINOR}.${PATCH}"
+
+          echo "Last tag: ${LAST_TAG}"
+          echo "New tag:  ${NEW_TAG}"
+
+          # Fail if tag already exists
+          if git rev-parse -q --verify "refs/tags/${NEW_TAG}" >/dev/null; then
+            echo "Tag ${NEW_TAG} already exists"
+            exit 1
+          fi
+
+          git config --global user.email "robot@umbrella"
+          git config --global user.name "robot"
+
+          git tag "${NEW_TAG}"
+          git push origin "${NEW_TAG}"
