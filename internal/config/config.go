@@ -117,9 +117,11 @@ type MetricsServerConfig struct {
 }
 
 type FeatureFlagsConfig struct {
-	DisableTTLDeletion      bool `yaml:"disable_ttl_deletion" default:"false"`
-	EnableNewPathsFormat    bool `yaml:"enable_new_paths_format" default:"false"`
-	EnableBackupsEncryption bool `yaml:"enable_backups_encryption" default:"false"`
+	DisableTTLDeletion       bool `yaml:"disable_ttl_deletion" default:"false"`
+	EnableNewPathsFormat     bool `yaml:"enable_new_paths_format" default:"false"`
+	EnableBackupsEncryption  bool `yaml:"enable_backups_encryption" default:"false"`
+	EnableBackupsCompression bool `yaml:"enable_backups_compression" default:"false"`
+	BackupsCompresionLevel   int  `yaml:"baackups_compresion_level" default:"1"`
 }
 
 type LogConfig struct {
