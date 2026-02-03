@@ -110,6 +110,7 @@ services:
       YDB_NAME: ${YDB_NAME}
       ENABLE_NEW_PATHS_FORMAT: ${ENABLE_NEW_PATHS_FORMAT}
       ENABLE_BACKUPS_ENCRYPTION: ${ENABLE_BACKUPS_ENCRYPTION}
+      ENABLE_BACKUPS_COMPRESSION: ${ENABLE_BACKUPS_COMPRESSION}
     depends_on:
       setup_ydb:
         condition: service_completed_successfully

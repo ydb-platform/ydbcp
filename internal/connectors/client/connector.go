@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"path"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -281,6 +282,10 @@ func (d *ClientYdbConnector) ExportToS3(
 			Items:                    items,
 			DisableVirtualAddressing: s3Settings.S3ForcePathStyle,
 		},
+	}
+
+	if featureFlags.EnableBackupsCompression {
+		exportRequest.Settings.Compression = strings.Join([]string{"zstd", strconv.Itoa(featureFlags.BackupsCompresionLevel)}, "-")
 	}
 
 	if featureFlags.EnableNewPathsFormat {

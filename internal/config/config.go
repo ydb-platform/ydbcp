@@ -116,10 +116,26 @@ type MetricsServerConfig struct {
 	TLSKeyPath         string `yaml:"tls_key_path"`
 }
 
+// BackupsCompressionLevelMin/Max define the valid range for backups_compression_level (zstd level).
+const (
+	BackupsCompressionLevelMin = 1
+	BackupsCompressionLevelMax = 22
+)
+
 type FeatureFlagsConfig struct {
-	DisableTTLDeletion      bool `yaml:"disable_ttl_deletion" default:"false"`
-	EnableNewPathsFormat    bool `yaml:"enable_new_paths_format" default:"false"`
-	EnableBackupsEncryption bool `yaml:"enable_backups_encryption" default:"false"`
+	DisableTTLDeletion       bool `yaml:"disable_ttl_deletion" default:"false"`
+	EnableNewPathsFormat     bool `yaml:"enable_new_paths_format" default:"false"`
+	EnableBackupsEncryption  bool `yaml:"enable_backups_encryption" default:"false"`
+	EnableBackupsCompression bool `yaml:"enable_backups_compression" default:"false"`
+	BackupsCompresionLevel   int  `yaml:"backups_compression_level" default:"1"`
+}
+
+func (c *FeatureFlagsConfig) Validate() error {
+	if c.BackupsCompresionLevel < BackupsCompressionLevelMin || c.BackupsCompresionLevel > BackupsCompressionLevelMax {
+		return fmt.Errorf("backups_compression_level must be between %d and %d, got %d",
+			BackupsCompressionLevelMin, BackupsCompressionLevelMax, c.BackupsCompresionLevel)
+	}
+	return nil
 }
 
 type LogConfig struct {
@@ -269,6 +285,9 @@ func (c Config) Validate() error {
 	}
 	if err := c.ClientConnection.Validate(); err != nil {
 		return fmt.Errorf("client_connection: %w", err)
+	}
+	if err := c.FeatureFlags.Validate(); err != nil {
+		return fmt.Errorf("feature_flags: %w", err)
 	}
 	for _, domain := range c.ClientConnection.AllowedEndpointDomains {
 		if !validDomainFilter.MatchString(domain) {
