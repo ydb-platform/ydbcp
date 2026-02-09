@@ -28,9 +28,10 @@ type MockTokenInfo struct {
 	authCode auth.AuthCode
 }
 type MockAuthProvider struct {
-	tokens     map[string]*MockTokenInfo
-	containers map[MockContainerID]*MockContainer
-	resources  map[MockResourceID]*MockResource
+	tokens           map[string]*MockTokenInfo
+	containers       map[MockContainerID]*MockContainer
+	resources        map[MockResourceID]*MockResource
+	ydbcpContainerID string
 }
 
 func NewMocResource(parent MockContainerID) *MockResource {
@@ -99,6 +100,12 @@ func WithResource(id MockResourceID, res *MockResource) Option {
 			p.resources = make(map[MockResourceID]*MockResource)
 		}
 		p.resources[id] = res
+	}
+}
+
+func WithYDBCPContainerID(containerID string) Option {
+	return func(p *MockAuthProvider) {
+		p.ydbcpContainerID = containerID
 	}
 }
 
@@ -216,6 +223,10 @@ func (p *MockAuthProvider) MaskToken(token string) string {
 		return token[:3] + "****"
 	}
 	return token
+}
+
+func (p *MockAuthProvider) GetYDBCPContainerID() string {
+	return p.ydbcpContainerID
 }
 
 func NewMockAuthProvider(options ...Option) *MockAuthProvider {

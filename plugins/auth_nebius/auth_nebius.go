@@ -27,6 +27,7 @@ type pluginConfig struct {
 	AccessServiceEndpoint string `yaml:"access_service_endpoint"`
 	Insecure              bool   `yaml:"insecure" default:"false"`
 	RootCAPath            string `yaml:"root_ca_path"`
+	YDBCPContainerID      string `yaml:"ydbcp_container_id"`
 }
 
 func (p *authProviderNebius) loadTLSCredentials() (grpc.DialOption, error) {
@@ -93,6 +94,9 @@ func authorizeRequest(token string, checks []auth.AuthorizeCheck) *pb.AuthorizeR
 var anonymousSubject = "{none}"
 
 func accountToString(account *pb.Account) string {
+	if account == nil {
+		return ""
+	}
 	switch v := account.Type.(type) {
 	case *pb.Account_UserAccount_:
 		return v.UserAccount.Id
@@ -109,6 +113,10 @@ func (p *authProviderNebius) MaskToken(token string) string {
 	return strings.Split(token, ".")[0] + ".**"
 }
 
+func (p *authProviderNebius) GetYDBCPContainerID() string {
+	return p.config.YDBCPContainerID
+}
+
 func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) ([]auth.AuthorizeResult, string, error) {
 	if len(resp.Results) != expectedResults {
 		return nil, "", fmt.Errorf(
@@ -119,12 +127,12 @@ func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) (
 	var subject string
 	for _, r := range resp.Results {
 		authResult := auth.AuthorizeResult{}
+		if len(subject) == 0 {
+			subject = accountToString(r.Account)
+		}
 		switch r.ResultCode {
 		case pb.AuthorizeResult_OK:
 			authResult.Code = auth.AuthCodeSuccess
-			if len(subject) == 0 {
-				subject = accountToString(r.Account)
-			}
 		case pb.AuthorizeResult_UNKNOWN_SUBJECT:
 			authResult.Code = auth.AuthCodeUnknownSubject
 			authResult.Message = r.Status.Message

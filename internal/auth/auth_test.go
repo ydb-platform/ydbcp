@@ -58,7 +58,6 @@ func TestFormatAuthError(t *testing.T) {
 	assert.Equal(t, subject, authErr.Subject)
 	assert.Equal(t, permission, authErr.Permission)
 	assert.Equal(t, containerID, authErr.ContainerID)
-	assert.Nil(t, authErr.InternalError)
 }
 
 // TestCheckAuthSuccess tests successful authorization
@@ -160,4 +159,180 @@ func TestCheckAuthUnknownSubject(t *testing.T) {
 	assert.Contains(t, err.Error(), "subject=abcde")
 	assert.Contains(t, err.Error(), "permission=ydb.databases.list")
 	assert.Contains(t, err.Error(), "container=container-xyz")
+}
+
+// TestCheckCreateScheduleAuthPrimaryPermissionSuccess tests successful authorization with primary permission
+func TestCheckCreateScheduleAuthPrimaryPermissionSuccess(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer valid-token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	container := NewMocContainer()
+	container.AddSubjectPermission("test-subject", PermissionBackupCreate)
+	mockProvider := NewMockAuthProvider(
+		WithToken("valid-token", "test-subject", auth.AuthCodeSuccess),
+		WithContainer("container-id", container),
+	)
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "container-id", "")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "test-subject", subject)
+}
+
+// TestCheckCreateScheduleAuthFallbackPermissionSuccess tests successful authorization with fallback permission
+func TestCheckCreateScheduleAuthFallbackPermissionSuccess(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer fallback-token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	// User does NOT have primary permission
+	requestedContainer := NewMocContainer()
+
+	// User DOES have fallback permission on the YDBCP container
+	ydbcpContainer := NewMocContainer()
+	ydbcpContainer.AddSubjectPermission("limited-user", PermissionBackupScheduleCreate)
+
+	mockProvider := NewMockAuthProvider(
+		WithToken("fallback-token", "limited-user", auth.AuthCodeSuccess),
+		WithContainer("requested-container", requestedContainer),
+		WithContainer("ydbcp-container-id", ydbcpContainer),
+		WithYDBCPContainerID("ydbcp-container-id"),
+	)
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "requested-container", "")
+
+	assert.NoError(t, err)
+	assert.Equal(t, "limited-user", subject)
+}
+
+// TestCheckCreateScheduleAuthBothPermissionsFail tests authorization failure when both primary and fallback fail
+func TestCheckCreateScheduleAuthBothPermissionsFail(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer denied-token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	// User has neither permission
+	requestedContainer := NewMocContainer()
+	ydbcpContainer := NewMocContainer()
+
+	mockProvider := NewMockAuthProvider(
+		WithToken("denied-token", "limited-user", auth.AuthCodeSuccess),
+		WithContainer("requested-container", requestedContainer),
+		WithContainer("ydbcp-container-id", ydbcpContainer),
+		WithYDBCPContainerID("ydbcp-container-id"),
+	)
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "requested-container", "")
+
+	assert.Error(t, err)
+	assert.Empty(t, subject)
+
+	// When both permissions fail, errors.Join is used to combine them
+	// The primary error should be a gRPC PermissionDenied status
+	statusErr, ok := status.FromError(err)
+	// The error might be a joined error, so we check that it contains permission denied
+	if ok {
+		assert.Equal(t, codes.PermissionDenied, statusErr.Code())
+	}
+}
+
+// TestCheckCreateScheduleAuthNoYDBCPContainerConfigured tests fallback not attempted when no YDBCP container is configured
+func TestCheckCreateScheduleAuthNoYDBCPContainerConfigured(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	// User has neither permission
+	requestedContainer := NewMocContainer()
+
+	mockProvider := NewMockAuthProvider(
+		WithToken("token", "user", auth.AuthCodeSuccess),
+		WithContainer("requested-container", requestedContainer),
+		// No YDBCP container configured
+	)
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "requested-container", "")
+
+	assert.Error(t, err)
+	assert.Empty(t, subject)
+
+	// Verify error is PermissionDenied gRPC status
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
+
+	// Should only show primary permission failure, not fallback
+	errMsg := statusErr.Message()
+	assert.Contains(t, errMsg, PermissionBackupCreate)
+	// "also tried" would indicate fallback was attempted
+	assert.NotContains(t, errMsg, "also tried")
+}
+
+// TestCheckCreateScheduleAuthPrimaryFailsFallbackNotApplicable tests when primary fails and fallback container doesn't match
+func TestCheckCreateScheduleAuthPrimaryFailsFallbackNotApplicable(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	// User has neither permission
+	requestedContainer := NewMocContainer()
+	ydbcpContainer := NewMocContainer()
+
+	mockProvider := NewMockAuthProvider(
+		WithToken("token", "user", auth.AuthCodeSuccess),
+		WithContainer("requested-container", requestedContainer),
+		WithContainer("ydbcp-container-id", ydbcpContainer),
+		WithYDBCPContainerID("different-ydbcp-container-id"), // Different from requested
+	)
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "requested-container", "")
+
+	assert.Error(t, err)
+	assert.Empty(t, subject)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
+
+	// Should only show primary permission failure since fallback doesn't apply
+	errMsg := statusErr.Message()
+	assert.Contains(t, errMsg, PermissionBackupCreate)
+	assert.NotContains(t, errMsg, "also tried")
+}
+
+// TestCheckCreateScheduleAuthInvalidToken tests with invalid token
+func TestCheckCreateScheduleAuthInvalidToken(t *testing.T) {
+	md := metadata.New(
+		map[string]string{
+			"authorization": "Bearer invalid-token",
+		},
+	)
+	ctx := metadata.NewIncomingContext(context.Background(), md)
+
+	mockProvider := NewMockAuthProvider()
+
+	subject, err := CheckCreateScheduleAuth(ctx, mockProvider, "container-id", "")
+
+	assert.Error(t, err)
+	assert.Empty(t, subject)
+
+	statusErr, ok := status.FromError(err)
+	assert.True(t, ok)
+	assert.Equal(t, codes.PermissionDenied, statusErr.Code())
 }

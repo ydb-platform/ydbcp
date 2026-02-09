@@ -73,6 +73,10 @@ func (p *authProviderDummy) MaskToken(token string) string {
 	return token
 }
 
+func (p *authProviderDummy) GetYDBCPContainerID() string {
+	return ""
+}
+
 func NewDummyAuthProvider(ctx context.Context) (auth.AuthProvider, error) {
 	p := &authProviderDummy{}
 	if err := p.Init(ctx, ""); err != nil {
