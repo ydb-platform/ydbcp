@@ -5,6 +5,7 @@ import (
 	"sync"
 	"time"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
@@ -79,7 +80,7 @@ func NewOperationProcessor(
 
 func (o *OperationProcessorImpl) run(wg *sync.WaitGroup) {
 	defer wg.Done()
-	xlog.Debug(o.ctx, "Operation Processor started", zap.Duration("period", o.period))
+	xlog.Debug(o.ctx, "Operation Processor started", zap.Duration(log_keys.Period, o.period))
 	ticker := o.tickerProvider(o.period)
 	for {
 		select {
@@ -132,16 +133,16 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 	runID := uuid.New().String()
 	ctx := xlog.With(
 		o.ctx,
-		zap.String("RunID", runID),
-		zap.String("OperationID", op.GetID()),
-		zap.String("OperationType", op.GetType().String()),
-		zap.String("OperationState", op.GetState().String()),
+		zap.String(log_keys.RunID, runID),
+		zap.String(log_keys.OperationID, op.GetID()),
+		zap.String(log_keys.OperationType, op.GetType().String()),
+		zap.String(log_keys.OperationState, op.GetState().String()),
 	)
 	if _, exist := o.runningOperations[op.GetID()]; exist {
 		xlog.Debug(
 			ctx,
 			"operation already running",
-			zap.String("operation", types.OperationToString(op)),
+			zap.String(log_keys.Operation, types.OperationToString(op)),
 		)
 		return
 	}
@@ -156,13 +157,13 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 		defer cancel()
 		xlog.Debug(
 			ctx, "start operation handler",
-			zap.String("operation", types.OperationToString(op)),
+			zap.String(log_keys.Operation, types.OperationToString(op)),
 		)
 		err := o.handlers.Call(ctx, op)
 		if err != nil {
 			xlog.Error(
 				ctx, "operation handler failed",
-				zap.String("operation", types.OperationToString(op)),
+				zap.String(log_keys.Operation, types.OperationToString(op)),
 				zap.Error(err),
 			)
 			metrics.GlobalMetricsRegistry.IncFailedHandlerRunsCount(op.GetContainerID(), op.GetType().String())
@@ -170,7 +171,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 			xlog.Debug(
 				ctx,
 				"operation handler finished successfully",
-				zap.String("operation", types.OperationToString(op)),
+				zap.String(log_keys.Operation, types.OperationToString(op)),
 			)
 			metrics.GlobalMetricsRegistry.IncSuccessfulHandlerRunsCount(op.GetContainerID(), op.GetType().String())
 		}
@@ -179,7 +180,7 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 }
 
 func (o *OperationProcessorImpl) handleOperationResult(operationID string) {
-	ctx := xlog.With(o.ctx, zap.String("OperationID", operationID))
+	ctx := xlog.With(o.ctx, zap.String(log_keys.OperationID, operationID))
 	if _, exist := o.runningOperations[operationID]; !exist {
 		xlog.Error(ctx, "got result from not running operation")
 		return

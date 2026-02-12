@@ -4,6 +4,7 @@ import (
 	"context"
 	"go.uber.org/zap"
 	"strings"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -72,7 +73,7 @@ func ActionFromMethodName(ctx context.Context, name string) Action {
 	if v, ok := methodNameActionIndex[split[len(split)-1]]; ok {
 		return v
 	}
-	xlog.Error(ctx, "failed to parse method name", zap.String("method", name))
+	xlog.Error(ctx, "failed to parse method name", zap.String(log_keys.Method, name))
 	return ActionUnspecified
 }
 
@@ -81,6 +82,6 @@ func ResourceFromMethodName(ctx context.Context, name string) Resource {
 	if v, ok := methodNameResourceIndex[split[len(split)-1]]; ok {
 		return v
 	}
-	xlog.Error(ctx, "failed to parse method name", zap.String("method", name))
+	xlog.Error(ctx, "failed to parse method name", zap.String(log_keys.Method, name))
 	return ResourceUnspecified
 }

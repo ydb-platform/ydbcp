@@ -37,6 +37,7 @@ import (
 	"ydbcp/internal/config"
 	ydbcpCredentials "ydbcp/internal/credentials"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/tls_setup"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -282,7 +283,7 @@ func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile str
 func getK8sJWTToken(ctx context.Context, cfg *config.K8sJWTAuthConfig, pointer *atomic.Pointer[string]) {
 	k8sToken, err := os.ReadFile(cfg.K8sTokenPath)
 	if err != nil {
-		xlog.Error(ctx, "Failed to read K8s token", zap.Error(err), zap.String("path", cfg.K8sTokenPath))
+		xlog.Error(ctx, "Failed to read K8s token", zap.Error(err), zap.String(log_keys.Path, cfg.K8sTokenPath))
 		return
 	}
 
@@ -327,7 +328,7 @@ func GetSchedulesFromYDBCP(ctx context.Context, scheduleClient pb.BackupSchedule
 			xlog.Error(ctx, "Error listing backup schedules", zap.Error(err))
 			return nil, err
 		} else {
-			xlog.Info(ctx, "Got schedules from YDBCP", zap.String("proto", pbSchedules.String()))
+			xlog.Info(ctx, "Got schedules from YDBCP", zap.String(log_keys.Proto, pbSchedules.String()))
 			for _, pbSchedule := range pbSchedules.Schedules {
 				schedules[pbSchedule.DatabaseName] = true
 			}
@@ -381,8 +382,8 @@ func main() {
 	if confStr, err := configInstance.ToString(); err == nil {
 		xlog.Debug(
 			ctx, "Use configuration file",
-			zap.String("ConfigPath", confPath),
-			zap.String("config", confStr),
+			zap.String(log_keys.ConfigPath, confPath),
+			zap.String(log_keys.Config, confStr),
 		)
 	}
 
@@ -429,7 +430,7 @@ func main() {
 		}
 	}(ydb)
 
-	xlog.Info(ctx, "created cluster GRPCConn", zap.String("endpoint", configInstance.ClusterConnection.Endpoint))
+	xlog.Info(ctx, "created cluster GRPCConn", zap.String(log_keys.Endpoint, configInstance.ClusterConnection.Endpoint))
 	cmsService := Ydb_Cms_V1.NewCmsServiceClient(ydb)
 
 	dbExceptions := make(map[string]bool, len(configInstance.DBExceptions))
@@ -471,7 +472,7 @@ func main() {
 		case <-ctx.Done():
 			return
 		case sig := <-sigs:
-			xlog.Info(ctx, "got signal", zap.String("signal", sig.String()))
+			xlog.Info(ctx, "got signal", zap.String(log_keys.Signal, sig.String()))
 			cancel()
 		}
 	}()
@@ -509,14 +510,14 @@ LOOP:
 					watcherErrors.WithLabelValues("ydb").Inc()
 					continue
 				}
-				xlog.Info(ctx, "got databases from cluster", zap.Strings("databases", databases.Paths))
+				xlog.Info(ctx, "got databases from cluster", zap.Strings(log_keys.Databases, databases.Paths))
 
 				for _, fullName := range databases.Paths {
 					if dbExceptions[fullName] {
 						continue
 					}
 					if !schedules[fullName] {
-						xlog.Error(ctx, "database has no schedule", zap.String("database_name", fullName))
+						xlog.Error(ctx, "database has no schedule", zap.String(log_keys.Database, fullName))
 						cnt++
 					}
 				}

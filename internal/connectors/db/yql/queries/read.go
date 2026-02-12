@@ -10,6 +10,7 @@ import (
 	"strings"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -267,7 +268,7 @@ func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResul
 		res += *page
 	}
 
-	xlog.Debug(ctx, "read query", zap.String("yql", res))
+	xlog.Debug(ctx, "read query", zap.String(log_keys.YQL, res))
 	return &FormatQueryResult{
 		QueryText:   res,
 		QueryParams: table.NewQueryParameters(d.tableQueryParams...),

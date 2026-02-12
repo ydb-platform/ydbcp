@@ -9,6 +9,7 @@ import (
 	"time"
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -23,7 +24,7 @@ func CheckClientDbAccess(ctx context.Context, clientConn client.ClientConnector,
 func GetClientDbAccess(
 	ctx context.Context, clientConn client.ClientConnector, clientConnectionParams types.YdbConnectionParams) (*ydb.Driver, error) {
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientDSN, dsn))
 	connCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 	clientDriver, err := clientConn.Open(connCtx, dsn)

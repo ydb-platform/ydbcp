@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
@@ -41,7 +42,7 @@ func TestProcessor(t *testing.T) {
 		func(ctx context.Context, op types.Operation) error {
 			xlog.Debug(
 				ctx, "TB handler called for operation",
-				zap.String("operation", types.OperationToString(op)),
+				zap.String(log_keys.Operation, types.OperationToString(op)),
 			)
 			op.SetState(types.OperationStateDone)
 			op.SetMessage("Success")

@@ -8,6 +8,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -34,7 +35,7 @@ func RBOperationHandler(
 	client client.ClientConnector,
 	config config.Config,
 ) error {
-	xlog.Info(ctx, "RBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
+	xlog.Info(ctx, "RBOperationHandler", zap.String(log_keys.OperationMessage, operation.GetMessage()))
 
 	if operation.GetType() != types.OperationTypeRB {
 		return fmt.Errorf(
@@ -140,9 +141,9 @@ func RBOperationHandler(
 
 	xlog.Info(
 		ctx, "forgetting operation",
-		zap.String("id", mr.ID),
-		zap.String("type", string(operation.GetType())),
-		zap.String("ydb_operation_id", mr.YdbOperationId),
+		zap.String(log_keys.OperationID, mr.ID),
+		zap.String(log_keys.OperationType, string(operation.GetType())),
+		zap.String(log_keys.YdbOperationID, mr.YdbOperationId),
 	)
 
 	response, err := client.ForgetOperation(ctx, conn, mr.YdbOperationId)

@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -64,10 +65,10 @@ func TtlWatcherAction(
 				)
 				if err != nil {
 					xlog.Error(
-						ctx, "can't update backup status", zap.String("BackupID", backup.ID), zap.Error(err),
+						ctx, "can't update backup status", zap.String(log_keys.BackupID, backup.ID), zap.Error(err),
 					)
 				}
-				xlog.Debug(ctx, "Marked empty backup as deleted", zap.String("BackupID", backup.ID))
+				xlog.Debug(ctx, "Marked empty backup as deleted", zap.String(log_keys.BackupID, backup.ID))
 			} else {
 				dbOp := &types.DeleteBackupOperation{
 					ID:          types.GenerateObjectID(),
@@ -93,11 +94,11 @@ func TtlWatcherAction(
 
 				if err != nil {
 					xlog.Error(
-						ctx, "can't create DeleteBackup operation", zap.String("BackupID", backup.ID), zap.Error(err),
+						ctx, "can't create DeleteBackup operation", zap.String(log_keys.BackupID, backup.ID), zap.Error(err),
 					)
 				}
 
-				xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String("BackupID", backup.ID))
+				xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String(log_keys.BackupID, backup.ID))
 			}
 		}
 	}

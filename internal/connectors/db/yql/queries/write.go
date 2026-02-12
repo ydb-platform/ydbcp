@@ -10,6 +10,7 @@ import (
 	"log"
 	"strings"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
@@ -584,7 +585,7 @@ func (d *WriteTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResu
 		}
 	}
 	res := strings.Join(queryStrings, ";\n")
-	xlog.Debug(ctx, "write query", zap.String("yql", res))
+	xlog.Debug(ctx, "write query", zap.String(log_keys.YQL, res))
 	return &FormatQueryResult{
 		QueryText:   res,
 		QueryParams: table.NewQueryParameters(allParams...),

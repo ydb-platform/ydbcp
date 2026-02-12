@@ -6,6 +6,7 @@ import (
 	"plugin"
 
 	"ydbcp/internal/config"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"go.uber.org/zap"
@@ -25,7 +26,7 @@ func Load[T Plugin](
 ) (T, error) {
 	var zero T
 
-	xlog.Info(ctx, fmt.Sprintf("Loading %s plugin", pluginKind), zap.String("plugin_path", cfg.PluginPath))
+	xlog.Info(ctx, fmt.Sprintf("Loading %s plugin", pluginKind), zap.String(log_keys.PluginPath, cfg.PluginPath))
 
 	plug, err := plugin.Open(cfg.PluginPath)
 	if err != nil {

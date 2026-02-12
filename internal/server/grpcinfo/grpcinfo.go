@@ -2,6 +2,7 @@ package grpcinfo
 
 import (
 	"context"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/google/uuid"
@@ -41,7 +42,7 @@ func GetRequestID(ctx context.Context) (string, bool) {
 }
 
 func GetTraceID(ctx context.Context) *string {
-	return getFromCtx(ctx, "trace_id")
+	return getFromCtx(ctx, log_keys.TraceID)
 }
 
 func GetGRPCHeaderValue(ctx context.Context, key string) *string {
@@ -71,13 +72,13 @@ func GetRemoteAddressChain(ctx context.Context) *string {
 
 func WithGRPCInfo(ctx context.Context) context.Context {
 	if p, ok := peer.FromContext(ctx); ok {
-		ctx = xlog.With(ctx, zap.String("RemoteAddr", p.Addr.String()))
+		ctx = xlog.With(ctx, zap.String(log_keys.RemoteAddr, p.Addr.String()))
 	}
 	if method, ok := grpc.Method(ctx); ok {
-		ctx = xlog.With(ctx, zap.String("GRPCMethod", method))
+		ctx = xlog.With(ctx, zap.String(log_keys.GRPCMethod, method))
 	}
 	requestID, newID := GetRequestID(ctx)
-	ctx = xlog.With(ctx, zap.String("RequestID", requestID))
+	ctx = xlog.With(ctx, zap.String(log_keys.RequestID, requestID))
 	err := grpc.SendHeader(ctx, metadata.Pairs("X-Request-ID", requestID))
 	if err != nil {
 		xlog.Error(ctx, "failed to set X-Request-ID header", zap.Error(err))

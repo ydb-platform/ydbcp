@@ -8,6 +8,7 @@ import (
 	"sync"
 	authHelper "ydbcp/internal/auth"
 	"ydbcp/internal/server/grpcinfo"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
 )
@@ -50,7 +51,7 @@ func NewAuditGRPCInterceptor(provider auth.AuthProvider) grpc.UnaryServerInterce
 		token, _ := authHelper.GetMaskedToken(ctx, provider)
 		pm, ok := req.(proto.Message)
 		if !ok {
-			xlog.Error(ctx, "got invalid proto.Message", zap.Any("GRPCRequest", req))
+			xlog.Error(ctx, "got invalid proto.Message", zap.Any(log_keys.GRPCRequest, req))
 		} else {
 			ReportGRPCCallBegin(
 				ctx, pm, info.FullMethod, subject, token,

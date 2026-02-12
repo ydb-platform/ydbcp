@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/auth"
 	"ydbcp/internal/connectors/db"
@@ -36,8 +37,8 @@ func (s *OperationService) ListOperations(
 	request *pb.ListOperationsRequest,
 ) (_ *pb.ListOperationsResponse, responseErr error) {
 	const methodName string = "ListOperations"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.ContainerId))
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: "{none}"},
 	)
@@ -46,7 +47,7 @@ func (s *OperationService) ListOperations(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	queryFilters := make([]queries.QueryFilter, 0)
 	//TODO: forbid empty containerId
@@ -136,7 +137,7 @@ func (s *OperationService) ListOperations(
 	if uint64(len(pbOperations)) == pageSpec.Limit {
 		res.NextPageToken = strconv.FormatUint(pageSpec.Offset+pageSpec.Limit, 10)
 	}
-	xlog.Debug(ctx, methodName, zap.Stringer("response", res))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Response, res))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return res, nil
 }
@@ -146,8 +147,8 @@ func (s *OperationService) CancelOperation(
 	request *pb.CancelOperationRequest,
 ) (_ *pb.Operation, responseErr error) {
 	const methodName string = "CancelOperation"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("OperationID", request.OperationId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, request.OperationId))
 
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
@@ -178,9 +179,9 @@ func (s *OperationService) CancelOperation(
 
 	ctx = xlog.With(
 		ctx,
-		zap.String("OperationType", operation.GetType().String()),
-		zap.String("ContainerID", operation.GetContainerID()),
-		zap.String("OperationState", operation.GetState().String()),
+		zap.String(log_keys.OperationType, operation.GetType().String()),
+		zap.String(log_keys.ContainerID, operation.GetContainerID()),
+		zap.String(log_keys.OperationState, operation.GetState().String()),
 	)
 	if operation.GetType() == types.OperationTypeTB {
 		permission = auth.PermissionBackupCreate
@@ -206,11 +207,11 @@ func (s *OperationService) CancelOperation(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	if operation.GetState() != types.OperationStatePending && operation.GetState() != types.OperationStateRunning {
 		xlog.Error(
-			ctx, "can't cancel operation with state", zap.String("OperationState", operation.GetState().String()),
+			ctx, "can't cancel operation with state", zap.String(log_keys.OperationState, operation.GetState().String()),
 		)
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(
@@ -230,7 +231,7 @@ func (s *OperationService) CancelOperation(
 
 	xlog.Debug(
 		ctx, methodName,
-		zap.String("operation", types.OperationToString(operation)),
+		zap.String(log_keys.Operation, types.OperationToString(operation)),
 	)
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return operation.Proto(), nil
@@ -240,14 +241,14 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "GetOperation"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
 	operationID, err := types.ParseObjectID(request.GetId())
 	if err != nil {
-		xlog.Error(ctx, "failed to parse OperationID", zap.String("OperationID", request.GetId()), zap.Error(err))
+		xlog.Error(ctx, "failed to parse OperationID", zap.String(log_keys.OperationID, request.GetId()), zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "failed to parse ObjectID")
 	}
-	ctx = xlog.With(ctx, zap.String("OperationID", operationID))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operationID))
 
 	operations, err := s.driver.SelectOperations(
 		ctx, queries.NewReadTableQuery(
@@ -272,7 +273,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 		return nil, status.Error(codes.NotFound, "operation not found") // TODO: permission denied?
 	}
 	operation := operations[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", operation.GetContainerID()))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, operation.GetContainerID()))
 	// TODO: Need to check access to operation resource by operationID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: operation.GetContainerID(), Database: operation.GetDatabaseName()},
@@ -283,9 +284,9 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(operations[0])))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(operations[0])))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return operations[0].Proto(), nil
 }

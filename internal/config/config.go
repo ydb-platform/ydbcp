@@ -8,6 +8,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/util/xlog"
 
@@ -242,7 +243,7 @@ func InitConfig[Conf Validatable](ctx context.Context, confPath string) (*Conf, 
 	if len(confPath) == 0 {
 		return nil, errors.New("configuration file path is empty")
 	}
-	ctx = xlog.With(ctx, zap.String("ConfigPath", confPath))
+	ctx = xlog.With(ctx, zap.String(log_keys.ConfigPath, confPath))
 	confTxt, err := os.ReadFile(confPath)
 	if err != nil {
 		xlog.Error(ctx, "Unable to read configuration file", zap.Error(err))

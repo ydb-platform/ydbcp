@@ -9,6 +9,7 @@ import (
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 
@@ -68,7 +69,7 @@ func ScheduleWatcherAction(
 	}
 
 	for _, schedule := range schedules {
-		handlerCtx := xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
+		handlerCtx := xlog.With(ctx, zap.String(log_keys.ScheduleID, schedule.ID))
 		err = handler(handlerCtx, db, schedule)
 		metrics.GlobalMetricsRegistry.IncScheduleCounters(handlerCtx, schedule, err)
 		if err != nil {

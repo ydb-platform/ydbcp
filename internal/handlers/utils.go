@@ -8,6 +8,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -47,9 +48,9 @@ func lookupYdbOperationStatus(
 ) (*LookupYdbOperationResponse, error) {
 	xlog.Info(
 		ctx, "getting operation status",
-		zap.String("id", operation.GetID()),
-		zap.String("type", string(operation.GetType())),
-		zap.String("ydb_operation_id", ydbOperationId),
+		zap.String(log_keys.OperationID, operation.GetID()),
+		zap.String(log_keys.OperationType, string(operation.GetType())),
+		zap.String(log_keys.YdbOperationID, ydbOperationId),
 	)
 	opResponse, err := client.GetOperationStatus(ctx, conn, ydbOperationId)
 	if err != nil {
@@ -71,9 +72,9 @@ func lookupYdbOperationStatus(
 	if isRetriableStatus(opResponse.GetOperation().GetStatus()) {
 		xlog.Info(
 			ctx, "received retriable error",
-			zap.String("id", operation.GetID()),
-			zap.String("type", string(operation.GetType())),
-			zap.String("ydb_operation_id", ydbOperationId),
+			zap.String(log_keys.OperationID, operation.GetID()),
+			zap.String(log_keys.OperationType, string(operation.GetType())),
+			zap.String(log_keys.YdbOperationID, ydbOperationId),
 		)
 		return &LookupYdbOperationResponse{}, nil
 	}
@@ -81,10 +82,10 @@ func lookupYdbOperationStatus(
 	if !isValidStatus(opResponse.GetOperation().GetStatus()) {
 		xlog.Info(
 			ctx, "received error status",
-			zap.String("id", operation.GetID()),
-			zap.String("type", string(operation.GetType())),
-			zap.String("ydb_operation_id", ydbOperationId),
-			zap.String("operation_status", string(opResponse.GetOperation().GetStatus())),
+			zap.String(log_keys.OperationID, operation.GetID()),
+			zap.String(log_keys.OperationType, string(operation.GetType())),
+			zap.String(log_keys.YdbOperationID, ydbOperationId),
+			zap.String(log_keys.OperationStatus, string(opResponse.GetOperation().GetStatus())),
 		)
 		return &LookupYdbOperationResponse{
 			opResponse:         opResponse,
@@ -99,10 +100,10 @@ func lookupYdbOperationStatus(
 	}
 
 	xlog.Info(ctx, "got operation status from server",
-		zap.String("id", operation.GetID()),
-		zap.String("type", string(operation.GetType())),
-		zap.String("ydb_operation_id", ydbOperationId),
-		zap.String("operation_status", string(opResponse.GetOperation().GetStatus())),
+		zap.String(log_keys.OperationID, operation.GetID()),
+		zap.String(log_keys.OperationType, string(operation.GetType())),
+		zap.String(log_keys.YdbOperationID, ydbOperationId),
+		zap.String(log_keys.OperationStatus, string(opResponse.GetOperation().GetStatus())),
 	)
 	return &LookupYdbOperationResponse{
 		opResponse: opResponse,
@@ -114,10 +115,10 @@ func CancelYdbOperation(
 	operation types.Operation, ydbOperationId string, reason string,
 ) error {
 	xlog.Info(
-		ctx, "cancelling operation", zap.String("reason", reason),
-		zap.String("id", operation.GetID()),
-		zap.String("type", string(operation.GetType())),
-		zap.String("ydb_operation_id", ydbOperationId),
+		ctx, "cancelling operation", zap.String(log_keys.OperationReason, reason),
+		zap.String(log_keys.OperationID, operation.GetID()),
+		zap.String(log_keys.OperationType, string(operation.GetType())),
+		zap.String(log_keys.YdbOperationID, ydbOperationId),
 	)
 
 	response, err := client.CancelOperation(ctx, conn, ydbOperationId)

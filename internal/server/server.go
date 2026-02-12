@@ -7,6 +7,7 @@ import (
 	"sync"
 	"ydbcp/internal/audit"
 	"ydbcp/internal/config"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
 
@@ -39,7 +40,7 @@ func (s *ServerImpl) Start(ctx context.Context, wg *sync.WaitGroup) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		xlog.Info(ctx, "Starting server", zap.String("address", lis.Addr().String()))
+		xlog.Info(ctx, "Starting server", zap.String(log_keys.Address, lis.Addr().String()))
 		if err := s.server.Serve(lis); err != nil {
 			xlog.Error(ctx, "failed to serve", zap.Error(err))
 		}
