@@ -35,6 +35,7 @@ type AuthProvider interface {
 	)
 	Authenticate(ctx context.Context, token string) (string, error)
 	MaskToken(token string) string
+	GetYDBCPContainerID() string
 }
 
 func (code AuthCode) String() string {

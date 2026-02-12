@@ -17,10 +17,11 @@ import (
 )
 
 const (
-	PermissionBackupList    = "ydb.databases.list"
-	PermissionBackupCreate  = "ydb.databases.backup"
-	PermissionBackupRestore = "ydb.tables.create"
-	PermissionBackupGet     = "ydb.databases.get"
+	PermissionBackupList           = "ydb.databases.list"
+	PermissionBackupCreate         = "ydb.databases.backup"
+	PermissionBackupRestore        = "ydb.tables.create"
+	PermissionBackupGet            = "ydb.databases.get"
+	PermissionBackupScheduleCreate = "ydbcp.backupSchedules.create"
 )
 
 var (
@@ -28,12 +29,11 @@ var (
 )
 
 type AuthError struct {
-	Code          auth.AuthCode
-	Message       string
-	Permission    string
-	ContainerID   string
-	Subject       string
-	InternalError error
+	Code        auth.AuthCode
+	Message     string
+	Permission  string
+	ContainerID string
+	Subject     string
 }
 
 func (e *AuthError) Error() string {
@@ -83,24 +83,77 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 	}
 
 	resp, subject, err := provider.Authorize(ctx, token, check)
+	err = processAuthResult(ctx, resp, subject, err, permission, containerID)
+	if err != nil {
+		return "", err
+	}
+	return subject, nil
+}
+
+func CheckCreateScheduleAuth(ctx context.Context, provider auth.AuthProvider, containerID, resourceID string) (
+	string, error,
+) {
+	ctx = xlog.With(ctx, zap.String("ContainerID", containerID), zap.String("ResourceID", resourceID))
+	token, err := TokenFromGRPCContext(ctx)
+	if err != nil {
+		xlog.Debug(ctx, "can't get auth token", zap.Error(err))
+		token = ""
+	}
+
+	// First, try the primary permission (PermissionBackupCreate) for the requested container
+	primaryCheck := auth.AuthorizeCheck{
+		Permission:  PermissionBackupCreate,
+		ContainerID: containerID,
+	}
+	if len(resourceID) > 0 {
+		primaryCheck.ResourceID = []string{resourceID}
+	}
+
+	resp, subject, err := provider.Authorize(ctx, token, primaryCheck)
+	err = processAuthResult(ctx, resp, subject, err, PermissionBackupCreate, containerID)
+
+	if err == nil {
+		return subject, nil
+	}
+	ydbcpContainerID := provider.GetYDBCPContainerID()
+	if len(ydbcpContainerID) > 0 {
+		fallbackCheck := auth.AuthorizeCheck{
+			Permission:  PermissionBackupScheduleCreate,
+			ContainerID: ydbcpContainerID,
+		}
+		if len(resourceID) > 0 {
+			fallbackCheck.ResourceID = []string{resourceID}
+		}
+
+		check, subject, managerErr := provider.Authorize(ctx, token, fallbackCheck)
+		createAnyErr := processAuthResult(ctx, check, subject, managerErr, PermissionBackupScheduleCreate, ydbcpContainerID)
+		if createAnyErr == nil {
+			return subject, nil
+		}
+		err = errors.Join(err, createAnyErr)
+	}
+
+	return "", err
+}
+
+func processAuthResult(ctx context.Context, resp []auth.AuthorizeResult, subject string, err error, permission, containerID string) error {
 	if err != nil {
 		xlog.Error(ctx, "auth plugin authorize error", zap.Error(err))
-		return "", status.Error(codes.Internal, err.Error())
+		return status.Error(codes.Internal, err.Error())
 	}
 	if len(resp) != 1 {
 		msg := "incorrect auth plugin response length != 1"
 		xlog.Error(ctx, msg)
-		return "", status.Error(codes.Internal, msg)
+		return status.Error(codes.Internal, msg)
 	}
 	if resp[0].Code != auth.AuthCodeSuccess {
-		xlog.Error(
-			ctx, "auth plugin response", zap.String("AuthCode", resp[0].Code.String()),
-			zap.String("AuthMessage", resp[0].Message),
-		)
 		authErr := formatAuthError(resp[0].Code, resp[0].Message, subject, permission, containerID)
-		return "", status.Error(codes.PermissionDenied, authErr.Error())
+		xlog.Error(
+			ctx, "auth plugin response", zap.Error(authErr),
+		)
+		return status.Error(codes.PermissionDenied, authErr.Error())
 	}
-	return subject, nil
+	return nil
 }
 
 func formatAuthError(code auth.AuthCode, message, subject, permission, containerID string) *AuthError {

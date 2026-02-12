@@ -53,7 +53,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: request.DatabaseName},
 	)
-	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, request.ContainerId, "")
+	subject, err := auth.CheckCreateScheduleAuth(ctx, s.auth, request.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
