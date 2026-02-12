@@ -14,6 +14,7 @@ import (
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 
 	"ydbcp/internal/config"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/prometheus/client_golang/prometheus"
@@ -658,7 +659,7 @@ func CreateMetricsServer(
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		xlog.Info(ctx, "Starting metrics server", zap.String("address", server.Addr))
+		xlog.Info(ctx, "Starting metrics server", zap.String(log_keys.Address, server.Addr))
 		var err error
 		if len(cfg.TLSCertificatePath) > 0 && len(cfg.TLSKeyPath) > 0 {
 			err = server.ListenAndServeTLS(cfg.TLSCertificatePath, cfg.TLSKeyPath)

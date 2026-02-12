@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"ydbcp/internal/config"
@@ -48,14 +49,14 @@ func TestBackupScheduleHandler(t *testing.T) {
 	)
 
 	observed := xlog.SetupLoggingWithObserver()
-	ctx = xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, schedule.ID))
 
 	handler := NewBackupScheduleHandler(
 		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
 	)
 	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)
-	assert.Equal(t, len(observed.All()), len(observed.FilterField(zap.String("ScheduleID", schedule.ID)).All()))
+	assert.Equal(t, len(observed.All()), len(observed.FilterField(zap.String(log_keys.ScheduleID, schedule.ID)).All()))
 
 	// check operation status (should be running)
 	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})

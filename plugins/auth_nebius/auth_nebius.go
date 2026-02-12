@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/tls_setup"
 
 	"ydbcp/internal/util/xlog"
@@ -38,7 +39,7 @@ func (p *authProviderNebius) loadTLSCredentials() (grpc.DialOption, error) {
 }
 
 func (p *authProviderNebius) Init(ctx context.Context, config string) error {
-	xlog.Info(ctx, "AuthProviderNebius init", zap.String("config", config))
+	xlog.Info(ctx, "AuthProviderNebius init", zap.String(log_keys.Config, config))
 	err := yaml.Unmarshal([]byte(config), &p.config)
 	if err != nil {
 		xlog.Error(ctx, "Unable to parse configuration file", zap.Error(err))
@@ -186,7 +187,7 @@ func (p *authProviderNebius) Authorize(
 	xlog.Info(
 		ctx,
 		"AuthProviderNebius authorize",
-		zap.String("checks", fmt.Sprintf("%v", checks)),
+		zap.String(log_keys.Checks, fmt.Sprintf("%v", checks)),
 	)
 	if len(token) == 0 {
 		xlog.Debug(ctx, "AuthProviderNebius got empty token")
@@ -216,8 +217,8 @@ func (p *authProviderNebius) Authorize(
 	results, subject, err = processAuthorizeResponse(resp, len(checks))
 	xlog.Info(
 		ctx, "Authorize result",
-		zap.String("results", fmt.Sprintf("%v", results)),
-		zap.String("subject", subject),
+		zap.String(log_keys.Results, fmt.Sprintf("%v", results)),
+		zap.String(log_keys.Subject, subject),
 		zap.Error(err),
 	)
 	return results, subject, err

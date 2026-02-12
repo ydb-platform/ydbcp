@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
 
@@ -18,7 +19,7 @@ const (
 )
 
 func (p *authProviderDummy) Init(ctx context.Context, config string) error {
-	xlog.Info(ctx, "AuthProviderDummy init", zap.String("config", config))
+	xlog.Info(ctx, "AuthProviderDummy init", zap.String(log_keys.Config, config))
 	return nil
 }
 
@@ -35,7 +36,7 @@ func (p *authProviderDummy) Authorize(
 	xlog.Info(
 		ctx,
 		"AuthProviderDummy Authorize",
-		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
+		zap.String(log_keys.AuthorizeChecks, fmt.Sprintf("%v", checks)),
 	)
 	if len(checks) == 0 {
 		xlog.Error(ctx, "AuthProviderDummy AuthorizeCheck list is empty")
@@ -48,8 +49,8 @@ func (p *authProviderDummy) Authorize(
 	}
 	xlog.Info(
 		ctx, "AuthProviderDummy Authorize result",
-		zap.String("AuthResults", fmt.Sprintf("%v", results)),
-		zap.String("SubjectID", anonymousSubject),
+		zap.String(log_keys.AuthResults, fmt.Sprintf("%v", results)),
+		zap.String(log_keys.Subject, anonymousSubject),
 	)
 	return results, subject, nil
 }
@@ -64,7 +65,7 @@ func (p *authProviderDummy) Authenticate(
 	)
 	xlog.Info(
 		ctx, "AuthProviderDummy Authorize result",
-		zap.String("SubjectID", anonymousSubject),
+		zap.String(log_keys.Subject, anonymousSubject),
 	)
 	return anonymousSubject, nil
 }

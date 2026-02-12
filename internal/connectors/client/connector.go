@@ -30,6 +30,7 @@ import (
 	"ydbcp/internal/config"
 	"ydbcp/internal/credentials"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -65,7 +66,7 @@ func NewClientYdbConnector(config config.ClientConnectionConfig) *ClientYdbConne
 }
 
 func (d *ClientYdbConnector) Open(ctx context.Context, dsn string) (*ydb.Driver, error) {
-	xlog.Info(ctx, "Connecting to client db", zap.String("dsn", dsn))
+	xlog.Info(ctx, "Connecting to client db", zap.String(log_keys.ClientDSN, dsn))
 
 	opts := []ydb.Option{
 		ydb.WithDialTimeout(time.Second * time.Duration(d.config.DialTimeoutSeconds)),
@@ -136,7 +137,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 		relPath := strings.TrimPrefix(p, clientDb.Name())
 		for _, exclusion := range exclusions {
 			if exclusion.MatchString(relPath) {
-				xlog.Debug(ctx, "Excluded path", zap.String("path", p))
+				xlog.Debug(ctx, "Excluded path", zap.String(log_keys.Path, p))
 				return true
 			}
 		}
@@ -158,7 +159,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 	result := make([]string, 0)
 	if dir.Entry.IsTable() {
 		if !excluded(initialPath) {
-			xlog.Debug(ctx, "Included path", zap.String("path", initialPath))
+			xlog.Debug(ctx, "Included path", zap.String(log_keys.Path, initialPath))
 			result = append(result, initialPath)
 		}
 		return result, nil
@@ -169,7 +170,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 
 		if child.IsDirectory() {
 			if isSystemDirectory(child.Name) || isExportDirectory(childPath, clientDb.Name()) {
-				xlog.Debug(ctx, "System or export directory is skipped", zap.String("path", childPath))
+				xlog.Debug(ctx, "System or export directory is skipped", zap.String(log_keys.Path, childPath))
 				continue
 			}
 
@@ -183,7 +184,7 @@ func listDirectory(ctx context.Context, clientDb *ydb.Driver, initialPath string
 			result = append(result, list...)
 		} else if child.IsTable() {
 			if !excluded(childPath) {
-				xlog.Debug(ctx, "Included path", zap.String("path", childPath))
+				xlog.Debug(ctx, "Included path", zap.String(log_keys.Path, childPath))
 				result = append(result, childPath)
 			}
 		}
@@ -260,10 +261,10 @@ func (d *ClientYdbConnector) ExportToS3(
 	exportClient := Ydb_Export_V1.NewExportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Exporting data to s3",
-		zap.String("S3Endpoint", s3Settings.Endpoint),
-		zap.String("S3Region", s3Settings.Region),
-		zap.String("S3Bucket", s3Settings.Bucket),
-		zap.String("S3Description", s3Settings.Description),
+		zap.String(log_keys.S3Endpoint, s3Settings.Endpoint),
+		zap.String(log_keys.S3Region, s3Settings.Region),
+		zap.String(log_keys.S3Bucket, s3Settings.Bucket),
+		zap.String(log_keys.S3Description, s3Settings.Description),
 	)
 
 	exportRequest := &Ydb_Export.ExportToS3Request{
@@ -429,10 +430,10 @@ func (d *ClientYdbConnector) ImportFromS3(
 	importClient := Ydb_Import_V1.NewImportServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Importing data from s3",
-		zap.String("S3Endpoint", s3Settings.Endpoint),
-		zap.String("S3Region", s3Settings.Region),
-		zap.String("S3Bucket", s3Settings.Bucket),
-		zap.String("S3Description", s3Settings.Description),
+		zap.String(log_keys.S3Endpoint, s3Settings.Endpoint),
+		zap.String(log_keys.S3Region, s3Settings.Region),
+		zap.String(log_keys.S3Bucket, s3Settings.Bucket),
+		zap.String(log_keys.S3Description, s3Settings.Description),
 	)
 
 	importRequest := &Ydb_Import.ImportFromS3Request{
@@ -495,7 +496,7 @@ func (d *ClientYdbConnector) GetOperationStatus(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Requesting operation status",
-		zap.String("ClientOperationID", operationId),
+		zap.String(log_keys.ClientOperationID, operationId),
 	)
 
 	response, err := client.GetOperation(
@@ -522,7 +523,7 @@ func (d *ClientYdbConnector) ForgetOperation(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Forgetting operation",
-		zap.String("ClientOperationID", operationId),
+		zap.String(log_keys.ClientOperationID, operationId),
 	)
 
 	response, err := client.ForgetOperation(
@@ -549,7 +550,7 @@ func (d *ClientYdbConnector) CancelOperation(
 	client := Ydb_Operation_V1.NewOperationServiceClient(ydb.GRPCConn(clientDb))
 	xlog.Info(
 		ctx, "Cancelling operation",
-		zap.String("ClientOperationID", operationId),
+		zap.String(log_keys.ClientOperationID, operationId),
 	)
 
 	response, err := client.CancelOperation(

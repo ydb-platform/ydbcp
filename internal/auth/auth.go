@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/plugin"
@@ -68,7 +69,7 @@ func GetMaskedToken(ctx context.Context, provider auth.AuthProvider) (string, er
 func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, containerID, resourceID string) (
 	string, error,
 ) {
-	ctx = xlog.With(ctx, zap.String("ContainerID", containerID), zap.String("ResourceID", resourceID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, containerID), zap.String(log_keys.ResourceID, resourceID))
 	token, err := TokenFromGRPCContext(ctx)
 	if err != nil {
 		xlog.Debug(ctx, "can't get auth token", zap.Error(err))
@@ -93,7 +94,7 @@ func CheckAuth(ctx context.Context, provider auth.AuthProvider, permission, cont
 func CheckCreateScheduleAuth(ctx context.Context, provider auth.AuthProvider, containerID, resourceID string) (
 	string, error,
 ) {
-	ctx = xlog.With(ctx, zap.String("ContainerID", containerID), zap.String("ResourceID", resourceID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, containerID), zap.String(log_keys.ResourceID, resourceID))
 	token, err := TokenFromGRPCContext(ctx)
 	if err != nil {
 		xlog.Debug(ctx, "can't get auth token", zap.Error(err))

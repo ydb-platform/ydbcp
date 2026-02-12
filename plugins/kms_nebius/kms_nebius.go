@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/tls_setup"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/kms"
@@ -29,7 +30,7 @@ type pluginConfig struct {
 }
 
 func (p *kmsProviderNebius) Init(ctx context.Context, rawConfig string) error {
-	xlog.Info(ctx, "KmsNebiusProvider initialization started", zap.String("config", rawConfig))
+	xlog.Info(ctx, "KmsNebiusProvider initialization started", zap.String(log_keys.Config, rawConfig))
 	if err := yaml.Unmarshal([]byte(rawConfig), &p.config); err != nil {
 		xlog.Error(ctx, "Unable to parse configuration", zap.Error(err))
 		return fmt.Errorf("kms: unable to parse configuration: %w", err)

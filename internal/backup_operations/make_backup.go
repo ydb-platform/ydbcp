@@ -13,6 +13,7 @@ import (
 	"ydbcp/internal/connectors/client"
 	s3connector "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	kp "ydbcp/pkg/plugins/kms"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -117,7 +118,7 @@ func OpenConnAndValidateSourcePaths(
 		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientDSN, dsn))
 	connCtx, cancel := context.WithTimeout(ctx, time.Second*5)
 	driver, err := clientConn.Open(connCtx, dsn)
 	cancel()
@@ -149,14 +150,14 @@ func ValidateSourcePaths(
 ) ([]string, error) {
 	basePath, ok := SafePathJoin(req.DatabaseName, req.RootPath)
 	if !ok {
-		xlog.Error(ctx, "incorrect root path", zap.String("path", req.RootPath))
+		xlog.Error(ctx, "incorrect root path", zap.String(log_keys.Path, req.RootPath))
 		return nil, status.Errorf(codes.InvalidArgument, "incorrect root path %s", req.RootPath)
 	}
 	sourcePaths := make([]string, 0, len(req.SourcePaths))
 	for _, p := range req.SourcePaths {
 		fullPath, ok := SafePathJoin(basePath, p)
 		if !ok {
-			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
+			xlog.Error(ctx, "incorrect source path", zap.String(log_keys.Path, p))
 			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
 		}
 		sourcePaths = append(sourcePaths, fullPath)
@@ -324,13 +325,13 @@ func MakeBackup(
 	kmsProvider kp.KmsProvider,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
 	if req.ScheduleID != nil {
-		ctx = xlog.With(ctx, zap.String("ScheduleID", *req.ScheduleID))
+		ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, *req.ScheduleID))
 	}
 	if !IsAllowedEndpoint(req.DatabaseEndpoint, allowedEndpointDomains, allowInsecureEndpoint) {
 		xlog.Error(
 			ctx,
 			"endpoint of database is invalid or not allowed",
-			zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
+			zap.String(log_keys.DatabaseEndpoint, req.DatabaseEndpoint),
 		)
 		return nil, nil, NewClientConnectionError(
 			codes.FailedPrecondition,
@@ -343,7 +344,7 @@ func MakeBackup(
 		DatabaseName: req.DatabaseName,
 	}
 	dsn := types.MakeYdbConnectionString(clientConnectionParams)
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientDSN, dsn))
 	client, err := clientConn.Open(ctx, dsn)
 	if err != nil {
 		xlog.Error(ctx, "can't open client connection", zap.Error(err))
@@ -369,7 +370,7 @@ func MakeBackup(
 	}
 
 	destinationPrefix := CreateS3DestinationPrefix(req.DatabaseName, s3, clock)
-	ctx = xlog.With(ctx, zap.String("S3DestinationPrefix", destinationPrefix))
+	ctx = xlog.With(ctx, zap.String(log_keys.S3DestinationPrefix, destinationPrefix))
 
 	pathsForExport, err := ValidateSourcePaths(ctx, req, clientConn, client, dsn, featureFlags)
 
@@ -424,10 +425,10 @@ func MakeBackup(
 			dekKey := path.Join(destinationPrefix, "dek.encrypted")
 			err = s3Connector.PutObject(dekKey, s3.Bucket, encryptResp.Ciphertext)
 			if err != nil {
-				xlog.Error(ctx, "can't save encrypted DEK to S3", zap.Error(err), zap.String("dekKey", dekKey))
+				xlog.Error(ctx, "can't save encrypted DEK to S3", zap.Error(err), zap.String(log_keys.DEKKey, dekKey))
 				return nil, nil, status.Errorf(codes.Internal, "can't save encrypted DEK to S3: %v", err)
 			}
-			xlog.Info(ctx, "encrypted DEK saved to S3", zap.String("dekKey", dekKey))
+			xlog.Info(ctx, "encrypted DEK saved to S3", zap.String(log_keys.DEKKey, dekKey))
 		} else {
 			if req.ScheduleID == nil {
 				xlog.Error(ctx, "can't create manual encrypted backup because backup encryption is not enabled")
@@ -444,7 +445,7 @@ func MakeBackup(
 		xlog.Error(ctx, "can't start export operation", zap.Error(err))
 		return nil, nil, status.Errorf(codes.Unknown, "can't start export operation, dsn %s", dsn)
 	}
-	ctx = xlog.With(ctx, zap.String("ClientOperationID", clientOperationID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientOperationID, clientOperationID))
 	xlog.Info(ctx, "Export operation started")
 
 	var expireAt *time.Time

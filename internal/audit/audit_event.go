@@ -7,6 +7,7 @@ import (
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/google/uuid"
@@ -43,10 +44,10 @@ type HasEnrichLogContext interface {
 }
 
 func (g *GenericAuditFields) EnrichLogContext(ctx context.Context) context.Context {
-	ctx = xlog.With(ctx, zap.String("database", g.Database))
-	ctx = xlog.With(ctx, zap.String("containerID", g.FolderID))
-	ctx = xlog.With(ctx, zap.String("requestID", g.ID))
-	ctx = xlog.With(ctx, zap.String("traceID", g.TraceID))
+	ctx = xlog.With(ctx, zap.String(log_keys.Database, g.Database))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, g.FolderID))
+	ctx = xlog.With(ctx, zap.String(log_keys.RequestID, g.ID))
+	ctx = xlog.With(ctx, zap.String(log_keys.TraceID, g.TraceID))
 	return ctx
 }
 
@@ -229,7 +230,7 @@ type BackupStateEvent struct {
 
 func (b *BackupStateEvent) EnrichLogContext(ctx context.Context) context.Context {
 	ctx = b.GenericAuditFields.EnrichLogContext(ctx)
-	ctx = xlog.With(ctx, zap.String("ScheduleID", b.ScheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, b.ScheduleID))
 	return ctx
 }
 
@@ -305,7 +306,7 @@ type FailedRPOAuditEvent struct {
 
 func (b *FailedRPOAuditEvent) EnrichLogContext(ctx context.Context) context.Context {
 	ctx = b.GenericAuditFields.EnrichLogContext(ctx)
-	ctx = xlog.With(ctx, zap.String("ScheduleID", b.ScheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, b.ScheduleID))
 	return ctx
 }
 

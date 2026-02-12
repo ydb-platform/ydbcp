@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -40,7 +41,7 @@ func TBOperationHandler(
 	config config.Config,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) error {
-	xlog.Info(ctx, "TBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
+	xlog.Info(ctx, "TBOperationHandler", zap.String(log_keys.OperationMessage, operation.GetMessage()))
 
 	if operation.GetType() != types.OperationTypeTB {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTB)

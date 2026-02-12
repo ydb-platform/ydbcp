@@ -11,6 +11,7 @@ import (
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -498,9 +499,9 @@ func TestPrintEventToLog(t *testing.T) {
 
 	require.Equal(t, 1, observed.Len(), "expected exactly one log entry")
 	require.True(
-		t, observed.FilterField(zap.String("database", "mydb")).Len() == 1,
+		t, observed.FilterField(zap.String(log_keys.Database, "mydb")).Len() == 1,
 	)
 	require.True(
-		t, observed.FilterField(zap.String("ScheduleID", "1")).Len() == 1,
+		t, observed.FilterField(zap.String(log_keys.ScheduleID, "1")).Len() == 1,
 	)
 }

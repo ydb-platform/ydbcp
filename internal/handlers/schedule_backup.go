@@ -8,6 +8,7 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -99,7 +100,7 @@ func BackupScheduleHandler(
 
 		xlog.Info(
 			ctx, "create TakeBackupWithRetryOperation for schedule",
-			zap.String("TakeBackupWithRetryOperation", tbwr.Proto().String()),
+			zap.String(log_keys.TakeBackupWithRetryOperation, tbwr.Proto().String()),
 		)
 
 		err = schedule.UpdateNextLaunch(clock.Now())

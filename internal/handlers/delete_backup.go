@@ -10,6 +10,7 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
@@ -40,7 +41,7 @@ func DBOperationHandler(
 	config config.Config,
 	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) error {
-	xlog.Info(ctx, "DBOperationHandler", zap.String("OperationMessage", operation.GetMessage()))
+	xlog.Info(ctx, "DBOperationHandler", zap.String(log_keys.OperationMessage, operation.GetMessage()))
 
 	if operation.GetType() != types.OperationTypeDB {
 		return fmt.Errorf(

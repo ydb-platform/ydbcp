@@ -7,6 +7,7 @@ import (
 	"strings"
 	"time"
 
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -481,7 +482,7 @@ func (o OperationState) Enum() pb.Operation_Status {
 		xlog.Error(
 			context.Background(), //TODO
 			"Can't convert OperationState",
-			zap.String("OperationState", string(o)),
+			zap.String(log_keys.OperationState, string(o)),
 		)
 		panic("can't convert OperationState")
 	}

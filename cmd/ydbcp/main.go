@@ -26,6 +26,7 @@ import (
 	"ydbcp/internal/server/services/backup_schedule"
 	"ydbcp/internal/server/services/operation"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 	"ydbcp/internal/watchers/healthcheck"
@@ -96,8 +97,8 @@ func main() {
 	if confStr, err := configInstance.ToString(); err == nil {
 		xlog.Debug(
 			ctx, "Use configuration file",
-			zap.String("ConfigPath", confPath),
-			zap.String("config", confStr),
+			zap.String(log_keys.ConfigPath, confPath),
+			zap.String(log_keys.Config, confStr),
 		)
 	}
 
@@ -257,7 +258,7 @@ func main() {
 		case <-ctx.Done():
 			return
 		case sig := <-sigs:
-			xlog.Info(ctx, "got signal", zap.String("signal", sig.String()))
+			xlog.Info(ctx, "got signal", zap.String(log_keys.Signal, sig.String()))
 			cancel()
 		}
 	}()
