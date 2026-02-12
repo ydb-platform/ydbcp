@@ -2,6 +2,7 @@ package kms
 
 import (
 	"context"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/kms"
 
@@ -28,7 +29,7 @@ func (p *kmsProviderDummy) Encrypt(
 	xlog.Info(
 		ctx,
 		"KmsProviderDummy Encrypt",
-		zap.String("KeyID", req.KeyID),
+		zap.String(log_keys.KeyID, req.KeyID),
 	)
 
 	return &kms.EncryptResponse{
@@ -44,7 +45,7 @@ func (p *kmsProviderDummy) Decrypt(
 	xlog.Info(
 		ctx,
 		"KmsProviderDummy Decrypt",
-		zap.String("KeyID", req.KeyID),
+		zap.String(log_keys.KeyID, req.KeyID),
 	)
 
 	return &kms.DecryptResponse{

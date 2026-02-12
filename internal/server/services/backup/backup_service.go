@@ -17,6 +17,7 @@ import (
 	"ydbcp/internal/server"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	kp "ydbcp/pkg/plugins/kms"
@@ -52,15 +53,15 @@ func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 
 func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequest) (_ *pb.Backup, responseErr error) {
 	const methodName string = "GetBackup"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("BackupID", request.Id))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, request.Id))
 	backupID, err := types.ParseObjectID(request.GetId())
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
@@ -83,7 +84,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -93,9 +94,9 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	xlog.Debug(ctx, methodName, zap.String("backup", backup.String()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Backup, backup.String()))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return backups[0].Proto(), nil
 }
@@ -104,9 +105,9 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "MakeBackup"
-	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, req.String()))
 
-	ctx = xlog.With(ctx, zap.String("ContainerID", req.ContainerId))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, req.ContainerId))
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: req.ContainerId, Database: req.DatabaseName},
 	)
@@ -116,7 +117,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	now := timestamppb.Now()
 
 	if len(req.RootPath) > 0 && !s.featureFlags.EnableNewPathsFormat {
@@ -183,9 +184,9 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", tbwr.BackupID))
-	ctx = xlog.With(ctx, zap.String("OperationID", tbwr.GetID()))
-	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(tbwr)))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, tbwr.BackupID))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, tbwr.GetID()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(tbwr)))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return tbwr.Proto(), nil
 }
@@ -194,8 +195,8 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	_ *pb.Operation, responseErr error,
 ) {
 	const methodName string = "DeleteBackup"
-	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
-	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, req.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
@@ -203,7 +204,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
@@ -230,7 +231,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	}
 
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
 
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -241,10 +242,10 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	if !backup.CanBeDeleted() {
-		xlog.Error(ctx, "backup can't be deleted", zap.String("BackupStatus", backup.Status))
+		xlog.Error(ctx, "backup can't be deleted", zap.String(log_keys.BackupStatus, backup.Status))
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup can't be deleted, status %s", backup.Status)
 	}
@@ -277,8 +278,8 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
 
-	ctx = xlog.With(ctx, zap.String("OperationID", op.GetID()))
-	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(op)))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, op.GetID()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(op)))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return op.Proto(), nil
 }
@@ -287,8 +288,8 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	operationPb *pb.Operation, responseErr error,
 ) {
 	const methodName string = "MakeRestore"
-	xlog.Debug(ctx, methodName, zap.String("request", req.String()))
-	ctx = xlog.With(ctx, zap.String("BackupID", req.BackupId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, req.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, req.BackupId))
 
 	backupID, err := types.ParseObjectID(req.BackupId)
 	if err != nil {
@@ -296,7 +297,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
@@ -320,8 +321,8 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String("BackupID", backup.ID))
-	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backup.ID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
 	)
@@ -332,13 +333,13 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	if !backup_operations.IsAllowedEndpoint(req.DatabaseEndpoint, s.allowedEndpointDomains, s.allowInsecureEndpoint) {
 		xlog.Error(
 			ctx,
 			"endpoint of database is invalid or not allowed",
-			zap.String("DatabaseEndpoint", req.DatabaseEndpoint),
+			zap.String(log_keys.DatabaseEndpoint, req.DatabaseEndpoint),
 		)
 		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Errorf(
@@ -347,7 +348,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	}
 
 	if backup.Status != types.BackupStateAvailable {
-		xlog.Error(ctx, "backup is not available", zap.String("BackupStatus", backup.Status))
+		xlog.Error(ctx, "backup is not available", zap.String(log_keys.BackupStatus, backup.Status))
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
 	}
@@ -368,7 +369,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("ClientDSN", dsn))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientDSN, dsn))
 	defer func() {
 		err := clientDriver.Close(ctx)
 		if err != nil {
@@ -393,7 +394,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	for _, p := range req.SourcePaths {
 		fullPath, ok := backup_operations.SafePathJoin(backup.S3PathPrefix, p)
 		if !ok {
-			xlog.Error(ctx, "incorrect source path", zap.String("path", p))
+			xlog.Error(ctx, "incorrect source path", zap.String(log_keys.Path, p))
 			s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 			return nil, status.Errorf(codes.InvalidArgument, "incorrect source path %s", p)
 		}
@@ -419,7 +420,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		dekKey := path.Join(backup.S3PathPrefix, "dek.encrypted")
 		encryptedDEK, err := s.s3Connector.GetObject(dekKey, s.s3.Bucket)
 		if err != nil {
-			xlog.Error(ctx, "can't read encrypted DEK from S3", zap.Error(err), zap.String("dekKey", dekKey))
+			xlog.Error(ctx, "can't read encrypted DEK from S3", zap.Error(err), zap.String(log_keys.DEKKey, dekKey))
 			s.IncApiCallsCounter(methodName, codes.Internal)
 			return nil, status.Errorf(codes.Internal, "can't read encrypted DEK from S3: %v", err)
 		}
@@ -446,7 +447,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		s.IncApiCallsCounter(methodName, codes.Unknown)
 		return nil, status.Errorf(codes.Unknown, "can't start import operation: %v, dsn %s", err, dsn)
 	}
-	ctx = xlog.With(ctx, zap.String("ClientOperationID", clientOperationID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ClientOperationID, clientOperationID))
 	xlog.Debug(ctx, "import operation started")
 
 	now := timestamppb.Now()
@@ -470,14 +471,14 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	operationID, err := s.driver.CreateOperation(ctx, op)
 	if err != nil {
-		xlog.Error(ctx, "can't create operation", zap.String("operation", types.OperationToString(op)), zap.Error(err))
+		xlog.Error(ctx, "can't create operation", zap.String(log_keys.Operation, types.OperationToString(op)), zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
-	ctx = xlog.With(ctx, zap.String("OperationID", operationID))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operationID))
 	op.ID = operationID
 
-	xlog.Debug(ctx, methodName, zap.String("operation", types.OperationToString(op)))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(op)))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return op.Proto(), nil
 }
@@ -486,14 +487,14 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	_ *pb.ListBackupsResponse, responseErr error,
 ) {
 	const methodName string = "ListBackups"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.ContainerId))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	queryFilters := make([]queries.QueryFilter, 0)
 	//TODO: forbid empty containerId
@@ -599,15 +600,15 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	_ *pb.Backup, responseErr error,
 ) {
 	const methodName string = "UpdateBackupTtl"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("BackupID", request.BackupId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, request.BackupId))
 	backupID, err := types.ParseObjectID(request.GetBackupId())
 	if err != nil {
 		xlog.Error(ctx, "failed to parse BackupID", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.InvalidArgument)
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
-	ctx = xlog.With(ctx, zap.String("BackupID", backupID))
+	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 	backups, err := s.driver.SelectBackups(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Backups"),
@@ -630,7 +631,7 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", backup.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -640,10 +641,10 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	if backup.Status != types.BackupStateAvailable {
-		xlog.Error(ctx, "backup is not available", zap.String("BackupStatus", backup.Status))
+		xlog.Error(ctx, "backup is not available", zap.String(log_keys.BackupStatus, backup.Status))
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(codes.FailedPrecondition, "backup is not available, status %s", backup.Status)
 	}
@@ -664,7 +665,7 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 		return nil, status.Error(codes.Internal, err.Error())
 	}
 
-	xlog.Debug(ctx, methodName, zap.Stringer("backup", backup))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Backup, backup))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return backup.Proto(), nil
 }

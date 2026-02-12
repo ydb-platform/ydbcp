@@ -23,6 +23,7 @@ import (
 	"ydbcp/internal/credentials"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -137,7 +138,7 @@ func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*Y
 		opts = append(opts, ydbPrometheus.WithTraces(metrics.GlobalMetricsRegistry.GetReg()))
 	}
 
-	xlog.Info(ctx, "connecting to ydb", zap.String("dsn", config.ConnectionString))
+	xlog.Info(ctx, "connecting to ydb", zap.String(log_keys.ClientDSN, config.ConnectionString))
 	driver, err := ydb.Open(ctx, config.ConnectionString, opts...)
 	if err != nil {
 		return nil, fmt.Errorf("can't connect to YDB, dsn %s: %w", config.ConnectionString, err)

@@ -16,6 +16,7 @@ import (
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	kp "ydbcp/pkg/plugins/kms"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -197,7 +198,7 @@ func setErrorToRetryOperation(
 	tbwr.UpdatedAt = timestamppb.New(now)
 	tbwr.Audit.CompletedAt = timestamppb.New(now)
 	fields := []zap.Field{
-		zap.Int("RetriesCount", len(ops)),
+		zap.Int(log_keys.RetriesCount, len(ops)),
 	}
 
 	if tbwr.RetryConfig != nil {
@@ -217,7 +218,7 @@ func setErrorToRetryOperation(
 
 	if len(ops) > 0 {
 		tbwr.Message = tbwr.Message + fmt.Sprintf(" Launched operations %s", operationIDs)
-		fields = append(fields, zap.String("OperationIDs", operationIDs))
+		fields = append(fields, zap.String(log_keys.OperationIDs, operationIDs))
 	}
 
 	xlog.Error(ctx, tbwr.Message, fields...)
@@ -236,7 +237,7 @@ func TBWROperationHandler(
 	featureFlags config.FeatureFlagsConfig,
 	kmsProvider kp.KmsProvider,
 ) error {
-	ctx = xlog.With(ctx, zap.String("OperationID", operation.GetID()))
+	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operation.GetID()))
 
 	if operation.GetType() != types.OperationTypeTBWR {
 		return fmt.Errorf("wrong operation type %s != %s", operation.GetType(), types.OperationTypeTBWR)
@@ -246,7 +247,7 @@ func TBWROperationHandler(
 		return fmt.Errorf("can't cast Operation to TakeBackupWithRetryOperation %s", types.OperationToString(operation))
 	}
 	if tbwr.ScheduleID != nil {
-		ctx = xlog.With(ctx, zap.String("ScheduleID", *tbwr.ScheduleID))
+		ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, *tbwr.ScheduleID))
 	}
 	ops, err := db.SelectOperations(
 		ctx, queries.NewReadTableQuery(
@@ -299,10 +300,10 @@ func TBWROperationHandler(
 				return err
 			}
 			fields := []zap.Field{
-				zap.String("decision", do.String()),
+				zap.String(log_keys.RetryDecision, do.String()),
 			}
 			if do != Error && len(ops) > 0 {
-				fields = append(fields, zap.String("TBOperationID", ops[len(ops)-1].GetID()))
+				fields = append(fields, zap.String(log_keys.TBOperationID, ops[len(ops)-1].GetID()))
 			}
 			xlog.Info(
 				ctx,
@@ -360,8 +361,8 @@ func TBWROperationHandler(
 							xlog.Debug(
 								ctx,
 								"Created empty backup instance for empty db",
-								zap.String("BackupID", backup.ID),
-								zap.String("TBOperationID", tb.ID),
+								zap.String(log_keys.BackupID, backup.ID),
+								zap.String(log_keys.TBOperationID, tb.ID),
 							)
 							tbwr.State = types.OperationStateDone
 							tbwr.Message = "Success"
@@ -384,7 +385,7 @@ func TBWROperationHandler(
 							)
 						}
 					} else {
-						xlog.Debug(ctx, "running new TB", zap.String("TBOperationID", tb.ID))
+						xlog.Debug(ctx, "running new TB", zap.String(log_keys.TBOperationID, tb.ID))
 						return withBackupStateAudit(
 							ctx, tbwr, db.ExecuteUpsert(
 								ctx,
@@ -426,7 +427,7 @@ func TBWROperationHandler(
 				)
 			} else {
 				if lastTbOp.State == types.OperationStatePending || lastTbOp.State == types.OperationStateRunning {
-					xlog.Info(ctx, "cancelling TB operation", zap.String("TBOperationID", lastTbOp.ID))
+					xlog.Info(ctx, "cancelling TB operation", zap.String(log_keys.TBOperationID, lastTbOp.ID))
 					lastTbOp.State = types.OperationStateStartCancelling
 					lastTbOp.Message = "Cancelling by parent operation"
 					lastTbOp.UpdatedAt = timestamppb.New(clock.Now())

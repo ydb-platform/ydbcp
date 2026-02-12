@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"ydbcp/internal/util/log_keys"
 
 	"ydbcp/internal/util/xlog"
 	"ydbcp/pkg/plugins/auth"
@@ -113,10 +114,10 @@ func (p *MockAuthProvider) Init(ctx context.Context, config string) error {
 	xlog.Info(
 		ctx,
 		"MockAuthProvider init",
-		zap.String("config", config),
-		zap.String("tokens", fmt.Sprintf("%v", p.tokens)),
-		zap.String("containers", fmt.Sprintf("%v", p.containers)),
-		zap.String("resources", fmt.Sprintf("%v", p.resources)),
+		zap.String(log_keys.Config, config),
+		zap.String(log_keys.Tokens, fmt.Sprintf("%v", p.tokens)),
+		zap.String(log_keys.Containers, fmt.Sprintf("%v", p.containers)),
+		zap.String(log_keys.Resources, fmt.Sprintf("%v", p.resources)),
 	)
 	return nil
 }
@@ -169,7 +170,7 @@ func (p *MockAuthProvider) Authorize(
 	xlog.Info(
 		ctx,
 		"MockAuthProvider Authorize",
-		zap.String("AuthorizeChecks", fmt.Sprintf("%v", checks)),
+		zap.String(log_keys.AuthorizeChecks, fmt.Sprintf("%v", checks)),
 	)
 
 	info, ok := p.tokens[token]
@@ -198,8 +199,8 @@ func (p *MockAuthProvider) Authorize(
 	}
 	xlog.Info(
 		ctx, "MockAuthProvider Authorize result",
-		zap.String("AuthResults", fmt.Sprintf("%v", results)),
-		zap.String("SubjectID", anonymousSubject),
+		zap.String(log_keys.AuthResults, fmt.Sprintf("%v", results)),
+		zap.String(log_keys.Subject, anonymousSubject),
 	)
 	return results, subject, nil
 }

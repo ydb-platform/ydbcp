@@ -16,6 +16,7 @@ import (
 	"ydbcp/internal/server"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -48,8 +49,8 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	ctx context.Context, request *pb.CreateBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "CreateBackupSchedule"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
-	ctx = xlog.With(ctx, zap.String("ContainerID", request.ContainerId))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.ContainerId))
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: request.DatabaseName},
 	)
@@ -58,7 +59,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	if err = helpers.CheckClientDbAccess(
 		ctx, s.clientConn, types.YdbConnectionParams{
 			Endpoint:     request.Endpoint,
@@ -98,9 +99,9 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	if len(schedules)+1 > s.config.Quota.SchedulesPerDB {
 		xlog.Error(
 			ctx, "can't create backup schedule, limit exceeded for database",
-			zap.String("database", request.DatabaseName),
-			zap.String("container", request.ContainerId),
-			zap.Int("limit", s.config.Quota.SchedulesPerDB),
+			zap.String(log_keys.Database, request.DatabaseName),
+			zap.String(log_keys.ContainerID, request.ContainerId),
+			zap.Int(log_keys.Limit, s.config.Quota.SchedulesPerDB),
 		)
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Errorf(
@@ -114,7 +115,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 
 	if request.ScheduleSettings == nil {
 		xlog.Error(
-			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String("request", request.String()),
+			ctx, "no backup schedule settings for CreateBackupSchedule", zap.String(log_keys.Request, request.String()),
 		)
 		s.IncApiCallsCounter(methodName, codes.FailedPrecondition)
 		return nil, status.Error(codes.FailedPrecondition, "no backup schedule settings for CreateBackupSchedule")
@@ -163,7 +164,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
 	}
-	ctx = xlog.With(ctx, zap.String("ScheduleID", schedule.ID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, schedule.ID))
 	if schedule.ScheduleSettings.RecoveryPointObjective == nil {
 		duration, err := schedule.GetCronDuration()
 		if err != nil {
@@ -188,13 +189,13 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackupSchedule(schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't create backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
+			ctx, "can't create backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create backup schedule")
 	}
-	xlog.Debug(ctx, methodName, zap.Stringer("schedule", &schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, &schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
@@ -205,9 +206,9 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	const methodName string = "UpdateBackupSchedule"
 
 	scheduleID := request.GetId()
-	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, scheduleID))
 
-	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -230,7 +231,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
@@ -240,7 +241,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	if err = helpers.CheckClientDbAccess(
 		ctx, s.clientConn, types.YdbConnectionParams{
 			Endpoint:     schedule.DatabaseEndpoint,
@@ -302,14 +303,14 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
+			ctx, "can't update backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
 	}
 
-	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
@@ -318,12 +319,12 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	ctx context.Context, request *pb.GetBackupScheduleRequest,
 ) (_ *pb.BackupSchedule, responseErr error) {
 	const methodName string = "GetBackupSchedule"
-	ctx = xlog.With(ctx, zap.String("GRPCCall", pb.BackupScheduleService_GetBackupSchedule_FullMethodName))
+	ctx = xlog.With(ctx, zap.String(log_keys.GRPCCall, pb.BackupScheduleService_GetBackupSchedule_FullMethodName))
 
 	scheduleID := request.GetId()
-	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, scheduleID))
 
-	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -349,16 +350,16 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
 	)
-	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
@@ -367,14 +368,14 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	ctx context.Context, request *pb.ListBackupSchedulesRequest,
 ) (_ *pb.ListBackupSchedulesResponse, responseErr error) {
 	const methodName string = "ListBackupSchedules"
-	xlog.Debug(ctx, methodName, zap.String("request", request.String()))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
 
 	queryFilters := make([]queries.QueryFilter, 0)
 	checkEveryCID := false
 	subjectLabel := true
 
 	if request.GetContainerId() != "" {
-		ctx = xlog.With(ctx, zap.String("ContainerID", request.GetContainerId()))
+		ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.GetContainerId()))
 		var err error
 		audit.SetAuditFieldsForRequest(
 			ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"},
@@ -385,7 +386,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 			s.IncApiCallsCounter(methodName, status.Code(err))
 			return nil, err
 		}
-		ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+		ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 		queryFilters = append(
 			queryFilters, queries.QueryFilter{
@@ -456,7 +457,7 @@ func (s *BackupScheduleService) ListBackupSchedules(
 			checkedCIDs[schedule.ContainerID] = true
 			subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, schedule.ContainerID, "")
 			if !subjectLabel {
-				ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+				ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 				subjectLabel = true
 			}
 			if err != nil {
@@ -479,9 +480,9 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	const methodName string = "ToggleBackupSchedule"
 
 	scheduleID := request.GetId()
-	ctx = xlog.With(ctx, zap.String("ScheduleID", scheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, scheduleID))
 
-	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -507,13 +508,13 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
 	)
-	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	if err = helpers.CheckClientDbAccess(
 		ctx, s.clientConn, types.YdbConnectionParams{
 			Endpoint:     schedule.DatabaseEndpoint,
@@ -547,7 +548,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't update backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
+			ctx, "can't update backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -558,7 +559,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 		metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedule)
 	}
 
-	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }
@@ -569,9 +570,9 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	const methodName string = "DeleteBackupSchedule"
 
 	scheduleID := request.GetId()
-	ctx = xlog.With(ctx, zap.String("BackupScheduleID", scheduleID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, scheduleID))
 
-	xlog.Debug(ctx, methodName, zap.Stringer("request", request))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
 	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
 		ctx, queries.NewReadTableQuery(
@@ -594,7 +595,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	ctx = xlog.With(ctx, zap.String("ContainerID", schedule.ContainerID))
+	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
@@ -604,7 +605,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	ctx = xlog.With(ctx, zap.String("SubjectID", subject))
+	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
 	if schedule.Status == types.BackupScheduleStateDeleted {
 		xlog.Error(ctx, "backup schedule already deleted")
@@ -616,7 +617,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
 	if err != nil {
 		xlog.Error(
-			ctx, "can't delete backup schedule", zap.String("backup schedule", schedule.Proto(s.clock).String()),
+			ctx, "can't delete backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
 			zap.Error(err),
 		)
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -625,7 +626,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 
 	metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedule)
 
-	xlog.Debug(ctx, methodName, zap.Stringer("schedule", schedule))
+	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, schedule))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return schedule.Proto(s.clock), nil
 }

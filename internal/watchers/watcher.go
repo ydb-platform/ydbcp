@@ -6,6 +6,7 @@ import (
 	"go.uber.org/zap"
 	"sync"
 	"time"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
 )
@@ -70,7 +71,7 @@ func NewWatcher(
 
 func (o *WatcherImpl) run(wg *sync.WaitGroup) {
 	defer wg.Done()
-	xlog.Debug(o.ctx, fmt.Sprintf("%s watcher started", o.prefixName), zap.Duration("period", o.period))
+	xlog.Debug(o.ctx, fmt.Sprintf("%s watcher started", o.prefixName), zap.Duration(log_keys.Period, o.period))
 	ticker := o.tickerProvider(o.period)
 	for {
 		select {
