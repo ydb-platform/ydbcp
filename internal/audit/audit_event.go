@@ -3,16 +3,17 @@ package audit
 import (
 	"context"
 	"encoding/json"
-	"github.com/google/uuid"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/protobuf/encoding/protojson"
-	"google.golang.org/protobuf/proto"
 	"strings"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
+
+	"github.com/google/uuid"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/proto"
 )
 
 var EventsDestination string
@@ -35,6 +36,18 @@ type GenericAuditFields struct {
 	Reason         string           `json:"reason,omitempty"`
 	Timestamp      string           `json:"@timestamp"`
 	IsBackground   bool             `json:"is_background"`
+}
+
+type HasEnrichLogContext interface {
+	EnrichLogContext(ctx context.Context) context.Context
+}
+
+func (g *GenericAuditFields) EnrichLogContext(ctx context.Context) context.Context {
+	ctx = xlog.With(ctx, zap.String("database", g.Database))
+	ctx = xlog.With(ctx, zap.String("containerID", g.FolderID))
+	ctx = xlog.With(ctx, zap.String("requestID", g.ID))
+	ctx = xlog.With(ctx, zap.String("traceID", g.TraceID))
+	return ctx
 }
 
 type EventEnvelope struct {
@@ -214,6 +227,12 @@ type BackupStateEvent struct {
 	Attempt    int    `json:"attempt,omitempty"`
 }
 
+func (b *BackupStateEvent) EnrichLogContext(ctx context.Context) context.Context {
+	ctx = b.GenericAuditFields.EnrichLogContext(ctx)
+	ctx = xlog.With(ctx, zap.String("ScheduleID", b.ScheduleID))
+	return ctx
+}
+
 func ReportBackupStateAuditEvent(
 	ctx context.Context, operation *types.TakeBackupWithRetryOperation, fromScheduleHandler bool,
 ) {
@@ -284,6 +303,12 @@ type FailedRPOAuditEvent struct {
 	ScheduleID string `json:"schedule_id"`
 }
 
+func (b *FailedRPOAuditEvent) EnrichLogContext(ctx context.Context) context.Context {
+	ctx = b.GenericAuditFields.EnrichLogContext(ctx)
+	ctx = xlog.With(ctx, zap.String("ScheduleID", b.ScheduleID))
+	return ctx
+}
+
 var ReportedMissedRPOs = make(map[string]bool)
 
 func ReportFailedRPOAuditEvent(ctx context.Context, schedule *types.BackupSchedule) {
@@ -335,7 +360,7 @@ func ReportAuditEvent(ctx context.Context, event any) {
 		return
 	}
 	xlog.Raw(string(jsonData))
-	if err != nil {
-		xlog.Error(ctx, "error reporting audit event", zap.Error(err))
+	if a, ok := event.(HasEnrichLogContext); ok {
+		xlog.Debug(a.EnrichLogContext(ctx), env.TextData)
 	}
 }

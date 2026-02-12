@@ -5,19 +5,22 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/metadata"
-	"google.golang.org/grpc/peer"
-	"google.golang.org/grpc/status"
 	"io"
 	"os"
 	"testing"
 	"time"
 	"ydbcp/internal/server/grpcinfo"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 // Mock proto message
@@ -478,4 +481,26 @@ func TestReportGRPCCallEndJSON(t *testing.T) {
 	assert.Nil(t, evt.GRPCRequest)
 	assert.Contains(t, evt.RemoteAddress, "172.16.0.5")
 	assert.Contains(t, evt.RemoteAddress, "192.168.2.2")
+}
+
+func TestPrintEventToLog(t *testing.T) {
+	observed := xlog.SetupLoggingWithObserver()
+	event := &FailedRPOAuditEvent{
+		GenericAuditFields: GenericAuditFields{
+			FolderID: "container",
+			Database: "mydb",
+		},
+		ScheduleID: "1",
+	}
+
+	EventsDestination = "test-destination"
+	ReportAuditEvent(context.TODO(), event)
+
+	require.Equal(t, 1, observed.Len(), "expected exactly one log entry")
+	require.True(
+		t, observed.FilterField(zap.String("database", "mydb")).Len() == 1,
+	)
+	require.True(
+		t, observed.FilterField(zap.String("ScheduleID", "1")).Len() == 1,
+	)
 }
