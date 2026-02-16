@@ -4,6 +4,8 @@
 // - protoc             v6.33.4
 // source: ydb_nebius/describe.proto
 
+// Minimal standalone subset matching original legacy gRPC wire contract.
+
 package ydb_nebius_proto
 
 import (
@@ -19,102 +21,105 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	TSchemeDescribeService_Describe_FullMethodName = "/NKikimrClient.TSchemeDescribeService/Describe"
+	TGRpcServer_SchemeDescribe_FullMethodName = "/NKikimrClient.TGRpcServer/SchemeDescribe"
 )
 
-// TSchemeDescribeServiceClient is the client API for TSchemeDescribeService service.
+// TGRpcServerClient is the client API for TGRpcServer service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type TSchemeDescribeServiceClient interface {
-	Describe(ctx context.Context, in *TSchemeDescribe, opts ...grpc.CallOption) (*TFlatDescribeResponse, error)
+//
+// Exact legacy service name/method name from grpc.proto.
+type TGRpcServerClient interface {
+	SchemeDescribe(ctx context.Context, in *TSchemeDescribe, opts ...grpc.CallOption) (*TResponse, error)
 }
 
-type tSchemeDescribeServiceClient struct {
+type tGRpcServerClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewTSchemeDescribeServiceClient(cc grpc.ClientConnInterface) TSchemeDescribeServiceClient {
-	return &tSchemeDescribeServiceClient{cc}
+func NewTGRpcServerClient(cc grpc.ClientConnInterface) TGRpcServerClient {
+	return &tGRpcServerClient{cc}
 }
 
-func (c *tSchemeDescribeServiceClient) Describe(ctx context.Context, in *TSchemeDescribe, opts ...grpc.CallOption) (*TFlatDescribeResponse, error) {
+func (c *tGRpcServerClient) SchemeDescribe(ctx context.Context, in *TSchemeDescribe, opts ...grpc.CallOption) (*TResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
-	out := new(TFlatDescribeResponse)
-	err := c.cc.Invoke(ctx, TSchemeDescribeService_Describe_FullMethodName, in, out, cOpts...)
+	out := new(TResponse)
+	err := c.cc.Invoke(ctx, TGRpcServer_SchemeDescribe_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// TSchemeDescribeServiceServer is the server API for TSchemeDescribeService service.
-// All implementations must embed UnimplementedTSchemeDescribeServiceServer
+// TGRpcServerServer is the server API for TGRpcServer service.
+// All implementations must embed UnimplementedTGRpcServerServer
 // for forward compatibility.
-type TSchemeDescribeServiceServer interface {
-	Describe(context.Context, *TSchemeDescribe) (*TFlatDescribeResponse, error)
-	mustEmbedUnimplementedTSchemeDescribeServiceServer()
+//
+// Exact legacy service name/method name from grpc.proto.
+type TGRpcServerServer interface {
+	SchemeDescribe(context.Context, *TSchemeDescribe) (*TResponse, error)
+	mustEmbedUnimplementedTGRpcServerServer()
 }
 
-// UnimplementedTSchemeDescribeServiceServer must be embedded to have
+// UnimplementedTGRpcServerServer must be embedded to have
 // forward compatible implementations.
 //
 // NOTE: this should be embedded by value instead of pointer to avoid a nil
 // pointer dereference when methods are called.
-type UnimplementedTSchemeDescribeServiceServer struct{}
+type UnimplementedTGRpcServerServer struct{}
 
-func (UnimplementedTSchemeDescribeServiceServer) Describe(context.Context, *TSchemeDescribe) (*TFlatDescribeResponse, error) {
-	return nil, status.Error(codes.Unimplemented, "method Describe not implemented")
+func (UnimplementedTGRpcServerServer) SchemeDescribe(context.Context, *TSchemeDescribe) (*TResponse, error) {
+	return nil, status.Error(codes.Unimplemented, "method SchemeDescribe not implemented")
 }
-func (UnimplementedTSchemeDescribeServiceServer) mustEmbedUnimplementedTSchemeDescribeServiceServer() {
-}
-func (UnimplementedTSchemeDescribeServiceServer) testEmbeddedByValue() {}
+func (UnimplementedTGRpcServerServer) mustEmbedUnimplementedTGRpcServerServer() {}
+func (UnimplementedTGRpcServerServer) testEmbeddedByValue()                     {}
 
-// UnsafeTSchemeDescribeServiceServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to TSchemeDescribeServiceServer will
+// UnsafeTGRpcServerServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to TGRpcServerServer will
 // result in compilation errors.
-type UnsafeTSchemeDescribeServiceServer interface {
-	mustEmbedUnimplementedTSchemeDescribeServiceServer()
+type UnsafeTGRpcServerServer interface {
+	mustEmbedUnimplementedTGRpcServerServer()
 }
 
-func RegisterTSchemeDescribeServiceServer(s grpc.ServiceRegistrar, srv TSchemeDescribeServiceServer) {
-	// If the following call panics, it indicates UnimplementedTSchemeDescribeServiceServer was
+func RegisterTGRpcServerServer(s grpc.ServiceRegistrar, srv TGRpcServerServer) {
+	// If the following call panics, it indicates UnimplementedTGRpcServerServer was
 	// embedded by pointer and is nil.  This will cause panics if an
 	// unimplemented method is ever invoked, so we test this at initialization
 	// time to prevent it from happening at runtime later due to I/O.
 	if t, ok := srv.(interface{ testEmbeddedByValue() }); ok {
 		t.testEmbeddedByValue()
 	}
-	s.RegisterService(&TSchemeDescribeService_ServiceDesc, srv)
+	s.RegisterService(&TGRpcServer_ServiceDesc, srv)
 }
 
-func _TSchemeDescribeService_Describe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _TGRpcServer_SchemeDescribe_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(TSchemeDescribe)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TSchemeDescribeServiceServer).Describe(ctx, in)
+		return srv.(TGRpcServerServer).SchemeDescribe(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TSchemeDescribeService_Describe_FullMethodName,
+		FullMethod: TGRpcServer_SchemeDescribe_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TSchemeDescribeServiceServer).Describe(ctx, req.(*TSchemeDescribe))
+		return srv.(TGRpcServerServer).SchemeDescribe(ctx, req.(*TSchemeDescribe))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// TSchemeDescribeService_ServiceDesc is the grpc.ServiceDesc for TSchemeDescribeService service.
+// TGRpcServer_ServiceDesc is the grpc.ServiceDesc for TGRpcServer service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var TSchemeDescribeService_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "NKikimrClient.TSchemeDescribeService",
-	HandlerType: (*TSchemeDescribeServiceServer)(nil),
+var TGRpcServer_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "NKikimrClient.TGRpcServer",
+	HandlerType: (*TGRpcServerServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Describe",
-			Handler:    _TSchemeDescribeService_Describe_Handler,
+			MethodName: "SchemeDescribe",
+			Handler:    _TGRpcServer_SchemeDescribe_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

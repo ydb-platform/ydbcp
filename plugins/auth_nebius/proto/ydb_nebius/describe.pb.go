@@ -4,6 +4,8 @@
 // 	protoc        v6.33.4
 // source: ydb_nebius/describe.proto
 
+// Minimal standalone subset matching original legacy gRPC wire contract.
+
 package ydb_nebius_proto
 
 import (
@@ -131,7 +133,7 @@ func (TStatusIds_EStatusCode) EnumDescriptor() ([]byte, []int) {
 	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{0, 0}
 }
 
-// Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode
+// Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode.
 type TStatusIds struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -168,7 +170,7 @@ func (*TStatusIds) Descriptor() ([]byte, []int) {
 	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{0}
 }
 
-// Extracted from NKikimrSchemeOp.TUserAttribute
+// Extracted from NKikimrSchemeOp.TUserAttribute.
 type TUserAttribute struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Key           *string                `protobuf:"bytes,1,opt,name=Key" json:"Key,omitempty"`
@@ -221,7 +223,53 @@ func (x *TUserAttribute) GetValue() string {
 	return ""
 }
 
-// Extracted from NKikimrSchemeOp.TDescribeOptions
+// Extracted from NKikimrSchemeOp.TPathDescription.
+// Only UserAttributes are preserved.
+type TPathDescription struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	UserAttributes []*TUserAttribute      `protobuf:"bytes,16,rep,name=UserAttributes" json:"UserAttributes,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *TPathDescription) Reset() {
+	*x = TPathDescription{}
+	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TPathDescription) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TPathDescription) ProtoMessage() {}
+
+func (x *TPathDescription) ProtoReflect() protoreflect.Message {
+	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use TPathDescription.ProtoReflect.Descriptor instead.
+func (*TPathDescription) Descriptor() ([]byte, []int) {
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *TPathDescription) GetUserAttributes() []*TUserAttribute {
+	if x != nil {
+		return x.UserAttributes
+	}
+	return nil
+}
+
+// Extracted from NKikimrSchemeOp.TDescribeOptions.
 type TDescribeOptions struct {
 	state                      protoimpl.MessageState `protogen:"open.v1"`
 	ReturnPartitioningInfo     *bool                  `protobuf:"varint,1,opt,name=ReturnPartitioningInfo,def=1" json:"ReturnPartitioningInfo,omitempty"`
@@ -256,7 +304,7 @@ const (
 
 func (x *TDescribeOptions) Reset() {
 	*x = TDescribeOptions{}
-	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +316,7 @@ func (x *TDescribeOptions) String() string {
 func (*TDescribeOptions) ProtoMessage() {}
 
 func (x *TDescribeOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +329,7 @@ func (x *TDescribeOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TDescribeOptions.ProtoReflect.Descriptor instead.
 func (*TDescribeOptions) Descriptor() ([]byte, []int) {
-	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{2}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TDescribeOptions) GetReturnPartitioningInfo() bool {
@@ -361,53 +409,7 @@ func (x *TDescribeOptions) GetReturnIndexTableBoundaries() bool {
 	return Default_TDescribeOptions_ReturnIndexTableBoundaries
 }
 
-// Extracted from NKikimrSchemeOp.TPathDescription.
-// Only UserAttributes are preserved.
-type TPathDescription struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
-	UserAttributes []*TUserAttribute      `protobuf:"bytes,16,rep,name=UserAttributes" json:"UserAttributes,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
-}
-
-func (x *TPathDescription) Reset() {
-	*x = TPathDescription{}
-	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *TPathDescription) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*TPathDescription) ProtoMessage() {}
-
-func (x *TPathDescription) ProtoReflect() protoreflect.Message {
-	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TPathDescription.ProtoReflect.Descriptor instead.
-func (*TPathDescription) Descriptor() ([]byte, []int) {
-	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{3}
-}
-
-func (x *TPathDescription) GetUserAttributes() []*TUserAttribute {
-	if x != nil {
-		return x.UserAttributes
-	}
-	return nil
-}
-
-// Extracted from NKikimrClient.TSchemeDescribe.
+// Exact request type for TGRpcServer/SchemeDescribe.
 type TSchemeDescribe struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Path          *string                `protobuf:"bytes,1,opt,name=Path" json:"Path,omitempty"`
@@ -484,33 +486,34 @@ func (x *TSchemeDescribe) GetOptions() *TDescribeOptions {
 	return nil
 }
 
-// Extracted from NKikimrClient.TFlatDescribeResponse.
-type TFlatDescribeResponse struct {
+// Minimal subset of NKikimrClient.TResponse used by SchemeDescribe.
+// Field numbers preserved from original msgbus.proto.
+type TResponse struct {
 	state           protoimpl.MessageState  `protogen:"open.v1"`
 	Status          *uint32                 `protobuf:"varint,1,opt,name=Status" json:"Status,omitempty"`
-	PathDescription *TPathDescription       `protobuf:"bytes,2,opt,name=PathDescription" json:"PathDescription,omitempty"`
-	ErrorReason     *string                 `protobuf:"bytes,3,opt,name=ErrorReason" json:"ErrorReason,omitempty"`
-	SchemeStatus    *int32                  `protobuf:"varint,4,opt,name=SchemeStatus" json:"SchemeStatus,omitempty"`
 	StatusCode      *TStatusIds_EStatusCode `protobuf:"varint,7,opt,name=StatusCode,enum=NKikimrClient.TStatusIds_EStatusCode" json:"StatusCode,omitempty"`
-	Path            *string                 `protobuf:"bytes,9,opt,name=Path" json:"Path,omitempty"`
+	ErrorReason     *string                 `protobuf:"bytes,400,opt,name=ErrorReason" json:"ErrorReason,omitempty"`
+	SchemeStatus    *int32                  `protobuf:"varint,300,opt,name=SchemeStatus" json:"SchemeStatus,omitempty"`
+	PathDescription *TPathDescription       `protobuf:"bytes,600,opt,name=PathDescription" json:"PathDescription,omitempty"`
+	Path            *string                 `protobuf:"bytes,601,opt,name=Path" json:"Path,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
 
-func (x *TFlatDescribeResponse) Reset() {
-	*x = TFlatDescribeResponse{}
+func (x *TResponse) Reset() {
+	*x = TResponse{}
 	mi := &file_ydb_nebius_describe_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *TFlatDescribeResponse) String() string {
+func (x *TResponse) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*TFlatDescribeResponse) ProtoMessage() {}
+func (*TResponse) ProtoMessage() {}
 
-func (x *TFlatDescribeResponse) ProtoReflect() protoreflect.Message {
+func (x *TResponse) ProtoReflect() protoreflect.Message {
 	mi := &file_ydb_nebius_describe_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -522,47 +525,47 @@ func (x *TFlatDescribeResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TFlatDescribeResponse.ProtoReflect.Descriptor instead.
-func (*TFlatDescribeResponse) Descriptor() ([]byte, []int) {
+// Deprecated: Use TResponse.ProtoReflect.Descriptor instead.
+func (*TResponse) Descriptor() ([]byte, []int) {
 	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{5}
 }
 
-func (x *TFlatDescribeResponse) GetStatus() uint32 {
+func (x *TResponse) GetStatus() uint32 {
 	if x != nil && x.Status != nil {
 		return *x.Status
 	}
 	return 0
 }
 
-func (x *TFlatDescribeResponse) GetPathDescription() *TPathDescription {
-	if x != nil {
-		return x.PathDescription
-	}
-	return nil
-}
-
-func (x *TFlatDescribeResponse) GetErrorReason() string {
-	if x != nil && x.ErrorReason != nil {
-		return *x.ErrorReason
-	}
-	return ""
-}
-
-func (x *TFlatDescribeResponse) GetSchemeStatus() int32 {
-	if x != nil && x.SchemeStatus != nil {
-		return *x.SchemeStatus
-	}
-	return 0
-}
-
-func (x *TFlatDescribeResponse) GetStatusCode() TStatusIds_EStatusCode {
+func (x *TResponse) GetStatusCode() TStatusIds_EStatusCode {
 	if x != nil && x.StatusCode != nil {
 		return *x.StatusCode
 	}
 	return TStatusIds_UNKNOWN
 }
 
-func (x *TFlatDescribeResponse) GetPath() string {
+func (x *TResponse) GetErrorReason() string {
+	if x != nil && x.ErrorReason != nil {
+		return *x.ErrorReason
+	}
+	return ""
+}
+
+func (x *TResponse) GetSchemeStatus() int32 {
+	if x != nil && x.SchemeStatus != nil {
+		return *x.SchemeStatus
+	}
+	return 0
+}
+
+func (x *TResponse) GetPathDescription() *TPathDescription {
+	if x != nil {
+		return x.PathDescription
+	}
+	return nil
+}
+
+func (x *TResponse) GetPath() string {
 	if x != nil && x.Path != nil {
 		return *x.Path
 	}
@@ -602,7 +605,9 @@ const file_ydb_nebius_describe_proto_rawDesc = "" +
 	"\fSCHEME_ERROR\x10\xac\x01\"8\n" +
 	"\x0eTUserAttribute\x12\x10\n" +
 	"\x03Key\x18\x01 \x01(\tR\x03Key\x12\x14\n" +
-	"\x05Value\x18\x02 \x01(\tR\x05Value\"\xdf\x04\n" +
+	"\x05Value\x18\x02 \x01(\tR\x05Value\"Y\n" +
+	"\x10TPathDescription\x12E\n" +
+	"\x0eUserAttributes\x18\x10 \x03(\v2\x1d.NKikimrClient.TUserAttributeR\x0eUserAttributes\"\xdf\x04\n" +
 	"\x10TDescribeOptions\x12<\n" +
 	"\x16ReturnPartitioningInfo\x18\x01 \x01(\b:\x04trueR\x16ReturnPartitioningInfo\x12:\n" +
 	"\x15ReturnPartitionConfig\x18\x02 \x01(\b:\x04trueR\x15ReturnPartitionConfig\x12%\n" +
@@ -617,27 +622,24 @@ const file_ydb_nebius_describe_proto_rawDesc = "" +
 	"\x0eReturnRangeKey\x18\t \x01(\b:\x04trueR\x0eReturnRangeKey\x12)\n" +
 	"\fReturnSetVal\x18\n" +
 	" \x01(\b:\x05falseR\fReturnSetVal\x12E\n" +
-	"\x1aReturnIndexTableBoundaries\x18\v \x01(\b:\x05falseR\x1aReturnIndexTableBoundaries\"Y\n" +
-	"\x10TPathDescription\x12E\n" +
-	"\x0eUserAttributes\x18\x10 \x03(\v2\x1d.NKikimrClient.TUserAttributeR\x0eUserAttributes\"\xc4\x01\n" +
+	"\x1aReturnIndexTableBoundaries\x18\v \x01(\b:\x05falseR\x1aReturnIndexTableBoundaries\"\xc4\x01\n" +
 	"\x0fTSchemeDescribe\x12\x12\n" +
 	"\x04Path\x18\x01 \x01(\tR\x04Path\x12\x16\n" +
 	"\x06PathId\x18\x02 \x01(\x04R\x06PathId\x12$\n" +
 	"\rSchemeshardId\x18\x03 \x01(\x04R\rSchemeshardId\x12$\n" +
 	"\rSecurityToken\x18\x05 \x01(\tR\rSecurityToken\x129\n" +
-	"\aOptions\x18\x06 \x01(\v2\x1f.NKikimrClient.TDescribeOptionsR\aOptions\"\x9b\x02\n" +
-	"\x15TFlatDescribeResponse\x12\x16\n" +
-	"\x06Status\x18\x01 \x01(\rR\x06Status\x12I\n" +
-	"\x0fPathDescription\x18\x02 \x01(\v2\x1f.NKikimrClient.TPathDescriptionR\x0fPathDescription\x12 \n" +
-	"\vErrorReason\x18\x03 \x01(\tR\vErrorReason\x12\"\n" +
-	"\fSchemeStatus\x18\x04 \x01(\x05R\fSchemeStatus\x12E\n" +
+	"\aOptions\x18\x06 \x01(\v2\x1f.NKikimrClient.TDescribeOptionsR\aOptions\"\x93\x02\n" +
+	"\tTResponse\x12\x16\n" +
+	"\x06Status\x18\x01 \x01(\rR\x06Status\x12E\n" +
 	"\n" +
 	"StatusCode\x18\a \x01(\x0e2%.NKikimrClient.TStatusIds.EStatusCodeR\n" +
-	"StatusCode\x12\x12\n" +
-	"\x04Path\x18\t \x01(\tR\x04Path2j\n" +
-	"\x16TSchemeDescribeService\x12P\n" +
-	"\bDescribe\x12\x1e.NKikimrClient.TSchemeDescribe\x1a$.NKikimrClient.TFlatDescribeResponseBm\n" +
-	"\x16ru.yandex.kikimr.protoZSgithub.com/ydb-platform/ydbcp/plugins/auth_nebius/proto/ydb_nebius;ydb_nebius_proto"
+	"StatusCode\x12!\n" +
+	"\vErrorReason\x18\x90\x03 \x01(\tR\vErrorReason\x12#\n" +
+	"\fSchemeStatus\x18\xac\x02 \x01(\x05R\fSchemeStatus\x12J\n" +
+	"\x0fPathDescription\x18\xd8\x04 \x01(\v2\x1f.NKikimrClient.TPathDescriptionR\x0fPathDescription\x12\x13\n" +
+	"\x04Path\x18\xd9\x04 \x01(\tR\x04Path2Y\n" +
+	"\vTGRpcServer\x12J\n" +
+	"\x0eSchemeDescribe\x12\x1e.NKikimrClient.TSchemeDescribe\x1a\x18.NKikimrClient.TResponseBUZSgithub.com/ydb-platform/ydbcp/plugins/auth_nebius/proto/ydb_nebius;ydb_nebius_proto"
 
 var (
 	file_ydb_nebius_describe_proto_rawDescOnce sync.Once
@@ -654,21 +656,21 @@ func file_ydb_nebius_describe_proto_rawDescGZIP() []byte {
 var file_ydb_nebius_describe_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_ydb_nebius_describe_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_ydb_nebius_describe_proto_goTypes = []any{
-	(TStatusIds_EStatusCode)(0),   // 0: NKikimrClient.TStatusIds.EStatusCode
-	(*TStatusIds)(nil),            // 1: NKikimrClient.TStatusIds
-	(*TUserAttribute)(nil),        // 2: NKikimrClient.TUserAttribute
-	(*TDescribeOptions)(nil),      // 3: NKikimrClient.TDescribeOptions
-	(*TPathDescription)(nil),      // 4: NKikimrClient.TPathDescription
-	(*TSchemeDescribe)(nil),       // 5: NKikimrClient.TSchemeDescribe
-	(*TFlatDescribeResponse)(nil), // 6: NKikimrClient.TFlatDescribeResponse
+	(TStatusIds_EStatusCode)(0), // 0: NKikimrClient.TStatusIds.EStatusCode
+	(*TStatusIds)(nil),          // 1: NKikimrClient.TStatusIds
+	(*TUserAttribute)(nil),      // 2: NKikimrClient.TUserAttribute
+	(*TPathDescription)(nil),    // 3: NKikimrClient.TPathDescription
+	(*TDescribeOptions)(nil),    // 4: NKikimrClient.TDescribeOptions
+	(*TSchemeDescribe)(nil),     // 5: NKikimrClient.TSchemeDescribe
+	(*TResponse)(nil),           // 6: NKikimrClient.TResponse
 }
 var file_ydb_nebius_describe_proto_depIdxs = []int32{
 	2, // 0: NKikimrClient.TPathDescription.UserAttributes:type_name -> NKikimrClient.TUserAttribute
-	3, // 1: NKikimrClient.TSchemeDescribe.Options:type_name -> NKikimrClient.TDescribeOptions
-	4, // 2: NKikimrClient.TFlatDescribeResponse.PathDescription:type_name -> NKikimrClient.TPathDescription
-	0, // 3: NKikimrClient.TFlatDescribeResponse.StatusCode:type_name -> NKikimrClient.TStatusIds.EStatusCode
-	5, // 4: NKikimrClient.TSchemeDescribeService.Describe:input_type -> NKikimrClient.TSchemeDescribe
-	6, // 5: NKikimrClient.TSchemeDescribeService.Describe:output_type -> NKikimrClient.TFlatDescribeResponse
+	4, // 1: NKikimrClient.TSchemeDescribe.Options:type_name -> NKikimrClient.TDescribeOptions
+	0, // 2: NKikimrClient.TResponse.StatusCode:type_name -> NKikimrClient.TStatusIds.EStatusCode
+	3, // 3: NKikimrClient.TResponse.PathDescription:type_name -> NKikimrClient.TPathDescription
+	5, // 4: NKikimrClient.TGRpcServer.SchemeDescribe:input_type -> NKikimrClient.TSchemeDescribe
+	6, // 5: NKikimrClient.TGRpcServer.SchemeDescribe:output_type -> NKikimrClient.TResponse
 	5, // [5:6] is the sub-list for method output_type
 	4, // [4:5] is the sub-list for method input_type
 	4, // [4:4] is the sub-list for extension type_name
