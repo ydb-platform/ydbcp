@@ -2,7 +2,7 @@ syntax = "proto2";
 
 package NKikimrClient;
 option java_package = "ru.yandex.kikimr.proto";
-option go_package = "github.com/ydb-platform/ydbcp/plugins/ydb_nebius/proto;ydb_nebius_proto";
+option go_package = "github.com/ydb-platform/ydbcp/plugins/auth_nebius/proto/ydb_nebius;ydb_nebius_proto";
 
 // Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode
 message TStatusIds {

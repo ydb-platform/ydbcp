@@ -2,7 +2,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        v6.33.4
-// source: describe.proto
+// source: ydb_nebius/describe.proto
 
 package ydb_nebius_proto
 
@@ -105,11 +105,11 @@ func (x TStatusIds_EStatusCode) String() string {
 }
 
 func (TStatusIds_EStatusCode) Descriptor() protoreflect.EnumDescriptor {
-	return file_describe_proto_enumTypes[0].Descriptor()
+	return file_ydb_nebius_describe_proto_enumTypes[0].Descriptor()
 }
 
 func (TStatusIds_EStatusCode) Type() protoreflect.EnumType {
-	return &file_describe_proto_enumTypes[0]
+	return &file_ydb_nebius_describe_proto_enumTypes[0]
 }
 
 func (x TStatusIds_EStatusCode) Number() protoreflect.EnumNumber {
@@ -128,7 +128,7 @@ func (x *TStatusIds_EStatusCode) UnmarshalJSON(b []byte) error {
 
 // Deprecated: Use TStatusIds_EStatusCode.Descriptor instead.
 func (TStatusIds_EStatusCode) EnumDescriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{0, 0}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{0, 0}
 }
 
 // Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode
@@ -140,7 +140,7 @@ type TStatusIds struct {
 
 func (x *TStatusIds) Reset() {
 	*x = TStatusIds{}
-	mi := &file_describe_proto_msgTypes[0]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -152,7 +152,7 @@ func (x *TStatusIds) String() string {
 func (*TStatusIds) ProtoMessage() {}
 
 func (x *TStatusIds) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[0]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -165,7 +165,7 @@ func (x *TStatusIds) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TStatusIds.ProtoReflect.Descriptor instead.
 func (*TStatusIds) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{0}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{0}
 }
 
 // Extracted from NKikimrSchemeOp.TUserAttribute
@@ -179,7 +179,7 @@ type TUserAttribute struct {
 
 func (x *TUserAttribute) Reset() {
 	*x = TUserAttribute{}
-	mi := &file_describe_proto_msgTypes[1]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -191,7 +191,7 @@ func (x *TUserAttribute) String() string {
 func (*TUserAttribute) ProtoMessage() {}
 
 func (x *TUserAttribute) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[1]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -204,7 +204,7 @@ func (x *TUserAttribute) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TUserAttribute.ProtoReflect.Descriptor instead.
 func (*TUserAttribute) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{1}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *TUserAttribute) GetKey() string {
@@ -256,7 +256,7 @@ const (
 
 func (x *TDescribeOptions) Reset() {
 	*x = TDescribeOptions{}
-	mi := &file_describe_proto_msgTypes[2]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +268,7 @@ func (x *TDescribeOptions) String() string {
 func (*TDescribeOptions) ProtoMessage() {}
 
 func (x *TDescribeOptions) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[2]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[2]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +281,7 @@ func (x *TDescribeOptions) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TDescribeOptions.ProtoReflect.Descriptor instead.
 func (*TDescribeOptions) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{2}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *TDescribeOptions) GetReturnPartitioningInfo() bool {
@@ -372,7 +372,7 @@ type TPathDescription struct {
 
 func (x *TPathDescription) Reset() {
 	*x = TPathDescription{}
-	mi := &file_describe_proto_msgTypes[3]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -384,7 +384,7 @@ func (x *TPathDescription) String() string {
 func (*TPathDescription) ProtoMessage() {}
 
 func (x *TPathDescription) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[3]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -397,7 +397,7 @@ func (x *TPathDescription) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TPathDescription.ProtoReflect.Descriptor instead.
 func (*TPathDescription) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{3}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *TPathDescription) GetUserAttributes() []*TUserAttribute {
@@ -421,7 +421,7 @@ type TSchemeDescribe struct {
 
 func (x *TSchemeDescribe) Reset() {
 	*x = TSchemeDescribe{}
-	mi := &file_describe_proto_msgTypes[4]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -433,7 +433,7 @@ func (x *TSchemeDescribe) String() string {
 func (*TSchemeDescribe) ProtoMessage() {}
 
 func (x *TSchemeDescribe) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[4]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -446,7 +446,7 @@ func (x *TSchemeDescribe) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TSchemeDescribe.ProtoReflect.Descriptor instead.
 func (*TSchemeDescribe) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{4}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *TSchemeDescribe) GetPath() string {
@@ -499,7 +499,7 @@ type TFlatDescribeResponse struct {
 
 func (x *TFlatDescribeResponse) Reset() {
 	*x = TFlatDescribeResponse{}
-	mi := &file_describe_proto_msgTypes[5]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -511,7 +511,7 @@ func (x *TFlatDescribeResponse) String() string {
 func (*TFlatDescribeResponse) ProtoMessage() {}
 
 func (x *TFlatDescribeResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_describe_proto_msgTypes[5]
+	mi := &file_ydb_nebius_describe_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -524,7 +524,7 @@ func (x *TFlatDescribeResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use TFlatDescribeResponse.ProtoReflect.Descriptor instead.
 func (*TFlatDescribeResponse) Descriptor() ([]byte, []int) {
-	return file_describe_proto_rawDescGZIP(), []int{5}
+	return file_ydb_nebius_describe_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *TFlatDescribeResponse) GetStatus() uint32 {
@@ -569,11 +569,11 @@ func (x *TFlatDescribeResponse) GetPath() string {
 	return ""
 }
 
-var File_describe_proto protoreflect.FileDescriptor
+var File_ydb_nebius_describe_proto protoreflect.FileDescriptor
 
-const file_describe_proto_rawDesc = "" +
+const file_ydb_nebius_describe_proto_rawDesc = "" +
 	"\n" +
-	"\x0edescribe.proto\x12\rNKikimrClient\"\x81\x03\n" +
+	"\x19ydb_nebius/describe.proto\x12\rNKikimrClient\"\x81\x03\n" +
 	"\n" +
 	"TStatusIds\"\xf2\x02\n" +
 	"\vEStatusCode\x12\v\n" +
@@ -636,24 +636,24 @@ const file_describe_proto_rawDesc = "" +
 	"StatusCode\x12\x12\n" +
 	"\x04Path\x18\t \x01(\tR\x04Path2j\n" +
 	"\x16TSchemeDescribeService\x12P\n" +
-	"\bDescribe\x12\x1e.NKikimrClient.TSchemeDescribe\x1a$.NKikimrClient.TFlatDescribeResponseBa\n" +
-	"\x16ru.yandex.kikimr.protoZGgithub.com/ydb-platform/ydbcp/plugins/ydb_nebius/proto;ydb_nebius_proto"
+	"\bDescribe\x12\x1e.NKikimrClient.TSchemeDescribe\x1a$.NKikimrClient.TFlatDescribeResponseBm\n" +
+	"\x16ru.yandex.kikimr.protoZSgithub.com/ydb-platform/ydbcp/plugins/auth_nebius/proto/ydb_nebius;ydb_nebius_proto"
 
 var (
-	file_describe_proto_rawDescOnce sync.Once
-	file_describe_proto_rawDescData []byte
+	file_ydb_nebius_describe_proto_rawDescOnce sync.Once
+	file_ydb_nebius_describe_proto_rawDescData []byte
 )
 
-func file_describe_proto_rawDescGZIP() []byte {
-	file_describe_proto_rawDescOnce.Do(func() {
-		file_describe_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_describe_proto_rawDesc), len(file_describe_proto_rawDesc)))
+func file_ydb_nebius_describe_proto_rawDescGZIP() []byte {
+	file_ydb_nebius_describe_proto_rawDescOnce.Do(func() {
+		file_ydb_nebius_describe_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_ydb_nebius_describe_proto_rawDesc), len(file_ydb_nebius_describe_proto_rawDesc)))
 	})
-	return file_describe_proto_rawDescData
+	return file_ydb_nebius_describe_proto_rawDescData
 }
 
-var file_describe_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_describe_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
-var file_describe_proto_goTypes = []any{
+var file_ydb_nebius_describe_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+var file_ydb_nebius_describe_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_ydb_nebius_describe_proto_goTypes = []any{
 	(TStatusIds_EStatusCode)(0),   // 0: NKikimrClient.TStatusIds.EStatusCode
 	(*TStatusIds)(nil),            // 1: NKikimrClient.TStatusIds
 	(*TUserAttribute)(nil),        // 2: NKikimrClient.TUserAttribute
@@ -662,7 +662,7 @@ var file_describe_proto_goTypes = []any{
 	(*TSchemeDescribe)(nil),       // 5: NKikimrClient.TSchemeDescribe
 	(*TFlatDescribeResponse)(nil), // 6: NKikimrClient.TFlatDescribeResponse
 }
-var file_describe_proto_depIdxs = []int32{
+var file_ydb_nebius_describe_proto_depIdxs = []int32{
 	2, // 0: NKikimrClient.TPathDescription.UserAttributes:type_name -> NKikimrClient.TUserAttribute
 	3, // 1: NKikimrClient.TSchemeDescribe.Options:type_name -> NKikimrClient.TDescribeOptions
 	4, // 2: NKikimrClient.TFlatDescribeResponse.PathDescription:type_name -> NKikimrClient.TPathDescription
@@ -676,27 +676,27 @@ var file_describe_proto_depIdxs = []int32{
 	0, // [0:4] is the sub-list for field type_name
 }
 
-func init() { file_describe_proto_init() }
-func file_describe_proto_init() {
-	if File_describe_proto != nil {
+func init() { file_ydb_nebius_describe_proto_init() }
+func file_ydb_nebius_describe_proto_init() {
+	if File_ydb_nebius_describe_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_describe_proto_rawDesc), len(file_describe_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_ydb_nebius_describe_proto_rawDesc), len(file_ydb_nebius_describe_proto_rawDesc)),
 			NumEnums:      1,
 			NumMessages:   6,
 			NumExtensions: 0,
 			NumServices:   1,
 		},
-		GoTypes:           file_describe_proto_goTypes,
-		DependencyIndexes: file_describe_proto_depIdxs,
-		EnumInfos:         file_describe_proto_enumTypes,
-		MessageInfos:      file_describe_proto_msgTypes,
+		GoTypes:           file_ydb_nebius_describe_proto_goTypes,
+		DependencyIndexes: file_ydb_nebius_describe_proto_depIdxs,
+		EnumInfos:         file_ydb_nebius_describe_proto_enumTypes,
+		MessageInfos:      file_ydb_nebius_describe_proto_msgTypes,
 	}.Build()
-	File_describe_proto = out.File
-	file_describe_proto_goTypes = nil
-	file_describe_proto_depIdxs = nil
+	File_ydb_nebius_describe_proto = out.File
+	file_ydb_nebius_describe_proto_goTypes = nil
+	file_ydb_nebius_describe_proto_depIdxs = nil
 }
