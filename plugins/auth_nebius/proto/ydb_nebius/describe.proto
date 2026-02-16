@@ -1,10 +1,10 @@
 syntax = "proto2";
 
+// Minimal standalone subset matching original legacy gRPC wire contract.
 package NKikimrClient;
-option java_package = "ru.yandex.kikimr.proto";
 option go_package = "github.com/ydb-platform/ydbcp/plugins/auth_nebius/proto/ydb_nebius;ydb_nebius_proto";
 
-// Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode
+// Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode.
 message TStatusIds {
   enum EStatusCode {
     UNKNOWN = 0;
@@ -33,13 +33,19 @@ message TStatusIds {
   }
 }
 
-// Extracted from NKikimrSchemeOp.TUserAttribute
+// Extracted from NKikimrSchemeOp.TUserAttribute.
 message TUserAttribute {
   optional string Key = 1;
   optional string Value = 2;
 }
 
-// Extracted from NKikimrSchemeOp.TDescribeOptions
+// Extracted from NKikimrSchemeOp.TPathDescription.
+// Only UserAttributes are preserved.
+message TPathDescription {
+  repeated TUserAttribute UserAttributes = 16;
+}
+
+// Extracted from NKikimrSchemeOp.TDescribeOptions.
 message TDescribeOptions {
   optional bool ReturnPartitioningInfo = 1 [default = true];
   optional bool ReturnPartitionConfig = 2 [default = true];
@@ -54,13 +60,7 @@ message TDescribeOptions {
   optional bool ReturnIndexTableBoundaries = 11 [default = false];
 }
 
-// Extracted from NKikimrSchemeOp.TPathDescription.
-// Only UserAttributes are preserved.
-message TPathDescription {
-  repeated TUserAttribute UserAttributes = 16;
-}
-
-// Extracted from NKikimrClient.TSchemeDescribe.
+// Exact request type for TGRpcServer/SchemeDescribe.
 message TSchemeDescribe {
   optional string Path = 1;
   optional uint64 PathId = 2;
@@ -69,17 +69,19 @@ message TSchemeDescribe {
   optional TDescribeOptions Options = 6;
 }
 
-// Extracted from NKikimrClient.TFlatDescribeResponse.
-message TFlatDescribeResponse {
+// Minimal subset of NKikimrClient.TResponse used by SchemeDescribe.
+// Field numbers preserved from original msgbus.proto.
+message TResponse {
   optional uint32 Status = 1;
-  optional TPathDescription PathDescription = 2;
-  optional string ErrorReason = 3;
-  optional int32 SchemeStatus = 4;
-
   optional TStatusIds.EStatusCode StatusCode = 7;
-  optional string Path = 9;
+  optional string ErrorReason = 400;
+
+  optional int32 SchemeStatus = 300;
+  optional TPathDescription PathDescription = 600;
+  optional string Path = 601;
 }
 
-service TSchemeDescribeService {
-  rpc Describe(TSchemeDescribe) returns (TFlatDescribeResponse);
+// Exact legacy service name/method name from grpc.proto.
+service TGRpcServer {
+  rpc SchemeDescribe(TSchemeDescribe) returns (TResponse);
 }
