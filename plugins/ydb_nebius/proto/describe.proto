@@ -1,0 +1,85 @@
+syntax = "proto2";
+
+package NKikimrClient;
+option java_package = "ru.yandex.kikimr.proto";
+option go_package = "github.com/ydb-platform/ydbcp/plugins/ydb_nebius/proto;ydb_nebius_proto";
+
+// Minimal status codes extracted from NKikimrIssues.TStatusIds.EStatusCode
+message TStatusIds {
+  enum EStatusCode {
+    UNKNOWN = 0;
+    SUCCESS = 1;
+    TRANSIENT = 2;
+
+    ERROR = 128;
+    INPROGRESS = 129;
+    TIMEOUT = 130;
+    NOTREADY = 131;
+    INTERNAL_ERROR = 133;
+    REJECTED = 134;
+    NOTSUPPORTED = 135;
+    OVERLOADED = 136;
+    PATH_NOT_EXIST = 137;
+    ACCESS_DENIED = 138;
+
+    BAD_REQUEST = 150;
+    QUERY_ERROR = 151;
+    PROCESS_ERROR = 152;
+    BAD_SESSION = 153;
+
+    LOCKS_INVALIDATED = 170;
+    LOCKS_ACQUIRE_FAILURE = 171;
+    SCHEME_ERROR = 172;
+  }
+}
+
+// Extracted from NKikimrSchemeOp.TUserAttribute
+message TUserAttribute {
+  optional string Key = 1;
+  optional string Value = 2;
+}
+
+// Extracted from NKikimrSchemeOp.TDescribeOptions
+message TDescribeOptions {
+  optional bool ReturnPartitioningInfo = 1 [default = true];
+  optional bool ReturnPartitionConfig = 2 [default = true];
+  optional bool BackupInfo = 3 [default = false];
+  optional bool ReturnPartitionStats = 4 [default = false];
+  optional bool ReturnChildren = 5 [default = true];
+  optional bool ReturnBoundaries = 6 [default = false];
+  optional bool ShowPrivateTable = 7 [default = false];
+  optional bool ReturnChannelsBinding = 8 [default = false];
+  optional bool ReturnRangeKey = 9 [default = true];
+  optional bool ReturnSetVal = 10 [default = false];
+  optional bool ReturnIndexTableBoundaries = 11 [default = false];
+}
+
+// Extracted from NKikimrSchemeOp.TPathDescription.
+// Only UserAttributes are preserved.
+message TPathDescription {
+  repeated TUserAttribute UserAttributes = 16;
+}
+
+// Extracted from NKikimrClient.TSchemeDescribe.
+message TSchemeDescribe {
+  optional string Path = 1;
+  optional uint64 PathId = 2;
+  optional uint64 SchemeshardId = 3;
+  optional string SecurityToken = 5;
+  optional TDescribeOptions Options = 6;
+}
+
+// Extracted from NKikimrClient.TFlatDescribeResponse.
+message TFlatDescribeResponse {
+  optional uint32 Status = 1;
+  optional TPathDescription PathDescription = 2;
+  optional string ErrorReason = 3;
+  optional int32 SchemeStatus = 4;
+
+  optional TStatusIds.EStatusCode StatusCode = 7;
+  optional string Path = 9;
+}
+
+service TSchemeDescribeService {
+  rpc Describe(TSchemeDescribe) returns (TFlatDescribeResponse);
+}
