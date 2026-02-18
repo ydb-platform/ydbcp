@@ -1,12 +1,16 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"time"
+	"ydbcp/internal/util/log_keys"
+	"ydbcp/internal/util/xlog"
 
 	"github.com/adhocore/gronx"
 	"github.com/gorhill/cronexpr"
 	"github.com/jonboulle/clockwork"
+	"go.uber.org/zap"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
@@ -37,6 +41,30 @@ type BackupSchedule struct {
 	LastBackupID           *string
 	LastSuccessfulBackupID *string
 	RecoveryPoint          *time.Time
+}
+
+func (b *BackupSchedule) SetLogFields(ctx context.Context) context.Context {
+	if b == nil {
+		return ctx
+	}
+
+	fields := make([]zap.Field, 0, 4)
+	if b.ID != "" {
+		fields = append(fields, zap.String(log_keys.ScheduleID, b.ID))
+	}
+	if b.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, b.ContainerID))
+	}
+	if b.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, b.DatabaseName))
+	}
+	if b.DatabaseEndpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, b.DatabaseEndpoint))
+	}
+	if len(fields) == 0 {
+		return ctx
+	}
+	return xlog.With(ctx, fields...)
 }
 
 func ParseCronExpr(str string) (*cronexpr.Expression, error) {

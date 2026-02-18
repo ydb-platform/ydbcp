@@ -34,6 +34,7 @@ type Operation interface {
 	GetUpdatedAt() *timestamppb.Timestamp
 	SetUpdatedAt(t *timestamppb.Timestamp)
 	GetDatabaseName() string
+	SetLogFields(ctx context.Context) context.Context
 	Copy() Operation
 	Proto() *pb.Operation
 }
@@ -95,6 +96,26 @@ func (o *TakeBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 }
 func (o *TakeBackupOperation) GetDatabaseName() string {
 	return o.YdbConnectionParams.DatabaseName
+}
+func (o *TakeBackupOperation) SetLogFields(ctx context.Context) context.Context {
+	fields := []zap.Field{
+		zap.String(log_keys.OperationID, o.ID),
+		zap.String(log_keys.OperationType, o.GetType().String()),
+		zap.String(log_keys.OperationState, o.GetState().String()),
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	if o.YdbConnectionParams.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, o.YdbConnectionParams.DatabaseName))
+	}
+	if o.YdbConnectionParams.Endpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, o.YdbConnectionParams.Endpoint))
+	}
+	if o.BackupID != "" {
+		fields = append(fields, zap.String(log_keys.BackupID, o.BackupID))
+	}
+	return xlog.With(ctx, fields...)
 }
 func (o *TakeBackupOperation) Copy() Operation {
 	copy := *o
@@ -182,6 +203,26 @@ func (o *RestoreBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 func (o *RestoreBackupOperation) GetDatabaseName() string {
 	return o.YdbConnectionParams.DatabaseName
 }
+func (o *RestoreBackupOperation) SetLogFields(ctx context.Context) context.Context {
+	fields := []zap.Field{
+		zap.String(log_keys.OperationID, o.ID),
+		zap.String(log_keys.OperationType, o.GetType().String()),
+		zap.String(log_keys.OperationState, o.GetState().String()),
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	if o.YdbConnectionParams.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, o.YdbConnectionParams.DatabaseName))
+	}
+	if o.YdbConnectionParams.Endpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, o.YdbConnectionParams.Endpoint))
+	}
+	if o.BackupId != "" {
+		fields = append(fields, zap.String(log_keys.BackupID, o.BackupId))
+	}
+	return xlog.With(ctx, fields...)
+}
 func (o *RestoreBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -259,6 +300,26 @@ func (o *DeleteBackupOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 func (o *DeleteBackupOperation) GetDatabaseName() string {
 	return o.YdbConnectionParams.DatabaseName
 }
+func (o *DeleteBackupOperation) SetLogFields(ctx context.Context) context.Context {
+	fields := []zap.Field{
+		zap.String(log_keys.OperationID, o.ID),
+		zap.String(log_keys.OperationType, o.GetType().String()),
+		zap.String(log_keys.OperationState, o.GetState().String()),
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	if o.YdbConnectionParams.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, o.YdbConnectionParams.DatabaseName))
+	}
+	if o.YdbConnectionParams.Endpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, o.YdbConnectionParams.Endpoint))
+	}
+	if o.BackupID != "" {
+		fields = append(fields, zap.String(log_keys.BackupID, o.BackupID))
+	}
+	return xlog.With(ctx, fields...)
+}
 func (o *DeleteBackupOperation) Copy() Operation {
 	copy := *o
 	return &copy
@@ -332,6 +393,30 @@ func (o *TakeBackupWithRetryOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 }
 func (o *TakeBackupWithRetryOperation) GetDatabaseName() string {
 	return o.YdbConnectionParams.DatabaseName
+}
+func (o *TakeBackupWithRetryOperation) SetLogFields(ctx context.Context) context.Context {
+	fields := []zap.Field{
+		zap.String(log_keys.OperationID, o.ID),
+		zap.String(log_keys.OperationType, o.GetType().String()),
+		zap.String(log_keys.OperationState, o.GetState().String()),
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	if o.YdbConnectionParams.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, o.YdbConnectionParams.DatabaseName))
+	}
+	if o.YdbConnectionParams.Endpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, o.YdbConnectionParams.Endpoint))
+	}
+	if o.BackupID != "" {
+		fields = append(fields, zap.String(log_keys.BackupID, o.BackupID))
+	}
+	ctx = xlog.With(ctx, fields...)
+	if o.ScheduleID != nil {
+		ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, *o.ScheduleID))
+	}
+	return ctx
 }
 func (o *TakeBackupWithRetryOperation) Copy() Operation {
 	copy := *o
@@ -436,6 +521,17 @@ func (o *GenericOperation) SetUpdatedAt(t *timestamppb.Timestamp) {
 }
 func (o *GenericOperation) GetDatabaseName() string {
 	return ""
+}
+func (o *GenericOperation) SetLogFields(ctx context.Context) context.Context {
+	fields := []zap.Field{
+		zap.String(log_keys.OperationID, o.ID),
+		zap.String(log_keys.OperationType, o.GetType().String()),
+		zap.String(log_keys.OperationState, o.GetState().String()),
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	return xlog.With(ctx, fields...)
 }
 func (o *GenericOperation) Copy() Operation {
 	copy := *o

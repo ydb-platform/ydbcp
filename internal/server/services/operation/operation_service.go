@@ -177,12 +177,7 @@ func (s *OperationService) CancelOperation(
 	operation := operations[0]
 	var permission string
 
-	ctx = xlog.With(
-		ctx,
-		zap.String(log_keys.OperationType, operation.GetType().String()),
-		zap.String(log_keys.ContainerID, operation.GetContainerID()),
-		zap.String(log_keys.OperationState, operation.GetState().String()),
-	)
+	ctx = operation.SetLogFields(ctx)
 	if operation.GetType() == types.OperationTypeTB {
 		permission = auth.PermissionBackupCreate
 	} else if operation.GetType() == types.OperationTypeRB {
@@ -273,7 +268,7 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 		return nil, status.Error(codes.NotFound, "operation not found") // TODO: permission denied?
 	}
 	operation := operations[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, operation.GetContainerID()))
+	ctx = operation.SetLogFields(ctx)
 	// TODO: Need to check access to operation resource by operationID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: operation.GetContainerID(), Database: operation.GetDatabaseName()},

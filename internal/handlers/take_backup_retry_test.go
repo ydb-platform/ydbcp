@@ -13,11 +13,14 @@ import (
 	"ydbcp/internal/kms"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -371,6 +374,68 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 	assert.Equal(t, types.OperationStateDone, op.GetState())
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_finished_count"])
+}
+
+func TestTBWRHandlerSetsLogFields(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(t1.AsTime())
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+	observed := xlog.SetupLoggingWithObserver()
+
+	tbwrID := types.GenerateObjectID()
+	scheduleID := types.GenerateObjectID()
+	tbwr := types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{
+			ID:          tbwrID,
+			ContainerID: "abcde",
+			State:       types.OperationStateRunning,
+			YdbConnectionParams: types.YdbConnectionParams{
+				DatabaseName: "/mydb",
+				Endpoint:     "db.valid.com",
+			},
+			Audit: &pb.AuditInfo{CreatedAt: t1},
+		},
+		ScheduleID:  &scheduleID,
+		RetryConfig: nil,
+	}
+	ops := []types.Operation{
+		&types.TakeBackupOperation{
+			ID:    types.GenerateObjectID(),
+			State: types.OperationStateDone,
+			Audit: &pb.AuditInfo{
+				CreatedAt:   t1,
+				CompletedAt: t2,
+			},
+			ParentOperationID: &tbwrID,
+		},
+		&tbwr,
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithOperations(toMap(ops...)),
+	)
+	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID()})
+
+	handler := NewTBWROperationHandler(
+		dbConnector,
+		client.NewMockClientConnector(),
+		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
+		queries.NewWriteTableQueryMock,
+		clock,
+		config.Config{},
+		kms.NewMockKmsProvider(nil),
+	)
+
+	err := handler(ctx, &tbwr)
+	require.NoError(t, err)
+	require.NotEmpty(t, observed.All())
+
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.OperationID, tbwrID)).Len())
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.OperationType, types.OperationTypeTBWR.String())).Len())
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.OperationState, types.OperationStateRunning.String())).Len())
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.ContainerID, "abcde")).Len())
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.Database, "/mydb")).Len())
+	assert.Equal(t, len(observed.All()), observed.FilterField(zap.String(log_keys.ScheduleID, scheduleID)).Len())
 }
 
 func TestTBWRHandlerSkipRunning(t *testing.T) {

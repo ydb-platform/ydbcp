@@ -84,7 +84,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
+	ctx = backup.SetLogFields(ctx)
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -167,6 +167,7 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 	if d := req.Ttl.AsDuration(); req.Ttl != nil {
 		tbwr.Ttl = &d
 	}
+	ctx = tbwr.SetLogFields(ctx)
 
 	err = backup_operations.OpenConnAndValidateSourcePaths(
 		ctx, backup_operations.FromTBWROperation(tbwr), s.clientConn, s.featureFlags,
@@ -184,8 +185,6 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, err.Error())
 	}
-	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, tbwr.BackupID))
-	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, tbwr.GetID()))
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(tbwr)))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return tbwr.Proto(), nil
@@ -231,7 +230,7 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	}
 
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
+	ctx = backup.SetLogFields(ctx)
 
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -268,6 +267,8 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		UpdatedAt:  now,
 	}
 
+	ctx = op.SetLogFields(ctx)
+
 	backup.Status = types.BackupStateDeleting
 	err = s.driver.ExecuteUpsert(
 		ctx, queries.NewWriteTableQuery().WithCreateOperation(op).WithUpdateBackup(*backup),
@@ -278,7 +279,6 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
 
-	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, op.GetID()))
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(op)))
 	s.IncApiCallsCounter(methodName, codes.OK)
 	return op.Proto(), nil
@@ -321,8 +321,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backup.ID))
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
+	ctx = backup.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
 	)
@@ -475,8 +474,8 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't create operation")
 	}
-	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operationID))
 	op.ID = operationID
+	ctx = op.SetLogFields(ctx)
 
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(op)))
 	s.IncApiCallsCounter(methodName, codes.OK)
@@ -631,7 +630,7 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
 	backup := backups[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, backup.ContainerID))
+	ctx = backup.SetLogFields(ctx)
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
