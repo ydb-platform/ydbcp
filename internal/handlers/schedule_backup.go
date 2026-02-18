@@ -53,6 +53,8 @@ func BackupScheduleHandler(
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
 ) error {
+	ctx = schedule.SetLogFields(ctx)
+
 	if schedule.Status != types.BackupScheduleStateActive {
 		xlog.Error(ctx, "backup schedule is not active")
 		return errors.New("backup schedule is not active")

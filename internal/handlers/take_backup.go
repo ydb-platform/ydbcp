@@ -50,7 +50,7 @@ func TBOperationHandler(
 	if !ok {
 		return fmt.Errorf("can't cast Operation to TakeBackupOperation %s", types.OperationToString(operation))
 	}
-
+	ctx = tb.SetLogFields(ctx)
 	conn, err := client.Open(ctx, types.MakeYdbConnectionString(tb.YdbConnectionParams))
 	if err != nil {
 		return fmt.Errorf("error initializing client connector %w", err)

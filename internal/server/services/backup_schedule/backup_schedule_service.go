@@ -164,7 +164,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		Status:           types.BackupScheduleStateActive,
 		ScheduleSettings: request.ScheduleSettings,
 	}
-	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, schedule.ID))
+	ctx = schedule.SetLogFields(ctx)
 	if schedule.ScheduleSettings.RecoveryPointObjective == nil {
 		duration, err := schedule.GetCronDuration()
 		if err != nil {
@@ -231,7 +231,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
+	ctx = schedule.SetLogFields(ctx)
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
@@ -347,10 +347,10 @@ func (s *BackupScheduleService) GetBackupSchedule(
 	}
 
 	schedule := schedules[0]
+	ctx = schedule.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
 	)
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	// TODO: Need to check access to backup schedule not by container id?
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupGet, schedule.ContainerID, "")
 	if err != nil {
@@ -505,10 +505,10 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 	}
 
 	schedule := schedules[0]
+	ctx = schedule.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
 	)
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
 	subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.ContainerID, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
@@ -595,7 +595,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	}
 
 	schedule := schedules[0]
-	ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, schedule.ContainerID))
+	ctx = schedule.SetLogFields(ctx)
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},

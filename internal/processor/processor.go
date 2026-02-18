@@ -134,10 +134,8 @@ func (o *OperationProcessorImpl) processOperation(op types.Operation) {
 	ctx := xlog.With(
 		o.ctx,
 		zap.String(log_keys.RunID, runID),
-		zap.String(log_keys.OperationID, op.GetID()),
-		zap.String(log_keys.OperationType, op.GetType().String()),
-		zap.String(log_keys.OperationState, op.GetState().String()),
 	)
+	ctx = op.SetLogFields(ctx)
 	if _, exist := o.runningOperations[op.GetID()]; exist {
 		xlog.Debug(
 			ctx,

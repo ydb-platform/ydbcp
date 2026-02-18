@@ -10,7 +10,6 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/types"
-	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
@@ -56,19 +55,20 @@ func TtlWatcherAction(
 	}
 
 	for _, backup := range backups {
+		backupCtx := backup.SetLogFields(ctx)
 		if backup.ExpireAt != nil && backup.ExpireAt.Before(time.Now()) {
 			now := timestamppb.Now()
 			if backup_operations.IsEmptyBackup(backup) {
 				backup.Status = types.BackupStateDeleted
 				err = db.ExecuteUpsert(
-					ctx, queryBuilderFactory().WithUpdateBackup(*backup),
+					backupCtx, queryBuilderFactory().WithUpdateBackup(*backup),
 				)
 				if err != nil {
 					xlog.Error(
-						ctx, "can't update backup status", zap.String(log_keys.BackupID, backup.ID), zap.Error(err),
+						backupCtx, "can't update backup status", zap.Error(err),
 					)
 				}
-				xlog.Debug(ctx, "Marked empty backup as deleted", zap.String(log_keys.BackupID, backup.ID))
+				xlog.Debug(backupCtx, "Marked empty backup as deleted")
 			} else {
 				dbOp := &types.DeleteBackupOperation{
 					ID:          types.GenerateObjectID(),
@@ -89,16 +89,16 @@ func TtlWatcherAction(
 
 				backup.Status = types.BackupStateDeleting
 				err := db.ExecuteUpsert(
-					ctx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
+					backupCtx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
 				)
 
 				if err != nil {
 					xlog.Error(
-						ctx, "can't create DeleteBackup operation", zap.String(log_keys.BackupID, backup.ID), zap.Error(err),
+						backupCtx, "can't create DeleteBackup operation", zap.Error(err),
 					)
 				}
 
-				xlog.Debug(ctx, "DeleteBackup operation was created successfully", zap.String(log_keys.BackupID, backup.ID))
+				xlog.Debug(backupCtx, "DeleteBackup operation was created successfully")
 			}
 		}
 	}

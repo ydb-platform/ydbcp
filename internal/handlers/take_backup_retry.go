@@ -246,9 +246,7 @@ func TBWROperationHandler(
 	if !ok {
 		return fmt.Errorf("can't cast Operation to TakeBackupWithRetryOperation %s", types.OperationToString(operation))
 	}
-	if tbwr.ScheduleID != nil {
-		ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, *tbwr.ScheduleID))
-	}
+	ctx = tbwr.SetLogFields(ctx)
 	ops, err := db.SelectOperations(
 		ctx, queries.NewReadTableQuery(
 			queries.WithTableName("Operations"),

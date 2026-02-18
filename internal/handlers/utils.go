@@ -46,10 +46,9 @@ func lookupYdbOperationStatus(
 	ydbOperationId string,
 	createdAt *timestamppb.Timestamp, config config.Config,
 ) (*LookupYdbOperationResponse, error) {
+	ctx = operation.SetLogFields(ctx)
 	xlog.Info(
 		ctx, "getting operation status",
-		zap.String(log_keys.OperationID, operation.GetID()),
-		zap.String(log_keys.OperationType, string(operation.GetType())),
 		zap.String(log_keys.YdbOperationID, ydbOperationId),
 	)
 	opResponse, err := client.GetOperationStatus(ctx, conn, ydbOperationId)
@@ -72,8 +71,6 @@ func lookupYdbOperationStatus(
 	if isRetriableStatus(opResponse.GetOperation().GetStatus()) {
 		xlog.Info(
 			ctx, "received retriable error",
-			zap.String(log_keys.OperationID, operation.GetID()),
-			zap.String(log_keys.OperationType, string(operation.GetType())),
 			zap.String(log_keys.YdbOperationID, ydbOperationId),
 		)
 		return &LookupYdbOperationResponse{}, nil
@@ -82,8 +79,6 @@ func lookupYdbOperationStatus(
 	if !isValidStatus(opResponse.GetOperation().GetStatus()) {
 		xlog.Info(
 			ctx, "received error status",
-			zap.String(log_keys.OperationID, operation.GetID()),
-			zap.String(log_keys.OperationType, string(operation.GetType())),
 			zap.String(log_keys.YdbOperationID, ydbOperationId),
 			zap.String(log_keys.OperationStatus, string(opResponse.GetOperation().GetStatus())),
 		)
@@ -100,8 +95,6 @@ func lookupYdbOperationStatus(
 	}
 
 	xlog.Info(ctx, "got operation status from server",
-		zap.String(log_keys.OperationID, operation.GetID()),
-		zap.String(log_keys.OperationType, string(operation.GetType())),
 		zap.String(log_keys.YdbOperationID, ydbOperationId),
 		zap.String(log_keys.OperationStatus, string(opResponse.GetOperation().GetStatus())),
 	)
@@ -114,10 +107,9 @@ func CancelYdbOperation(
 	ctx context.Context, client client.ClientConnector, conn *ydb.Driver,
 	operation types.Operation, ydbOperationId string, reason string,
 ) error {
+	ctx = operation.SetLogFields(ctx)
 	xlog.Info(
 		ctx, "cancelling operation", zap.String(log_keys.OperationReason, reason),
-		zap.String(log_keys.OperationID, operation.GetID()),
-		zap.String(log_keys.OperationType, string(operation.GetType())),
 		zap.String(log_keys.YdbOperationID, ydbOperationId),
 	)
 

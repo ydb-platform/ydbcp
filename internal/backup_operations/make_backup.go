@@ -44,6 +44,26 @@ type MakeBackupInternalRequest struct {
 	EncryptionSettings   *pb.EncryptionSettings
 }
 
+func (r MakeBackupInternalRequest) SetLogFields(ctx context.Context) context.Context {
+	fields := make([]zap.Field, 0, 4)
+	if r.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, r.ContainerID))
+	}
+	if r.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, r.DatabaseName))
+	}
+	if r.DatabaseEndpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, r.DatabaseEndpoint))
+	}
+	if r.ScheduleID != nil {
+		fields = append(fields, zap.String(log_keys.ScheduleID, *r.ScheduleID))
+	}
+	if len(fields) == 0 {
+		return ctx
+	}
+	return xlog.With(ctx, fields...)
+}
+
 func FromBackupSchedule(schedule *types.BackupSchedule) MakeBackupInternalRequest {
 	res := MakeBackupInternalRequest{
 		ContainerID:          schedule.ContainerID,
@@ -113,6 +133,7 @@ func OpenConnAndValidateSourcePaths(
 	clientConn client.ClientConnector,
 	featureFlags config.FeatureFlagsConfig,
 ) error {
+	ctx = req.SetLogFields(ctx)
 	clientConnectionParams := types.YdbConnectionParams{
 		Endpoint:     req.DatabaseEndpoint,
 		DatabaseName: req.DatabaseName,
@@ -324,9 +345,7 @@ func MakeBackup(
 	featureFlags config.FeatureFlagsConfig,
 	kmsProvider kp.KmsProvider,
 ) (*types.Backup, *types.TakeBackupOperation, error) {
-	if req.ScheduleID != nil {
-		ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, *req.ScheduleID))
-	}
+	ctx = req.SetLogFields(ctx)
 	if !IsAllowedEndpoint(req.DatabaseEndpoint, allowedEndpointDomains, allowInsecureEndpoint) {
 		xlog.Error(
 			ctx,

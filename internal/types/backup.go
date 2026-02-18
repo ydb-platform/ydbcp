@@ -1,13 +1,17 @@
 package types
 
 import (
+	"context"
 	"fmt"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"time"
+	"ydbcp/internal/util/log_keys"
+	"ydbcp/internal/util/xlog"
 
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 var (
@@ -53,6 +57,33 @@ type Backup struct {
 	ExpireAt           *time.Time
 	SourcePaths        []string
 	EncryptionSettings *pb.EncryptionSettings
+}
+
+func (o *Backup) SetLogFields(ctx context.Context) context.Context {
+	if o == nil {
+		return ctx
+	}
+
+	fields := make([]zap.Field, 0, 5)
+	if o.ID != "" {
+		fields = append(fields, zap.String(log_keys.BackupID, o.ID))
+	}
+	if o.ContainerID != "" {
+		fields = append(fields, zap.String(log_keys.ContainerID, o.ContainerID))
+	}
+	if o.DatabaseName != "" {
+		fields = append(fields, zap.String(log_keys.Database, o.DatabaseName))
+	}
+	if o.DatabaseEndpoint != "" {
+		fields = append(fields, zap.String(log_keys.DatabaseEndpoint, o.DatabaseEndpoint))
+	}
+	if o.ScheduleID != nil {
+		fields = append(fields, zap.String(log_keys.ScheduleID, *o.ScheduleID))
+	}
+	if len(fields) == 0 {
+		return ctx
+	}
+	return xlog.With(ctx, fields...)
 }
 
 func (o *Backup) String() string {
