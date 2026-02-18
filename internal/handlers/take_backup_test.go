@@ -12,11 +12,14 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	s3Client "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
+	"ydbcp/internal/util/xlog"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Operations"
+	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
@@ -921,4 +924,119 @@ func TestTBOperationHandlerReportsLastBackupSize(t *testing.T) {
 	metricsMap := metrics.GetMetrics()
 	assert.NotEmpty(t, metricsMap)
 	assert.Equal(t, float64(450), metricsMap["backups_last_size_bytes"], "last backup size metric should be 450 bytes")
+}
+
+func TestTBOperationHandlerLogsFinishedOperationStatus(t *testing.T) {
+	observed := xlog.SetupLoggingWithObserver()
+	metrics.InitializeMockMetricsRegistry()
+
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	containerID := types.GenerateObjectID()
+	scheduleID := types.GenerateObjectID()
+
+	tbOp := types.TakeBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		ContainerID:         containerID,
+		State:               types.OperationStateRunning,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:           backupID,
+		Status:       types.BackupStateRunning,
+		S3PathPrefix: "pathPrefix",
+		S3Bucket:     "bucket",
+		ContainerID:  containerID,
+		DatabaseName: "mydb",
+		ScheduleID:   &scheduleID,
+	}
+
+	ydbOp := &Ydb_Operations.Operation{
+		Id:     "1",
+		Ready:  true,
+		Status: Ydb.StatusIds_SUCCESS,
+		Issues: nil,
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
+	backupMap[backupID] = backup
+	opMap[opId] = &tbOp
+	ydbOpMap["1"] = ydbOp
+	s3ObjectsMap["bucket"] = s3Client.Bucket{
+		"pathPrefix/data_1.csv": make([]byte, 100),
+		"pathPrefix/data_2.csv": make([]byte, 150),
+		"pathPrefix/data_3.csv": make([]byte, 200),
+	}
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+	)
+	clientConnector := client.NewMockClientConnector(
+		client.WithOperations(ydbOpMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+	cfg := config.Config{}
+	cfg.OperationProcessor.OperationTtlSeconds = 10000
+
+	handler := NewTBOperationHandler(
+		dbConnector, clientConnector, s3Connector, cfg, queries.NewWriteTableQueryMock,
+	)
+
+	err := handler(ctx, &tbOp)
+	assert.Empty(t, err)
+
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
+	assert.Empty(t, err)
+	assert.NotEmpty(t, op)
+	assert.Equal(t, types.OperationStateDone, op.GetState())
+
+	logs := observed.All()
+	assert.Greater(t, len(logs), 0, "expected at least one log entry")
+
+	filteredLogs := observed.FilterField(zap.String(log_keys.OperationID, opId)).All()
+	assert.Greater(t, len(filteredLogs), 0, "expected log entry with operation_id field")
+
+	// Verify the log contains the finished operation message
+	logFound := false
+	for _, log := range filteredLogs {
+		// Check if message contains the expected parts
+		if log.Message == "backup operation finished. State: DONE, Message: Success, Status: SUCCESS, Error: <nil>" {
+			logFound = true
+
+			// Verify all required fields are present
+			backupIDField := false
+			containerIDField := false
+			scheduleIDField := false
+
+			for _, field := range log.Context {
+				if field.Key == log_keys.BackupID && field.String == backupID {
+					backupIDField = true
+				}
+				if field.Key == log_keys.ContainerID && field.String == containerID {
+					containerIDField = true
+				}
+				if field.Key == log_keys.ScheduleID && field.String == scheduleID {
+					scheduleIDField = true
+				}
+			}
+
+			assert.True(t, backupIDField, "log should contain backup_id field")
+			assert.True(t, containerIDField, "log should contain container_id field")
+			assert.True(t, scheduleIDField, "log should contain schedule_id field")
+			break
+		}
+	}
+
+	assert.True(t, logFound, "expected to find finished operation log entry")
 }
