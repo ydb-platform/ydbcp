@@ -65,11 +65,24 @@ func TBOperationHandler(
 		database string,
 		status Ydb.StatusIds_StatusCode,
 	) error {
-		err := db.ExecuteUpsert(
+		ctx = backup.SetLogFields(ctx)
+		ctx = operation.SetLogFields(ctx)
+		upsertError := db.ExecuteUpsert(
 			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backup),
 		)
-
-		if err == nil {
+		if upsertError == nil {
+			if !types.IsActive(operation) {
+				xlog.Debug(
+					ctx,
+					fmt.Sprintf(
+						"backup operation finished. State: %s, Message: %s, Status: %s, Error: %v",
+						operation.GetState(),
+						operation.GetMessage(),
+						Ydb.StatusIds_StatusCode_name[int32(status)],
+						err,
+					),
+				)
+			}
 			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
 				containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
 			)
@@ -78,7 +91,7 @@ func TBOperationHandler(
 			)
 		}
 
-		return err
+		return upsertError
 	}
 
 	backups, err := db.SelectBackups(
