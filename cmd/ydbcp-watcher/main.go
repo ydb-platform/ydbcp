@@ -281,10 +281,18 @@ func StartCredentialsHelper(ctx context.Context, wg *sync.WaitGroup, keyFile str
 }
 
 func getK8sJWTToken(ctx context.Context, cfg *config.K8sJWTAuthConfig, pointer *atomic.Pointer[string]) {
-	newToken, err := ydbcpCredentials.GetK8sJWTToken(ctx, cfg)
+	k8sToken, err := os.ReadFile(cfg.K8sTokenPath)
+	if err != nil {
+		xlog.Error(ctx, "Failed to read K8s token", zap.Error(err), zap.String(log_keys.Path, cfg.K8sTokenPath))
+		return
+	}
+
+	body := getK8sJWTRequestParams(cfg, strings.TrimSpace(string(k8sToken)))
+	result, err := performExchangeTokenRequest(ctx, cfg.TokenServiceEndpoint, body)
 	if err != nil {
 		xlog.Error(ctx, "Failed to perform token exchange", zap.Error(err))
 	} else {
+		newToken := "Bearer " + result.AccessToken
 		xlog.Info(ctx, "Token exchanged")
 		pointer.Store(&newToken)
 	}

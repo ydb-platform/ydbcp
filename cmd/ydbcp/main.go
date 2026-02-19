@@ -17,7 +17,6 @@ import (
 	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/db/yql/queries"
 	"ydbcp/internal/connectors/s3"
-	ydbcpCredentials "ydbcp/internal/credentials"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/kms"
 	"ydbcp/internal/metrics"
@@ -154,20 +153,10 @@ func main() {
 	}
 	xlog.Info(ctx, "connected to YDBCP database")
 	if provider, ok := authProvider.(interface{ SetYDBCPContainerID(string) }); ok {
-		if configInstance.DBConnection.K8sJWTAuth == nil {
-			xlog.Error(ctx, "inconsistent configuration: db_connection.k8s_jwt_auth is required for YDBCP container discovery")
-			os.Exit(1)
-		}
-		securityToken, tokenErr := ydbcpCredentials.GetK8sJWTToken(ctx, configInstance.DBConnection.K8sJWTAuth)
-		if tokenErr != nil {
-			xlog.Error(ctx, "failed to get security token for YDBCP container discovery", zap.Error(tokenErr))
-			os.Exit(1)
-		}
 		containerID, discoverErr := auth.DiscoverYDBCPContainerID(
 			ctx,
 			dbConnector.GRPCConn(),
 			configInstance.DBConnection.ConnectionString,
-			securityToken,
 		)
 		if discoverErr != nil {
 			xlog.Error(ctx, "failed to resolve YDBCP container ID", zap.Error(discoverErr))
