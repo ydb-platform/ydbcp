@@ -15,6 +15,7 @@ all: test fmt lint proto build
 proto:
 	$(MAKE) -C pkg/proto
 	$(MAKE) -C plugins/auth_nebius/proto
+	$(MAKE) -C plugins/ydb_nebius/proto
 
 test:
 	go test -v ./... -short -race
@@ -44,3 +45,4 @@ clean:
 clean-proto:
 	find pkg/proto -type f -name '*.go' -delete
 	find plugins/auth_nebius/proto -type f -name '*.go' -delete
+	find plugins/ydb_nebius/proto -type f -name '*.go' -delete

@@ -2,7 +2,7 @@
 // versions:
 // - protoc-gen-go-grpc v1.6.1
 // - protoc             v6.33.4
-// source: ydb_nebius/describe.proto
+// source: describe.proto
 
 package ydb_nebius_proto
 
@@ -118,5 +118,5 @@ var TSchemeDescribeService_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "ydb_nebius/describe.proto",
+	Metadata: "describe.proto",
 }
