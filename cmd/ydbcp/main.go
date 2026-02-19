@@ -152,19 +152,6 @@ func main() {
 		os.Exit(1)
 	}
 	xlog.Info(ctx, "connected to YDBCP database")
-	if provider, ok := authProvider.(interface{ SetYDBCPContainerID(string) }); ok {
-		containerID, discoverErr := auth.DiscoverYDBCPContainerID(
-			ctx,
-			dbConnector.GRPCConn(),
-			configInstance.DBConnection.ConnectionString,
-		)
-		if discoverErr != nil {
-			xlog.Error(ctx, "failed to resolve YDBCP container ID", zap.Error(discoverErr))
-			os.Exit(1)
-		}
-		provider.SetYDBCPContainerID(containerID)
-		xlog.Info(ctx, "resolved YDBCP container ID from YDB", zap.String(log_keys.ContainerID, containerID))
-	}
 
 	defer dbConnector.Close(ctx)
 	clientConnector := client.NewClientYdbConnector(configInstance.ClientConnection)
