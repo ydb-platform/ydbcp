@@ -19,16 +19,16 @@ import (
 )
 
 type authProviderNebius struct {
-	endpoint         string
-	tls              bool
-	config           pluginConfig
-	ydbcpContainerID string
+	endpoint string
+	tls      bool
+	config   pluginConfig
 }
 
 type pluginConfig struct {
 	AccessServiceEndpoint string `yaml:"access_service_endpoint"`
 	Insecure              bool   `yaml:"insecure" default:"false"`
 	RootCAPath            string `yaml:"root_ca_path"`
+	YDBCPContainerID      string `yaml:"ydbcp_container_id"`
 }
 
 func (p *authProviderNebius) loadTLSCredentials() (grpc.DialOption, error) {
@@ -115,11 +115,7 @@ func (p *authProviderNebius) MaskToken(token string) string {
 }
 
 func (p *authProviderNebius) GetYDBCPContainerID() string {
-	return p.ydbcpContainerID
-}
-
-func (p *authProviderNebius) SetYDBCPContainerID(containerID string) {
-	p.ydbcpContainerID = containerID
+	return p.config.YDBCPContainerID
 }
 
 func processAuthorizeResponse(resp *pb.AuthorizeResponse, expectedResults int) ([]auth.AuthorizeResult, string, error) {
