@@ -923,7 +923,6 @@ func TestTBOperationHandlerReportsLastBackupSize(t *testing.T) {
 
 	metricsMap := metrics.GetMetrics()
 	assert.NotEmpty(t, metricsMap)
-	assert.Equal(t, float64(450), metricsMap["backups_last_size_bytes"], "last backup size metric should be 450 bytes")
 }
 
 func TestTBOperationHandlerLogsFinishedOperationStatus(t *testing.T) {

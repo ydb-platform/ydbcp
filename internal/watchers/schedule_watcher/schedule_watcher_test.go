@@ -2,10 +2,6 @@ package schedule_watcher
 
 import (
 	"context"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/assert"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"testing"
 	"time"
@@ -18,6 +14,11 @@ import (
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
 	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -406,6 +407,10 @@ func TestAllScheduleMetrics(t *testing.T) {
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
+	backupMap[backupID] = types.Backup{
+		ID:   backupID,
+		Size: 512,
+	}
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[s1.ID] = s1
 	dbConnector := db.NewMockDBConnector(
@@ -478,6 +483,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
 	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
 	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_rpo_margin_ratio"])
+	assert.Equal(t, float64(512), metrics.GetMetrics()["backups_last_size_bytes"])
 }
 
 func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
@@ -592,4 +598,33 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 		metrics.GetMetrics()["schedules_last_backup_timestamp"],
 	)
 	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_rpo_margin_ratio"])
+}
+
+func TestReportLastBackupSize(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(fourPM)
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+
+	backupID := "backup-1"
+	size := int64(2048)
+	schedule := &types.BackupSchedule{
+		ID:                     "schedule-1",
+		ContainerID:            "container-1",
+		DatabaseName:           "db-1",
+		LastSuccessfulBackupID: &backupID,
+	}
+
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(map[string]types.Backup{
+			backupID: {
+				ID:   backupID,
+				Size: size,
+			},
+		}),
+	)
+
+	reportLastBackupSize(context.Background(), dbConnector, schedule)
+
+	metric, ok := metrics.GetMetrics()["backups_last_size_bytes"]
+	assert.True(t, ok)
+	assert.Equal(t, float64(size), metric)
 }

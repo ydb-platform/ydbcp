@@ -86,9 +86,6 @@ func TBOperationHandler(
 			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
 				containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
 			)
-			metrics.GlobalMetricsRegistry.ReportLastBackupSize(
-				containerId, database, backup.ScheduleID, backup.Size,
-			)
 		}
 
 		return upsertError
