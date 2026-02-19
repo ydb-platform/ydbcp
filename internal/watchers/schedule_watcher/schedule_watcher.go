@@ -9,6 +9,7 @@ import (
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
+	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
 
@@ -71,8 +72,47 @@ func ScheduleWatcherAction(
 		handlerCtx := schedule.SetLogFields(ctx)
 		err = handler(handlerCtx, db, schedule)
 		metrics.GlobalMetricsRegistry.IncScheduleCounters(handlerCtx, schedule, err)
+		reportLastBackupSize(handlerCtx, db, schedule)
 		if err != nil {
 			xlog.Error(handlerCtx, "error handling backup schedule", zap.Error(err))
 		}
 	}
+}
+
+func reportLastBackupSize(ctx context.Context, db db.DBConnector, schedule *types.BackupSchedule) {
+	if schedule.LastSuccessfulBackupID == nil {
+		return
+	}
+
+	backups, err := db.SelectBackups(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("Backups"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(*schedule.LastSuccessfulBackupID)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		xlog.Error(ctx, "can't select last successful backup to report size", zap.Error(err))
+		metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
+		return
+	}
+	if len(backups) == 0 {
+		xlog.Warn(
+			ctx,
+			"last successful backup from schedule was not found",
+			zap.String(log_keys.BackupID, *schedule.LastSuccessfulBackupID),
+		)
+		return
+	}
+
+	metrics.GlobalMetricsRegistry.ReportLastBackupSize(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		&schedule.ID,
+		backups[0].Size,
+	)
 }
