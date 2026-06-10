@@ -13,8 +13,10 @@ RUN go mod download
 # Install grpcurl
 #RUN go install github.com/fullstorydev/grpcurl/cmd/grpcurl@latest
 
-# Build the Go app
-RUN go build -o . ./cmd/ydbcp/main.go
+# Build the Go app (bin/ avoids conflict with ydbcp/ source directory in the repo)
+RUN mkdir -p bin && \
+    go build -o ./bin/ydbcp ./cmd/ydbcp && \
+    go build -o ./bin/migrator ./cmd/migrator
 
 # Build integration test app
 RUN go build -o ./make_backup ./cmd/integration/make_backup/main.go
@@ -24,7 +26,7 @@ RUN go build -o ./test_new_paths_format ./cmd/integration/new_paths_format/main.
 RUN go build -o ./make_encrypted_backup ./cmd/integration/make_encrypted_backup/main.go
 
 # Command to run the executable
-CMD ["./main", "--config=local_config.yaml"]
+CMD ["./bin/ydbcp", "--config=local_config.yaml"]
 
 # Healthcheck (for Github Actions only)
 HEALTHCHECK --interval=5s --timeout=3s --start-period=10s --retries=3 CMD nc -z localhost 50051 || exit 1

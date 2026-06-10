@@ -22,22 +22,21 @@ services:
       - ydbcp-net
 
   init_ydb_schema:
-    image: golang:1.23-alpine
-    platform: linux/amd64
+    image: ydbcp:local
     container_name: ${YDB_NAME}-init-schema
-    volumes:
-      - ./migrations:/migrations
+    build:
+      context: .
+      dockerfile: Dockerfile
     environment:
-      - YDB_ENDPOINT=grpc://${YDB_NAME}:2136
-      - YDB_DATABASE=/local
-      - GOOSE_YDB_PARAMS=go_query_mode=scripting&go_fake_tx=scripting&go_query_bind=declare,numeric
+      YDB_NAME: ${YDB_NAME}
     depends_on:
       ydb:
         condition: service_healthy
     restart: "no"
-    command: >
-      sh -c "go install github.com/pressly/goose/v3/cmd/goose@latest &&
-      goose -dir /migrations/yql ydb \"$$YDB_ENDPOINT/$$YDB_DATABASE?$$GOOSE_YDB_PARAMS\" up"
+    command:
+      - ./bin/migrator
+      - --config=local_config.yaml
+      - --migrations-dir=migrations/yql
     networks:
       - ydbcp-net
 
