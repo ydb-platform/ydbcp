@@ -30,9 +30,11 @@ lint: | $(STATICCHECK)
 	$(STATICCHECK) $(PACKAGES)
 	go vet $(PACKAGES)
 
-build: build-plugins build-ydbcp
+build: build-plugins build-ydbcp build-migrator
 build-ydbcp:
 	go build -C cmd/ydbcp -o ydbcp
+build-migrator:
+	go build -C cmd/migrator -o migrator
 
 build-plugins: build-auth_nebius
 build-auth_nebius:

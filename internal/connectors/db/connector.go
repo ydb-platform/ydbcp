@@ -7,9 +7,7 @@ import (
 	"io"
 	"time"
 
-	ydbPrometheus "github.com/ydb-platform/ydb-go-sdk-prometheus/v2"
 	"github.com/ydb-platform/ydb-go-sdk/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3/balancers"
 	"github.com/ydb-platform/ydb-go-sdk/v3/query"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
@@ -20,7 +18,6 @@ import (
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/credentials"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
@@ -106,36 +103,9 @@ func select1(baseCtx context.Context, db *ydb.Driver, timeout time.Duration) err
 
 func NewYdbConnector(ctx context.Context, config config.YDBConnectionConfig) (*YdbConnector, error) {
 	dialTimeout := time.Second * time.Duration(config.DialTimeoutSeconds)
-	opts := []ydb.Option{
-		ydb.WithDialTimeout(dialTimeout),
-	}
-	if config.Insecure {
-		opts = append(opts, ydb.WithTLSSInsecureSkipVerify())
-	}
-	if !config.Discovery {
-		opts = append(opts, ydb.WithBalancer(balancers.SingleConn()))
-	}
-	// Auth options (mutually exclusive)
-	if config.K8sJWTAuth != nil {
-		// K8s projected volume JWT authentication
-		creds, err := credentials.NewK8sJWTCredentials(credentials.K8sJWTConfig{
-			K8sTokenPath:         config.K8sJWTAuth.K8sTokenPath,
-			TokenServiceEndpoint: config.K8sJWTAuth.TokenServiceEndpoint,
-			SubjectToken:         config.K8sJWTAuth.SubjectToken,
-			SubjectTokenType:     config.K8sJWTAuth.SubjectTokenType,
-		})
-		if err != nil {
-			return nil, fmt.Errorf("failed to create K8s JWT credentials: %w", err)
-		}
-		opts = append(opts, ydb.WithCredentials(creds))
-	} else if len(config.OAuth2KeyFile) > 0 {
-		// OAuth2 key file authentication
-		opts = append(opts, ydb.WithOauth2TokenExchangeCredentialsFile(config.OAuth2KeyFile))
-	} else {
-		opts = append(opts, ydb.WithAnonymousCredentials())
-	}
-	if config.EnableSDKMetrics {
-		opts = append(opts, ydbPrometheus.WithTraces(metrics.GlobalMetricsRegistry.GetReg()))
+	opts, err := YdbOptionsFromConfig(config, config.EnableSDKMetrics)
+	if err != nil {
+		return nil, err
 	}
 
 	xlog.Info(ctx, "connecting to ydb", zap.String(log_keys.ClientDSN, config.ConnectionString))
