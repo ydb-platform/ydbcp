@@ -40,6 +40,26 @@ services:
     networks:
       - ydbcp-net
 
+  ydb_schema_migration_test:
+    image: ydbcp:local
+    container_name: ${YDB_NAME}-schema-migration-test
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      YDB_CONNECTION_STRING: grpcs://${YDB_NAME}:2135/local
+      MIGRATIONS_DIR: migrations/yql
+    depends_on:
+      ydb:
+        condition: service_healthy
+      init_ydb_schema:
+        condition: service_completed_successfully
+    restart: "no"
+    command:
+      - ./migrate
+    networks:
+      - ydbcp-net
+
   setup_ydb:
     image: cr.yandex/yc/yandex-docker-local-ydb:24.1
     platform: linux/amd64
@@ -52,6 +72,8 @@ services:
       ydb:
         condition: service_healthy
       init_ydb_schema:
+        condition: service_completed_successfully
+      ydb_schema_migration_test:
         condition: service_completed_successfully
     restart: "no"
     command: bash -c "chmod +x ./scripts/create_test_tables.sh && ./scripts/create_test_tables.sh"

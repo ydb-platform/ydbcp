@@ -24,6 +24,7 @@ RUN go build -o ./list_entities ./cmd/integration/list_entities/main.go
 RUN go build -o ./orm ./cmd/integration/orm/main.go
 RUN go build -o ./test_new_paths_format ./cmd/integration/new_paths_format/main.go
 RUN go build -o ./make_encrypted_backup ./cmd/integration/make_encrypted_backup/main.go
+RUN go build -o ./migrate ./cmd/integration/migrate/main.go
 
 # Command to run the executable
 CMD ["./bin/ydbcp", "--config=local_config.yaml"]
