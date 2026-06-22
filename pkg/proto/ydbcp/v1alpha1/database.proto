@@ -1,0 +1,55 @@
+syntax = "proto3";
+
+package ydbcp.v1alpha1;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
+
+import "google/protobuf/struct.proto";
+
+import "ydbcp/v1alpha1/audit.proto";
+
+message StorageUnit {
+  enum UnitKind {
+    ROT = 0;
+    ROT_ENCRYPTED = 1;
+    SSD = 2;
+    SSD_ENCRYPTED = 3;
+  }
+  UnitKind Kind = 1;
+  int64 Count = 2;
+}
+
+message ContainerResources {
+  int64 cpu_cores = 1;
+  int64 memory_bytes = 2;
+}
+
+message ComputeResources {
+  int64 nodes = 1;
+  repeated StorageUnit storage_units = 2;
+  ContainerResources container_resources = 3;
+}
+
+message DatabaseConfig {
+  google.protobuf.Struct config_data = 1;
+}
+
+enum DatabaseKind {
+  DEDICATED = 0;
+  SERVERLESS = 1;
+}
+
+message Database {
+  string id = 1;
+  DatabaseKind kind = 2;
+  string iam_region_id = 3;
+  string iam_container_id = 4;
+  string iam_folder_id = 5;
+  string database_name = 6;
+  string database_endpoint = 7;
+  string k8s_cluster = 8;
+  string k8s_namespace = 9;
+  string database_url = 10;
+  ComputeResources compute_resources = 11;
+  DatabaseConfig database_config = 13; //should it be here?
+  AuditInfo audit_info = 14;
+}
