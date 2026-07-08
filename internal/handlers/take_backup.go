@@ -32,44 +32,6 @@ func NewTBOperationHandler(
 	}
 }
 
-// reportCompletedBackupMetrics reports backup completion metrics, unless the
-// backup belongs to a schedule that is no longer active: a TBWR operation can
-// keep retrying after DeleteBackupSchedule/ToggleBackupSchedule already reset
-// the schedule's metric series, and reporting would re-create it.
-func reportCompletedBackupMetrics(
-	ctx context.Context,
-	db db.DBConnector,
-	backup types.Backup,
-	containerId string,
-	database string,
-	status Ydb.StatusIds_StatusCode,
-) {
-	if backup.ScheduleID != nil {
-		schedules, err := db.SelectBackupSchedules(
-			ctx, queries.NewReadTableQuery(
-				queries.WithTableName("BackupSchedules"),
-				queries.WithQueryFilters(
-					queries.QueryFilter{
-						Field:  "id",
-						Values: []table_types.Value{table_types.StringValueFromString(*backup.ScheduleID)},
-					},
-				),
-			),
-		)
-		if err != nil {
-			// report anyway: better a spurious series than a missed alert
-			xlog.Error(ctx, "can't select backup schedule to report backup metrics", zap.Error(err))
-		} else if len(schedules) > 0 && schedules[0].Status != types.BackupScheduleStateActive {
-			metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedules[0])
-			return
-		}
-	}
-
-	metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
-		containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
-	)
-}
-
 func TBOperationHandler(
 	ctx context.Context,
 	operation types.Operation,
@@ -121,7 +83,13 @@ func TBOperationHandler(
 					),
 				)
 			}
-			reportCompletedBackupMetrics(ctx, db, backup, containerId, database, status)
+			// per-schedule backup gauges are owned by the schedule watcher;
+			// only ad-hoc backups are reported here
+			if backup.ScheduleID == nil {
+				metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
+					containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
+				)
+			}
 		}
 
 		return upsertError
