@@ -224,6 +224,29 @@ func setErrorToRetryOperation(
 	xlog.Error(ctx, tbwr.Message, fields...)
 }
 
+func scheduleWasDeleted(ctx context.Context, db db.DBConnector, scheduleID string) (bool, error) {
+	schedules, err := db.SelectBackupSchedules(
+		ctx, queries.NewReadTableQuery(
+			queries.WithTableName("BackupSchedules"),
+			queries.WithQueryFilters(
+				queries.QueryFilter{
+					Field:  "id",
+					Values: []table_types.Value{table_types.StringValueFromString(scheduleID)},
+				},
+			),
+		),
+	)
+	if err != nil {
+		return false, fmt.Errorf("can't select backup schedule %s: %w", scheduleID, err)
+	}
+	for _, schedule := range schedules {
+		if schedule.ID == scheduleID {
+			return schedule.Status == types.BackupScheduleStateDeleted, nil
+		}
+	}
+	return false, nil
+}
+
 func TBWROperationHandler(
 	ctx context.Context,
 	operation types.Operation,
@@ -308,6 +331,28 @@ func TBWROperationHandler(
 				"TBWROperationHandler",
 				fields...,
 			)
+
+			// Between attempts (never while one is running), stop the retry
+			// chain if the schedule was deleted. A running attempt is left to
+			// finish: its backup stays available on success.
+			betweenAttempts := do == RunNewTb || (do == Skip && lastTbOp != nil && !types.IsActive(lastTbOp))
+			if betweenAttempts && tbwr.ScheduleID != nil {
+				deleted, err := scheduleWasDeleted(ctx, db, *tbwr.ScheduleID)
+				if err != nil {
+					return err
+				}
+				if deleted {
+					tbwr.State = types.OperationStateCancelled
+					tbwr.Message = "Retries stopped: backup schedule was deleted"
+					now := clock.Now()
+					tbwr.UpdatedAt = timestamppb.New(now)
+					tbwr.Audit.CompletedAt = timestamppb.New(now)
+					xlog.Info(ctx, "stopping retries of a deleted backup schedule")
+					return withBackupStateAudit(
+						ctx, tbwr, db.ExecuteUpsert(ctx, queryBuilderFactory().WithUpdateOperation(tbwr)),
+					)
+				}
+			}
 
 			switch do {
 			case Success:

@@ -54,6 +54,29 @@ func (s *MockMetricsRegistry) IncCompletedBackupsCount(
 	}
 }
 
+func (s *MockMetricsRegistry) ReportScheduleBackupsStatus(
+	schedule *types.BackupSchedule, lastBackupEncrypted bool,
+) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.metrics["backups_failed_count"] = 0
+	s.metrics["backups_succeeded_count_encrypted"] = 0
+	s.metrics["backups_succeeded_count_unencrypted"] = 0
+	if schedule.LastBackupStatus == nil {
+		return
+	}
+	switch *schedule.LastBackupStatus {
+	case types.BackupStateError:
+		s.metrics["backups_failed_count"] = 1
+	case types.BackupStateAvailable:
+		if lastBackupEncrypted {
+			s.metrics["backups_succeeded_count_encrypted"] = 1
+		} else {
+			s.metrics["backups_succeeded_count_unencrypted"] = 1
+		}
+	}
+}
+
 func (s *MockMetricsRegistry) ReportLastBackupSize(
 	containerId string, database string, scheduleId *string, sizeBytes int64,
 ) {
@@ -163,10 +186,16 @@ func (s *MockMetricsRegistry) IncScheduleCounters(
 }
 
 func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
 	delete(s.metrics, "schedules_last_backup_timestamp")
 	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup")
 	delete(s.metrics, "schedules_rpo_margin_ratio")
 	delete(s.metrics, "schedules_rpo_duration_seconds")
+	delete(s.metrics, "backups_failed_count")
+	delete(s.metrics, "backups_succeeded_count_encrypted")
+	delete(s.metrics, "backups_succeeded_count_unencrypted")
+	delete(s.metrics, "backups_last_size_bytes")
 }
 
 type Option func(*MockMetricsRegistry)

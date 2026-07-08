@@ -39,6 +39,7 @@ type BackupSchedule struct {
 	ScheduleSettings       *pb.BackupScheduleSettings
 	NextLaunch             *time.Time
 	LastBackupID           *string
+	LastBackupStatus       *string
 	LastSuccessfulBackupID *string
 	RecoveryPoint          *time.Time
 }

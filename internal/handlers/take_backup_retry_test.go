@@ -1071,3 +1071,81 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_duration_seconds"])
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_finished_count"])
 }
+
+func TestTBWRHandlerStopsRetriesOfDeletedSchedule(t *testing.T) {
+	for _, tc := range []struct {
+		scheduleStatus string
+		expectedState  types.OperationState
+		expectedOps    int
+	}{
+		{types.BackupScheduleStateDeleted, types.OperationStateCancelled, 1},
+		{types.BackupScheduleStateActive, types.OperationStateRunning, 2},
+	} {
+		clock := clockwork.NewFakeClockAt(t1.AsTime())
+		metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+		ctx := context.Background()
+		tbwrID := types.GenerateObjectID()
+		scheduleID := types.GenerateObjectID()
+		tbwr := types.TakeBackupWithRetryOperation{
+			TakeBackupOperation: types.TakeBackupOperation{
+				ID:          tbwrID,
+				ContainerID: "abcde",
+				State:       types.OperationStateRunning,
+				Message:     "",
+				SourcePaths: []string{"path"},
+				YdbConnectionParams: types.YdbConnectionParams{
+					Endpoint:     "i.valid.com",
+					DatabaseName: "/mydb",
+				},
+				Audit: &pb.AuditInfo{
+					CreatedAt: t1,
+				},
+			},
+			ScheduleID:  &scheduleID,
+			RetryConfig: nil,
+		}
+
+		ops := []types.Operation{
+			&tbwr,
+		}
+
+		dbConnector := db.NewMockDBConnector(
+			db.WithOperations(toMap(ops...)),
+			db.WithBackupSchedules(map[string]types.BackupSchedule{
+				scheduleID: {
+					ID:     scheduleID,
+					Status: tc.scheduleStatus,
+				},
+			}),
+		)
+		dbConnector.SetOperationsIDSelector([]string{})
+
+		handler := NewTBWROperationHandler(
+			dbConnector,
+			client.NewMockClientConnector(),
+			s3.NewMockS3Connector(make(map[string]s3.Bucket)),
+			queries.NewWriteTableQueryMock,
+			clock,
+			config.Config{
+				S3: config.S3Config{
+					IsMock: true,
+				},
+				ClientConnection: config.ClientConnectionConfig{
+					AllowedEndpointDomains: []string{".valid.com"},
+					AllowInsecureEndpoint:  true,
+				},
+			},
+			kms.NewMockKmsProvider(nil),
+		)
+		err := handler(ctx, &tbwr)
+		assert.Empty(t, err)
+
+		op, err := dbConnector.GetOperation(ctx, tbwrID)
+		assert.Empty(t, err)
+		assert.Equal(t, tc.expectedState, op.GetState(), "schedule status %s", tc.scheduleStatus)
+
+		operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+		assert.Empty(t, err)
+		assert.Equal(t, tc.expectedOps, len(operations), "schedule status %s", tc.scheduleStatus)
+	}
+}

@@ -45,9 +45,13 @@ type MetricsRegistry interface {
 	IncHandlerRunsCount(containerId string, operationType string)
 	IncFailedHandlerRunsCount(containerId string, operationType string)
 	IncSuccessfulHandlerRunsCount(containerId string, operationType string)
+	// IncCompletedBackupsCount reports completion of an ad-hoc (schedule-less)
+	// backup. Per-schedule series are owned by the schedule watcher via
+	// ReportScheduleBackupsStatus.
 	IncCompletedBackupsCount(
 		containerId string, database string, scheduleId *string, code Ydb.StatusIds_StatusCode, isEncrypted bool,
 	)
+	ReportScheduleBackupsStatus(schedule *types.BackupSchedule, lastBackupEncrypted bool)
 	ReportLastBackupSize(containerId string, database string, scheduleId *string, sizeBytes int64)
 	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
 	ResetScheduleCounters(schedule *types.BackupSchedule)
@@ -241,6 +245,31 @@ func (s *MetricsRegistryImpl) IncCompletedBackupsCount(
 		s.backupsSucceededCount.WithLabelValues(containerId, database, scheduleIdLabel, UNENCRYPTED_LABEL).Set(0)
 		s.backupsFailedCount.WithLabelValues(containerId, database, scheduleIdLabel).Set(1)
 	}
+}
+
+func (s *MetricsRegistryImpl) ReportScheduleBackupsStatus(
+	schedule *types.BackupSchedule, lastBackupEncrypted bool,
+) {
+	var failed float64
+	if schedule.LastBackupStatus != nil && *schedule.LastBackupStatus == types.BackupStateError {
+		failed = 1
+	}
+	s.backupsFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(failed)
+
+	var succeededEncrypted, succeededUnencrypted float64
+	if schedule.LastBackupStatus != nil && *schedule.LastBackupStatus == types.BackupStateAvailable {
+		if lastBackupEncrypted {
+			succeededEncrypted = 1
+		} else {
+			succeededUnencrypted = 1
+		}
+	}
+	s.backupsSucceededCount.WithLabelValues(
+		schedule.ContainerID, schedule.DatabaseName, schedule.ID, ENCRYPTED_LABEL,
+	).Set(succeededEncrypted)
+	s.backupsSucceededCount.WithLabelValues(
+		schedule.ContainerID, schedule.DatabaseName, schedule.ID, UNENCRYPTED_LABEL,
+	).Set(succeededUnencrypted)
 }
 
 func (s *MetricsRegistryImpl) ReportLastBackupSize(

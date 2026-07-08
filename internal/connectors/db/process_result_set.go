@@ -384,6 +384,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		sourcePathsToExclude   *string
 		recoveryPointObjective *time.Duration
 		lastBackupID           *string
+		lastBackupStatus       *string
 		lastSuccessfulBackupID *string
 		recoveryPoint          *time.Time
 		nextLaunch             *time.Time
@@ -414,6 +415,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 	}
 	if withRPOInfo {
 		namedValues = append(namedValues, query.Named("last_backup_id", &lastBackupID))
+		namedValues = append(namedValues, query.Named("last_backup_status", &lastBackupStatus))
 		namedValues = append(namedValues, query.Named("last_successful_backup_id", &lastSuccessfulBackupID))
 		namedValues = append(namedValues, query.Named("recovery_point", &recoveryPoint))
 	}
@@ -486,6 +488,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 		},
 		NextLaunch:             nextLaunch,
 		LastBackupID:           lastBackupID,
+		LastBackupStatus:       lastBackupStatus,
 		LastSuccessfulBackupID: lastSuccessfulBackupID,
 		RecoveryPoint:          recoveryPoint,
 	}, nil

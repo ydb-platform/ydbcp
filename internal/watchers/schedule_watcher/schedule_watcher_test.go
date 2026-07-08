@@ -622,9 +622,98 @@ func TestReportLastBackupSize(t *testing.T) {
 		}),
 	)
 
-	reportLastBackupSize(context.Background(), dbConnector, schedule)
+	reportScheduleBackupMetrics(context.Background(), dbConnector, schedule)
 
 	metric, ok := metrics.GetMetrics()["backups_last_size_bytes"]
 	assert.True(t, ok)
 	assert.Equal(t, float64(size), metric)
+}
+
+func TestScheduleWatcherReportsBackupsStatus(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(fourPM)
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+
+	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+
+	failedStatus := types.BackupStateError
+	schedule := types.BackupSchedule{
+		ID:               "schedule-1",
+		ContainerID:      "container-1",
+		Status:           types.BackupScheduleStateActive,
+		DatabaseName:     "mydb",
+		ScheduleSettings: &pb.BackupScheduleSettings{},
+		LastBackupStatus: &failedStatus,
+	}
+	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(map[string]types.Backup{}),
+		db.WithBackupSchedules(scheduleMap),
+	)
+	seen := make(map[string]*types.BackupSchedule)
+
+	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count_encrypted"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count_unencrypted"])
+
+	// last backup succeeded and was encrypted
+	backupID := "backup-1"
+	availableStatus := types.BackupStateAvailable
+	schedule.LastBackupStatus = &availableStatus
+	schedule.LastSuccessfulBackupID = &backupID
+	scheduleMap[schedule.ID] = schedule
+	dbConnector = db.NewMockDBConnector(
+		db.WithBackups(map[string]types.Backup{
+			backupID: {
+				ID:                 backupID,
+				Size:               2048,
+				EncryptionSettings: &pb.EncryptionSettings{},
+			},
+		}),
+		db.WithBackupSchedules(scheduleMap),
+	)
+
+	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_failed_count"])
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_succeeded_count_encrypted"])
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_succeeded_count_unencrypted"])
+	assert.Equal(t, float64(2048), metrics.GetMetrics()["backups_last_size_bytes"])
+}
+
+func TestScheduleWatcherDropsStaleScheduleMetrics(t *testing.T) {
+	ctx := context.Background()
+	clock := clockwork.NewFakeClockAt(fourPM)
+	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
+
+	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+
+	failedStatus := types.BackupStateError
+	schedule := types.BackupSchedule{
+		ID:               "schedule-1",
+		ContainerID:      "container-1",
+		Status:           types.BackupScheduleStateActive,
+		DatabaseName:     "mydb",
+		ScheduleSettings: &pb.BackupScheduleSettings{},
+		LastBackupStatus: &failedStatus,
+	}
+	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(map[string]types.Backup{}),
+		db.WithBackupSchedules(scheduleMap),
+	)
+	seen := make(map[string]*types.BackupSchedule)
+
+	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
+
+	// schedule is deleted between the cycles; its series must be dropped
+	delete(scheduleMap, schedule.ID)
+	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+
+	_, ok := metrics.GetMetrics()["backups_failed_count"]
+	assert.False(t, ok)
+	assert.Empty(t, seen)
 }

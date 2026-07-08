@@ -83,9 +83,13 @@ func TBOperationHandler(
 					),
 				)
 			}
-			metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
-				containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
-			)
+			// per-schedule backup gauges are owned by the schedule watcher;
+			// only ad-hoc backups are reported here
+			if backup.ScheduleID == nil {
+				metrics.GlobalMetricsRegistry.IncCompletedBackupsCount(
+					containerId, database, backup.ScheduleID, status, backup.EncryptionSettings != nil,
+				)
+			}
 		}
 
 		return upsertError
