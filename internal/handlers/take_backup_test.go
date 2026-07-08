@@ -1039,3 +1039,78 @@ func TestTBOperationHandlerLogsFinishedOperationStatus(t *testing.T) {
 
 	assert.True(t, logFound, "expected to find finished operation log entry")
 }
+
+func TestTBOperationHandlerFailedBackupForDeletedScheduleNotReported(t *testing.T) {
+	ctx := context.Background()
+	opId := types.GenerateObjectID()
+	backupID := types.GenerateObjectID()
+	scheduleID := types.GenerateObjectID()
+	tbOp := types.TakeBackupOperation{
+		ID:                  opId,
+		BackupID:            backupID,
+		State:               types.OperationStateRunning,
+		Message:             "",
+		YdbConnectionParams: types.YdbConnectionParams{},
+		YdbOperationId:      "1",
+		Audit: &pb.AuditInfo{
+			CreatedAt: timestamppb.Now(),
+		},
+	}
+	backup := types.Backup{
+		ID:         backupID,
+		Status:     types.BackupStateRunning,
+		ScheduleID: &scheduleID,
+	}
+	schedule := types.BackupSchedule{
+		ID:     scheduleID,
+		Status: types.BackupScheduleStateDeleted,
+	}
+
+	ydbOp := &Ydb_Operations.Operation{
+		Id:     "1",
+		Ready:  true,
+		Status: Ydb.StatusIds_CANCELLED,
+		Issues: nil,
+	}
+
+	opMap := make(map[string]types.Operation)
+	backupMap := make(map[string]types.Backup)
+	scheduleMap := make(map[string]types.BackupSchedule)
+	ydbOpMap := make(map[string]*Ydb_Operations.Operation)
+	s3ObjectsMap := make(map[string]s3Client.Bucket)
+	backupMap[backupID] = backup
+	opMap[opId] = &tbOp
+	scheduleMap[scheduleID] = schedule
+	ydbOpMap["1"] = ydbOp
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackups(backupMap),
+		db.WithOperations(opMap),
+		db.WithBackupSchedules(scheduleMap),
+	)
+	clientConnector := client.NewMockClientConnector(
+		client.WithOperations(ydbOpMap),
+	)
+
+	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
+	metrics.InitializeMockMetricsRegistry()
+	config := config.Config{}
+	config.OperationProcessor.OperationTtlSeconds = 10000
+	handler := NewTBOperationHandler(
+		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
+	)
+
+	err := handler(ctx, &tbOp)
+	assert.Empty(t, err)
+
+	// operation and backup still transition to error
+	op, err := dbConnector.GetOperation(ctx, tbOp.ID)
+	assert.Empty(t, err)
+	assert.Equal(t, types.OperationStateError, op.GetState())
+
+	b, err := dbConnector.GetBackup(ctx, backupID)
+	assert.Empty(t, err)
+	assert.Equal(t, types.BackupStateError, b.Status)
+
+	// but the failure is not reported for the deleted schedule
+	assert.Equal(t, float64(0), metrics.GetMetrics()["backups_failed_count"])
+}
