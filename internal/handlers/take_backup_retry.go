@@ -19,7 +19,7 @@ import (
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	kp "ydbcp/pkg/plugins/kms"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"

@@ -8,7 +8,7 @@ import (
 	"google.golang.org/grpc/status"
 	"strconv"
 	"strings"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"

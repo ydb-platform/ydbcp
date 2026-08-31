@@ -9,7 +9,7 @@ import (
 
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb_Issue"
 	"go.uber.org/zap"
