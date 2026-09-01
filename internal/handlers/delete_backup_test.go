@@ -11,7 +11,7 @@ import (
 	"ydbcp/internal/connectors/db/yql/queries"
 	s3Client "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"

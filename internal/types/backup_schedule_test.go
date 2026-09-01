@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 var (

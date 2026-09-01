@@ -6,7 +6,7 @@ import (
 	"time"
 	"ydbcp/cmd/integration/common"
 	"ydbcp/internal/types"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"

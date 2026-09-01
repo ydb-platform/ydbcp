@@ -8,7 +8,7 @@ import (
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"

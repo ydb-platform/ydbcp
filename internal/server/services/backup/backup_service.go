@@ -21,7 +21,7 @@ import (
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	kp "ydbcp/pkg/plugins/kms"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/proto"

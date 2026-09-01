@@ -12,7 +12,7 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 func NewTtlWatcher(

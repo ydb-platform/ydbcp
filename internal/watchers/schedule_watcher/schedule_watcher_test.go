@@ -13,7 +13,7 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"

@@ -14,7 +14,7 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
-	pb "ydbcp/pkg/proto/ydbcp/v1alpha1"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
