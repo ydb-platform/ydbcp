@@ -4,15 +4,16 @@ import (
 	"context"
 	"testing"
 	"time"
+
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/types"
 	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"ydbcp/internal/config"
+	dbconnector "ydbcp/internal/connectors/db"
+	"ydbcp/internal/types"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -42,24 +43,24 @@ func TestBackupScheduleHandler(t *testing.T) {
 	backupMap := make(map[string]types.Backup)
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[schedule.ID] = schedule
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	observed := xlog.SetupLoggingWithObserver()
 	ctx = xlog.With(ctx, zap.String(log_keys.ScheduleID, schedule.ID))
 
 	handler := NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 	err := handler(ctx, dbConnector, &schedule)
 	assert.Empty(t, err)
 	assert.Equal(t, len(observed.All()), len(observed.FilterField(zap.String(log_keys.ScheduleID, schedule.ID)).All()))
 
 	// check operation status (should be running)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
@@ -67,12 +68,12 @@ func TestBackupScheduleHandler(t *testing.T) {
 	assert.Equal(t, types.OperationStateRunning, ops[0].GetState())
 
 	// check backup status (should be empty)
-	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})
+	backups, err := dbConnector.ListBackups(ctx, dbconnector.BackupFilter{})
 	assert.Empty(t, err)
 	assert.Empty(t, backups)
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(ctx, dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)

@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3/log"
+	"log"
+
 	"go.uber.org/zap"
 
 	"ydbcp/internal/config"
-	"ydbcp/internal/migrations"
+	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/util/xlog"
 )
 
@@ -25,7 +26,7 @@ func main() {
 	flag.Parse()
 
 	if migrationsDir == "" {
-		log.Error(fmt.Errorf("migrations-dir is required"))
+		log.Print(fmt.Errorf("migrations-dir is required"))
 		os.Exit(1)
 	}
 
@@ -33,13 +34,13 @@ func main() {
 
 	cfg, err := config.InitConfig[config.Config](ctx, confPath)
 	if err != nil {
-		log.Error(fmt.Errorf("unable to initialize config: %w", err))
+		log.Print(fmt.Errorf("unable to initialize config: %w", err))
 		os.Exit(1)
 	}
 
 	logger, err := xlog.SetupLogging(cfg.Log.Level)
 	if err != nil {
-		log.Error(err)
+		log.Print(err)
 		os.Exit(1)
 	}
 	xlog.SetInternalLogger(logger)
@@ -49,7 +50,7 @@ func main() {
 		}
 	}()
 
-	if err := migrations.Run(ctx, cfg.DBConnection, migrationsDir); err != nil {
+	if err := db.RunMigrations(ctx, cfg.DBConnection, migrationsDir); err != nil {
 		xlog.Error(ctx, "migration failed", zap.Error(err))
 		os.Exit(1)
 	}

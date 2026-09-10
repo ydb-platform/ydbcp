@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -12,16 +11,17 @@ import (
 	"strings"
 	"sync"
 	"time"
-	"ydbcp/cmd/integration/common"
-	"ydbcp/internal/types"
-	"ydbcp/internal/util/xlog"
+
 	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
-
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table/result"
-	"google.golang.org/protobuf/types/known/durationpb"
-
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"ydbcp/cmd/integration/common"
+	"ydbcp/internal/config"
+	dbconnector "ydbcp/internal/connectors/db"
+	"ydbcp/internal/metrics"
+	"ydbcp/internal/types"
 )
 
 const (
@@ -32,55 +32,26 @@ const (
 	invalidDatabaseEndpoint = "xzche"
 )
 
-func ExecuteDataQuery(ctx context.Context, query string) {
-	driver := common.OpenYdb(databaseEndpoint, databaseName)
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*5)
-	err := driver.Table().Do(
-		ctx, func(ctx context.Context, s table.Session) error {
-			_, res, err := s.Execute(
-				ctx,
-				table.TxControl(
-					table.BeginTx(
-						table.WithSerializableReadWrite(),
-					),
-					table.CommitTx(),
-				),
-				query,
-				nil,
-			)
-			if err != nil {
-				return err
-			}
-			defer func(res result.Result) {
-				err = res.Close()
-				if err != nil {
-					xlog.Error(ctx, "Error closing transaction result")
-				}
-			}(res) // result must be closed
-			if res.ResultSetCount() != 0 {
-				return errors.New("expected 0 result set")
-			}
-			return res.Err()
+func newRetryOperation(endpoint string, state types.OperationState, retries int) *types.TakeBackupWithRetryOperation {
+	return &types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{
+			ID:                  types.GenerateObjectID(),
+			ContainerID:         containerID,
+			State:               state,
+			YdbConnectionParams: types.YdbConnectionParams{Endpoint: endpoint, DatabaseName: databaseName},
+			Audit:               &pb.AuditInfo{CreatedAt: timestamppb.Now()},
 		},
-	)
-	cancel()
-	if err != nil {
-		log.Panicln("failed to execute YDB query:", err)
+		Retries:     retries,
+		RetryConfig: &pb.RetryConfig{Retries: &pb.RetryConfig_Count{Count: 3}},
 	}
 }
 
-func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
-	opID := types.GenerateObjectID()
-	insertTBWRquery := fmt.Sprintf(
-		`
-UPSERT INTO Operations 
-(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
-VALUES 
-("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
-`, opID, containerID, databaseName, invalidDatabaseEndpoint,
-	)
+func TestInvalidDatabaseBackup(store dbconnector.DBConnector, client pb.BackupServiceClient, opClient pb.OperationServiceClient) {
 	ctx := context.Background()
-	ExecuteDataQuery(ctx, insertTBWRquery)
+	opID, err := store.CreateOperation(ctx, newRetryOperation(invalidDatabaseEndpoint, types.OperationStateRunning, 0))
+	if err != nil {
+		log.Panicf("failed to create retry operation: %v", err)
+	}
 
 	op, err := opClient.GetOperation(
 		ctx, &pb.GetOperationRequest{
@@ -139,34 +110,27 @@ VALUES
 	cancel()
 }
 
-func ResetNextLaunch(id string) {
-	resetNextLaunchQuery := fmt.Sprintf(
-		`UPDATE BackupSchedules SET next_launch = CurrentUTCTimestamp() WHERE id = '%s'`, id,
-	)
-	ExecuteDataQuery(context.Background(), resetNextLaunchQuery)
+func ResetNextLaunch(store dbconnector.DBConnector, id string) {
+	ctx := context.Background()
+	schedule, err := store.GetSchedule(ctx, id)
+	if err != nil {
+		log.Panicf("failed to get schedule: %v", err)
+	}
+	now := time.Now()
+	schedule.NextLaunch = &now
+	if err := store.Apply(ctx, dbconnector.Changes{UpdateSchedules: []types.BackupSchedule{*schedule}}); err != nil {
+		log.Panicf("failed to reset next launch: %v", err)
+	}
 }
 
-func InsertFaultyBackups() {
-	opID := types.GenerateObjectID()
-	insertTBWRquery := fmt.Sprintf(
-		`
-UPSERT INTO Operations 
-(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
-VALUES 
-("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "CANCELLING", 0, 3)
-`, opID, containerID, databaseName, databaseEndpoint,
-	)
-	ExecuteDataQuery(context.Background(), insertTBWRquery)
-	opID = types.GenerateObjectID()
-	insertTBWRquery = fmt.Sprintf(
-		`
-UPSERT INTO Operations 
-(id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
-VALUES 
-("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 3, 3)
-`, opID, containerID, databaseName, databaseEndpoint,
-	)
-	ExecuteDataQuery(context.Background(), insertTBWRquery)
+func InsertFaultyBackups(store dbconnector.DBConnector) {
+	err := store.Apply(context.Background(), dbconnector.Changes{CreateOperations: []types.Operation{
+		newRetryOperation(databaseEndpoint, types.OperationStateCancelling, 0),
+		newRetryOperation(databaseEndpoint, types.OperationStateRunning, 3),
+	}})
+	if err != nil {
+		log.Panicf("failed to create faulty operations: %v", err)
+	}
 }
 
 type RawEvent struct {
@@ -338,6 +302,17 @@ func (a *AuditEventsTracker) CaptureEvents() {
 }
 
 func main() {
+	metrics.InitializeMockMetricsRegistry()
+	store, err := dbconnector.NewYdbConnector(context.Background(), config.YDBConnectionConfig{
+		ConnectionString:   databaseEndpoint + databaseName,
+		Insecure:           true,
+		Discovery:          false,
+		DialTimeoutSeconds: 10,
+	})
+	if err != nil {
+		log.Panicf("failed to create metadata connector: %v", err)
+	}
+	defer store.Close(context.Background())
 	conn := common.CreateGRPCClient(ydbcpEndpoint)
 	defer func(conn *grpc.ClientConn) {
 		err := conn.Close()
@@ -360,7 +335,7 @@ func main() {
 		log.Panicf("got backup from empty YDBCP: %s", backups.Backups[0].String())
 	}
 
-	TestInvalidDatabaseBackup(client, opClient)
+	TestInvalidDatabaseBackup(store, client, opClient)
 	tracker := MakeAuditEventsTracker(
 		[]*AuditCaptureEvent{
 			{
@@ -739,7 +714,7 @@ func main() {
 	if err != nil {
 		log.Panicf("failed to create backup schedule: %v", err)
 	}
-	ResetNextLaunch(schedule.Id)
+	ResetNextLaunch(store, schedule.Id)
 
 	// local config has schedules_limit_per_db = 1, so we should not be able to create another schedule for this db
 	_, err = scheduleClient.CreateBackupSchedule(
@@ -782,7 +757,7 @@ func main() {
 		log.Panicf("schedule and listed schedule ids does not match: %s, %s", schedules.Schedules[0].Id, schedule.Id)
 	}
 
-	InsertFaultyBackups()
+	InsertFaultyBackups(store)
 	//wait for schedule handler
 	time.Sleep(time.Second * 3)
 

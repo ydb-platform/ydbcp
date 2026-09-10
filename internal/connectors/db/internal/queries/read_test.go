@@ -3,7 +3,6 @@ package queries
 import (
 	"context"
 	"testing"
-	ydbcp "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -214,28 +213,6 @@ func TestQueryBuilderPagination(t *testing.T) {
 	)
 }
 
-func TestOrderSpec(t *testing.T) {
-	const (
-		query = `SELECT * FROM table1 ORDER BY created_at DESC`
-	)
-	pbOrder := &ydbcp.ListBackupsOrder{
-		Field: ydbcp.BackupField_CREATED_AT,
-		Desc:  true,
-	}
-	spec, err := NewOrderSpec(pbOrder)
-	assert.Empty(t, err)
-	builder := NewReadTableQuery(
-		WithTableName("table1"),
-		WithOrderBy(*spec),
-	)
-	fq, err := builder.FormatQuery(context.Background())
-	assert.Empty(t, err)
-	assert.Equal(
-		t, query, fq.QueryText,
-		"bad query format",
-	)
-}
-
 func TestQueryBuilderOperator(t *testing.T) {
 	const (
 		queryString = `SELECT * FROM table1 WHERE (created_at >= $param0) AND (created_at <= $param1)`
@@ -288,4 +265,19 @@ func TestIndex(t *testing.T) {
 		t, query, fq.QueryText,
 		"bad query format",
 	)
+}
+func TestFiltersOnSameFieldKeepTheirOwnOperators(t *testing.T) {
+	builder := NewReadTableQuery(
+		WithTableName("BackupSchedules"),
+		WithQueryFilters(
+			QueryFilter{Field: "database", IsLike: true, Values: []table_types.Value{table_types.StringValueFromString("prod")}},
+			QueryFilter{Field: "database", Values: []table_types.Value{table_types.StringValueFromString("/prod")}},
+		),
+	)
+	first, err := builder.FormatQuery(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, "SELECT * FROM BackupSchedules WHERE (database LIKE \"%\" || $param0 || \"%\") AND (database = $param1)", first.QueryText)
+	second, err := builder.FormatQuery(context.Background())
+	assert.NoError(t, err)
+	assert.Equal(t, first, second, "formatting a query twice must not accumulate parameters")
 }

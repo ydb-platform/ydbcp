@@ -2,31 +2,31 @@ package ttl_watcher
 
 import (
 	"context"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sync"
 	"time"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"ydbcp/internal/backup_operations"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	"ydbcp/internal/watchers"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 func NewTtlWatcher(
 	ctx context.Context,
 	wg *sync.WaitGroup,
-	db db.DBConnector,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	db dbconnector.DBConnector,
 	options ...watchers.Option,
 ) *watchers.WatcherImpl {
 	return watchers.NewWatcher(
 		ctx,
 		wg,
 		func(ctx context.Context, period time.Duration) {
-			TtlWatcherAction(ctx, period, db, queryBuilderFactory)
+			TtlWatcherAction(ctx, period, db)
 		},
 		time.Minute,
 		"Ttl",
@@ -37,17 +37,12 @@ func NewTtlWatcher(
 func TtlWatcherAction(
 	baseCtx context.Context,
 	period time.Duration,
-	db db.DBConnector,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	db dbconnector.DBConnector,
 ) {
 	ctx, cancel := context.WithTimeout(baseCtx, period)
 	defer cancel()
 
-	backups, err := db.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.GetBackupsToDeleteQuery),
-		),
-	)
+	backups, err := db.ListExpiredBackups(ctx, 100)
 
 	if err != nil {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
@@ -60,8 +55,8 @@ func TtlWatcherAction(
 			now := timestamppb.Now()
 			if backup_operations.IsEmptyBackup(backup) {
 				backup.Status = types.BackupStateDeleted
-				err = db.ExecuteUpsert(
-					backupCtx, queryBuilderFactory().WithUpdateBackup(*backup),
+				err = db.Apply(
+					backupCtx, dbconnector.Changes{UpdateBackups: []types.Backup{*backup}},
 				)
 				if err != nil {
 					xlog.Error(
@@ -88,8 +83,8 @@ func TtlWatcherAction(
 				}
 
 				backup.Status = types.BackupStateDeleting
-				err := db.ExecuteUpsert(
-					backupCtx, queryBuilderFactory().WithCreateOperation(dbOp).WithUpdateBackup(*backup),
+				err := db.Apply(
+					backupCtx, dbconnector.Changes{CreateOperations: []types.Operation{dbOp}, UpdateBackups: []types.Backup{*backup}},
 				)
 
 				if err != nil {

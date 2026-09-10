@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"testing"
 	"time"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/kms"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -347,10 +348,9 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID(), ops[1].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -360,7 +360,6 @@ func TestTBWRHandlerSuccess(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
 		kms.NewMockKmsProvider(nil),
@@ -411,16 +410,14 @@ func TestTBWRHandlerSetsLogFields(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID()})
 
 	handler := NewTBWROperationHandler(
 		dbConnector,
 		client.NewMockClientConnector(),
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
 		kms.NewMockKmsProvider(nil),
@@ -475,10 +472,9 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID(), ops[1].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -488,7 +484,6 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
 		kms.NewMockKmsProvider(nil),
@@ -500,7 +495,7 @@ func TestTBWRHandlerSkipRunning(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateRunning, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 3, len(operations))
 	assert.Equal(t, float64(0), metrics.GetMetrics()["operations_duration_seconds"])
@@ -544,10 +539,9 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID(), ops[1].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -555,7 +549,6 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t3.AsTime()),
 		config.Config{},
 		kms.NewMockKmsProvider(nil),
@@ -567,7 +560,7 @@ func TestTBWRHandlerSkipError(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateRunning, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 3, len(operations))
 }
@@ -601,10 +594,9 @@ func TestTBWRHandlerError(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -614,7 +606,6 @@ func TestTBWRHandlerError(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{},
 		kms.NewMockKmsProvider(nil),
@@ -659,10 +650,9 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -670,7 +660,6 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
 			S3: config.S3Config{
@@ -690,7 +679,7 @@ func TestTBWRHandlerAlwaysRunOnce(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateRunning, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 2, len(operations))
 	tbwr = *op.(*types.TakeBackupWithRetryOperation)
@@ -733,10 +722,9 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{})
 
 	clientConnector := client.NewMockClientConnector(
 		client.WithEmptyDatabases("/mydb"),
@@ -746,7 +734,6 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
 			S3: config.S3Config{
@@ -766,7 +753,7 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateDone, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 2, len(operations))
 	tbwr = *op.(*types.TakeBackupWithRetryOperation)
@@ -780,7 +767,7 @@ func TestTBWRHandlerEmptyDatabase(t *testing.T) {
 	assert.NotNil(t, tb)
 	assert.Equal(t, types.OperationStateDone, tb.State)
 	assert.Equal(t, t1, tb.Audit.CreatedAt)
-	backups, err := dbConnector.SelectBackups(ctx, queries.NewReadTableQuery())
+	backups, err := dbConnector.ListBackups(ctx, dbconnector.BackupFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 1, len(backups))
 	assert.Equal(t, types.BackupStateAvailable, backups[0].Status)
@@ -812,10 +799,9 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -823,7 +809,6 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
 			S3: config.S3Config{
@@ -843,7 +828,7 @@ func TestTBWRHandlerInvalidEndpointRetry(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateRunning, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 1, len(operations))
 	tbwr = *op.(*types.TakeBackupWithRetryOperation)
@@ -874,10 +859,9 @@ func TestTBWRHandlerInvalidEndpointError(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -885,7 +869,6 @@ func TestTBWRHandlerInvalidEndpointError(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
 			S3: config.S3Config{
@@ -941,10 +924,9 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -952,7 +934,6 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clockwork.NewFakeClockAt(t1.AsTime()),
 		config.Config{
 			S3: config.S3Config{
@@ -972,7 +953,7 @@ func TestTBWRHandlerStartCancel(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelling, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 2, len(operations))
 	tbwr = *op.(*types.TakeBackupWithRetryOperation)
@@ -1020,10 +1001,9 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 		&tbwr,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithOperations(toMap(ops...)),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithOperations(toMap(ops...)),
 	)
-	dbConnector.SetOperationsIDSelector([]string{ops[0].GetID()})
 
 	clientConnector := client.NewMockClientConnector()
 
@@ -1033,7 +1013,6 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 		dbConnector,
 		clientConnector,
 		s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-		queries.NewWriteTableQueryMock,
 		clock,
 		config.Config{
 			S3: config.S3Config{
@@ -1053,7 +1032,7 @@ func TestTBWRHandlerFullCancel(t *testing.T) {
 	assert.Empty(t, err)
 	assert.NotEmpty(t, op)
 	assert.Equal(t, types.OperationStateCancelled, op.GetState())
-	operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+	operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.Equal(t, 2, len(operations))
 	tbwr = *op.(*types.TakeBackupWithRetryOperation)
@@ -1109,22 +1088,20 @@ func TestTBWRHandlerStopsRetriesOfDeletedSchedule(t *testing.T) {
 			&tbwr,
 		}
 
-		dbConnector := db.NewMockDBConnector(
-			db.WithOperations(toMap(ops...)),
-			db.WithBackupSchedules(map[string]types.BackupSchedule{
+		dbConnector := dbconnector.NewMockDBConnector(
+			dbconnector.WithOperations(toMap(ops...)),
+			dbconnector.WithBackupSchedules(map[string]types.BackupSchedule{
 				scheduleID: {
 					ID:     scheduleID,
 					Status: tc.scheduleStatus,
 				},
 			}),
 		)
-		dbConnector.SetOperationsIDSelector([]string{})
 
 		handler := NewTBWROperationHandler(
 			dbConnector,
 			client.NewMockClientConnector(),
 			s3.NewMockS3Connector(make(map[string]s3.Bucket)),
-			queries.NewWriteTableQueryMock,
 			clock,
 			config.Config{
 				S3: config.S3Config{
@@ -1144,7 +1121,7 @@ func TestTBWRHandlerStopsRetriesOfDeletedSchedule(t *testing.T) {
 		assert.Empty(t, err)
 		assert.Equal(t, tc.expectedState, op.GetState(), "schedule status %s", tc.scheduleStatus)
 
-		operations, err := dbConnector.SelectOperations(ctx, queries.NewReadTableQuery())
+		operations, err := dbConnector.ListOperations(ctx, dbconnector.OperationFilter{})
 		assert.Empty(t, err)
 		assert.Equal(t, tc.expectedOps, len(operations), "schedule status %s", tc.scheduleStatus)
 	}

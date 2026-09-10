@@ -4,11 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
-	"strconv"
 	"strings"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
@@ -16,10 +12,6 @@ import (
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
 	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
-)
-
-const (
-	DEFAULT_PAGE_SIZE = 50
 )
 
 type QueryFilter struct {
@@ -49,57 +41,12 @@ type PageSpec struct {
 	Offset uint64
 }
 
-func NewPageSpec(pageSize uint32, pageToken string) (*PageSpec, error) {
-	var pageSpec PageSpec
-	if pageSize == 0 {
-		pageSpec.Limit = DEFAULT_PAGE_SIZE
-	} else {
-		pageSpec.Limit = uint64(pageSize)
-	}
-	if pageToken != "" {
-		offset, err := strconv.ParseUint(pageToken, 10, 64)
-		if err != nil {
-			return nil, status.Error(codes.InvalidArgument, "can't parse page token")
-		}
-		pageSpec.Offset = offset
-	}
-	return &pageSpec, nil
-}
-
-func NewOrderSpec(order *pb.ListBackupsOrder) (*OrderSpec, error) {
-	if order == nil {
-		return &OrderSpec{
-			Field: "created_at",
-			Desc:  true,
-		}, nil
-	}
-	var spec OrderSpec
-	switch order.GetField() {
-	case pb.BackupField_DATABASE_NAME:
-		spec.Field = "database"
-	case pb.BackupField_STATUS:
-		spec.Field = "status"
-	case pb.BackupField_CREATED_AT:
-		spec.Field = "created_at"
-	case pb.BackupField_EXPIRE_AT:
-		spec.Field = "expire_at"
-	case pb.BackupField_COMPLETED_AT:
-		spec.Field = "completed_at"
-	default:
-		return nil, status.Error(
-			codes.Internal, fmt.Sprintf("internal error: did not expect pb.BackupField_%s", order.GetField().String()),
-		)
-	}
-	spec.Desc = order.GetDesc()
-	return &spec, nil
-}
-
 type ReadTableQueryImpl struct {
 	rawQuery         *string
 	tableName        string
 	filters          [][]table_types.Value
 	filterFields     []string
-	isLikeFilter     map[string]bool
+	isLikeFilter     map[int]bool
 	filterOperators  map[int]string
 	index            *string
 	orderBy          *OrderSpec
@@ -113,7 +60,7 @@ func NewReadTableQuery(options ...ReadTableQueryOption) *ReadTableQueryImpl {
 	d := &ReadTableQueryImpl{}
 	d.filters = make([][]table_types.Value, 0)
 	d.filterFields = make([]string, 0)
-	d.isLikeFilter = make(map[string]bool)
+	d.isLikeFilter = make(map[int]bool)
 	d.filterOperators = make(map[int]string)
 
 	for _, opt := range options {
@@ -153,7 +100,7 @@ func WithQueryFilters(filters ...QueryFilter) ReadTableQueryOption {
 			newFilters = append(newFilters, filter.Values...)
 			d.filters = append(d.filters, newFilters)
 			if filter.IsLike {
-				d.isLikeFilter[filter.Field] = true
+				d.isLikeFilter[idx] = true
 			}
 			if filter.Operator != "" {
 				d.filterOperators[idx] = filter.Operator
@@ -200,7 +147,7 @@ func (d *ReadTableQueryImpl) MakeFilterString() string {
 			op := "="
 			if customOp, ok := d.filterOperators[i]; ok {
 				op = customOp
-			} else if d.isLikeFilter[d.filterFields[i]] {
+			} else if d.isLikeFilter[i] {
 				op = "LIKE"
 				paramName = fmt.Sprintf("\"%%\" || %s || \"%%\"", paramName)
 			}
@@ -245,6 +192,13 @@ func (d *ReadTableQueryImpl) FormatTable() string {
 }
 
 func (d *ReadTableQueryImpl) FormatQuery(ctx context.Context) (*FormatQueryResult, error) {
+	// Formatting must not accumulate filter parameters when reused.
+	copy := *d
+	copy.tableQueryParams = append([]table.ParameterOption(nil), d.tableQueryParams...)
+	return copy.formatQuery(ctx)
+}
+
+func (d *ReadTableQueryImpl) formatQuery(ctx context.Context) (*FormatQueryResult, error) {
 	var res string
 	filter := d.MakeFilterString()
 	if d.rawQuery == nil {

@@ -10,12 +10,12 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+
 	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/kms"
@@ -35,7 +35,7 @@ import (
 	ap "ydbcp/pkg/plugins/auth"
 	kp "ydbcp/pkg/plugins/kms"
 
-	"github.com/ydb-platform/ydb-go-sdk/v3/log"
+	"log"
 
 	"github.com/jonboulle/clockwork"
 
@@ -57,7 +57,7 @@ func main() {
 	configInstance, err := config.InitConfig[config.Config](ctx, confPath)
 
 	if err != nil {
-		log.Error(fmt.Errorf("unable to initialize config: %w", err))
+		log.Print(fmt.Errorf("unable to initialize config: %w", err))
 		os.Exit(1)
 	}
 
@@ -70,7 +70,7 @@ func main() {
 		logger, err = xlog.SetupLogging(configInstance.Log.Level)
 	}
 	if err != nil {
-		log.Error(err)
+		log.Print(err)
 		os.Exit(1)
 	}
 	xlog.SetInternalLogger(logger)
@@ -146,7 +146,7 @@ func main() {
 	}
 	xlog.Info(ctx, "created GRPC server")
 
-	dbConnector, err := db.NewYdbConnector(ctx, configInstance.DBConnection)
+	dbConnector, err := dbconnector.NewYdbConnector(ctx, configInstance.DBConnection)
 	if err != nil {
 		xlog.Error(ctx, "Error init DBConnector", zap.Error(err))
 		os.Exit(1)
@@ -185,7 +185,7 @@ func main() {
 	if err := handlersRegistry.Add(
 		types.OperationTypeTB,
 		handlers.NewTBOperationHandler(
-			dbConnector, clientConnector, s3Connector, *configInstance, queries.NewWriteTableQuery,
+			dbConnector, clientConnector, s3Connector, *configInstance,
 		),
 	); err != nil {
 		xlog.Error(ctx, "failed to register TB handler", zap.Error(err))
@@ -202,7 +202,7 @@ func main() {
 
 	if err := handlersRegistry.Add(
 		types.OperationTypeDB,
-		handlers.NewDBOperationHandler(dbConnector, s3Connector, *configInstance, queries.NewWriteTableQuery),
+		handlers.NewDBOperationHandler(dbConnector, s3Connector, *configInstance),
 	); err != nil {
 		xlog.Error(ctx, "failed to register DB handler", zap.Error(err))
 		os.Exit(1)
@@ -214,7 +214,6 @@ func main() {
 			dbConnector,
 			clientConnector,
 			s3Connector,
-			queries.NewWriteTableQuery,
 			clockwork.NewRealClock(),
 			*configInstance,
 			kmsProvider,
@@ -232,11 +231,11 @@ func main() {
 	if configInstance.FeatureFlags.DisableTTLDeletion {
 		xlog.Info(ctx, "TtlWatcher is disabled, old backups won't be deleted")
 	} else {
-		ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector, queries.NewWriteTableQuery)
+		ttl_watcher.NewTtlWatcher(ctx, &wg, dbConnector)
 		xlog.Info(ctx, "Created TtlWatcher")
 	}
 
-	backupScheduleHandler := handlers.NewBackupScheduleHandler(queries.NewWriteTableQuery, clockwork.NewRealClock(), configInstance.FeatureFlags)
+	backupScheduleHandler := handlers.NewBackupScheduleHandler(clockwork.NewRealClock(), configInstance.FeatureFlags)
 
 	schedule_watcher.NewScheduleWatcher(
 		ctx, &wg, configInstance.OperationProcessor.ProcessorIntervalSeconds, dbConnector,

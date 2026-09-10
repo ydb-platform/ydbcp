@@ -5,10 +5,11 @@ import (
 	"sync"
 	"testing"
 	"time"
+
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/util/log_keys"
 
-	"ydbcp/internal/connectors/db"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
@@ -34,7 +35,7 @@ func TestProcessor(t *testing.T) {
 		return fakeTicker
 	}
 
-	db := db.NewMockDBConnector()
+	db := dbconnector.NewMockDBConnector()
 	handlers := NewOperationHandlerRegistry()
 	handlerCalled := make(chan struct{})
 	handlers.Add(
@@ -97,7 +98,7 @@ func TestProcessor(t *testing.T) {
 	cancel()
 	wg.Wait()
 
-	op, err := db.GetOperation(ctx, opID)
+	op, err := db.GetOperation(context.Background(), opID)
 	assert.Empty(t, err)
 	assert.Equal(t, op.GetState(), types.OperationStateDone, "operation state should be Done")
 	val, ok := metrics.GetMetrics()["operations_inflight"]

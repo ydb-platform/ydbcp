@@ -3,14 +3,15 @@ package handlers
 import (
 	"context"
 	"errors"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/audit"
 	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"go.uber.org/zap"
@@ -18,17 +19,16 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-type BackupScheduleHandlerType func(context.Context, db.DBConnector, *types.BackupSchedule) error
+type BackupScheduleHandlerType func(context.Context, dbconnector.DBConnector, *types.BackupSchedule) error
 
 func NewBackupScheduleHandler(
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
 ) BackupScheduleHandlerType {
-	return func(ctx context.Context, driver db.DBConnector, schedule *types.BackupSchedule) error {
+	return func(ctx context.Context, driver dbconnector.DBConnector, schedule *types.BackupSchedule) error {
 		return BackupScheduleHandler(
 			ctx, driver, schedule,
-			queryBuilderFactory, clock,
+			clock,
 			featureFlags,
 		)
 	}
@@ -47,9 +47,8 @@ func withNewBackupAudit(
 
 func BackupScheduleHandler(
 	ctx context.Context,
-	driver db.DBConnector,
+	driver dbconnector.DBConnector,
 	schedule *types.BackupSchedule,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
 ) error {
@@ -110,9 +109,9 @@ func BackupScheduleHandler(
 			return err
 		}
 		return withNewBackupAudit(
-			ctx, tbwr, driver.ExecuteUpsert(
+			ctx, tbwr, driver.Apply(
 				ctx,
-				queryBuilderFactory().WithCreateOperation(tbwr).WithUpdateBackupSchedule(*schedule),
+				dbconnector.Changes{CreateOperations: []types.Operation{tbwr}, UpdateSchedules: []types.BackupSchedule{*schedule}},
 			),
 		)
 	}

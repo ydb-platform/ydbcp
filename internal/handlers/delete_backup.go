@@ -2,30 +2,29 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
 	"ydbcp/internal/metrics"
 
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewDBOperationHandler(
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		err := DBOperationHandler(ctx, op, db, s3, config, queryBuilderFactory)
+		err := DBOperationHandler(ctx, op, db, s3, config)
 		if err == nil {
 			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
@@ -36,10 +35,9 @@ func NewDBOperationHandler(
 func DBOperationHandler(
 	ctx context.Context,
 	operation types.Operation,
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) error {
 	xlog.Info(ctx, "DBOperationHandler", zap.String(log_keys.OperationMessage, operation.GetMessage()))
 
@@ -59,8 +57,8 @@ func DBOperationHandler(
 		var err error
 
 		if backup != nil {
-			err = db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(*backup),
+			err = db.Apply(
+				ctx, dbconnector.Changes{UpdateOperations: []types.Operation{operation}, UpdateBackups: []types.Backup{*backup}},
 			)
 		} else {
 			err = db.UpdateOperation(ctx, operation)
@@ -69,30 +67,18 @@ func DBOperationHandler(
 		return err
 	}
 
-	backups, err := db.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(dbOp.BackupID)},
-				},
-			),
-		),
-	)
+	backup, err := db.GetBackup(ctx, dbOp.BackupID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		return fmt.Errorf("can't select backups: %v", err)
 	}
 
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		operation.SetState(types.OperationStateError)
 		operation.SetMessage("Backup not found")
 		operation.GetAudit().CompletedAt = timestamppb.Now()
 		return executeUpsert(operation, nil)
 	}
-
-	backup := backups[0]
 
 	if deadlineExceeded(dbOp.Audit.CreatedAt, config) {
 		backup.Status = types.BackupStateError

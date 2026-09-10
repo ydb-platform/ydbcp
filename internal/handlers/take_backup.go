@@ -2,11 +2,12 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
+
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
@@ -14,17 +15,15 @@ import (
 	"ydbcp/internal/util/xlog"
 
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func NewTBOperationHandler(
-	db db.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
+	db dbconnector.DBConnector, client client.ClientConnector, s3 s3.S3Connector, config config.Config,
 ) types.OperationHandler {
 	return func(ctx context.Context, op types.Operation) error {
-		err := TBOperationHandler(ctx, op, db, client, s3, config, queryBuilderFactory)
+		err := TBOperationHandler(ctx, op, db, client, s3, config)
 		if err == nil {
 			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
 		}
@@ -35,11 +34,10 @@ func NewTBOperationHandler(
 func TBOperationHandler(
 	ctx context.Context,
 	operation types.Operation,
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	client client.ClientConnector,
 	s3 s3.S3Connector,
 	config config.Config,
-	queryBuilderFactory queries.WriteQueryBuilderFactory,
 ) error {
 	xlog.Info(ctx, "TBOperationHandler", zap.String(log_keys.OperationMessage, operation.GetMessage()))
 
@@ -67,8 +65,8 @@ func TBOperationHandler(
 	) error {
 		ctx = backup.SetLogFields(ctx)
 		ctx = operation.SetLogFields(ctx)
-		upsertError := db.ExecuteUpsert(
-			ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(backup),
+		upsertError := db.Apply(
+			ctx, dbconnector.Changes{UpdateOperations: []types.Operation{operation}, UpdateBackups: []types.Backup{backup}},
 		)
 		if upsertError == nil {
 			if !types.IsActive(operation) {
@@ -95,27 +93,15 @@ func TBOperationHandler(
 		return upsertError
 	}
 
-	backups, err := db.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(tb.BackupID)},
-				},
-			),
-		),
-	)
+	backup, err := db.GetBackup(ctx, tb.BackupID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		return fmt.Errorf("can't select backups: %v", err)
 	}
 
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		return fmt.Errorf("backup not found: %s", tb.BackupID)
 	}
-
-	backup := backups[0]
 
 	ydbOpResponse, err := lookupYdbOperationStatus(
 		ctx, client, conn, operation, tb.YdbOperationId, tb.Audit.CreatedAt, config,
@@ -213,8 +199,8 @@ func TBOperationHandler(
 			backup.Status = types.BackupStateError
 			backup.Message = operation.GetMessage()
 			backup.SetCompletedAt(operation.GetAudit().CompletedAt)
-			return db.ExecuteUpsert(
-				ctx, queryBuilderFactory().WithUpdateOperation(operation).WithUpdateBackup(*backup),
+			return db.Apply(
+				ctx, dbconnector.Changes{UpdateOperations: []types.Operation{operation}, UpdateBackups: []types.Backup{*backup}},
 			)
 		}
 	case types.OperationStateCancelling:

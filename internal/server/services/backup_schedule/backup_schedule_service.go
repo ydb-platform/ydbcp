@@ -2,39 +2,39 @@ package backup_schedule
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strconv"
 	"time"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
+	"ydbcp/internal/server/services/listoptions"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	"google.golang.org/protobuf/types/known/durationpb"
-
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type BackupScheduleService struct {
 	pb.UnimplementedBackupScheduleServiceServer
-	driver     db.DBConnector
+	driver     dbconnector.DBConnector
 	clientConn client.ClientConnector
 	auth       ap.AuthProvider
 	clock      clockwork.Clock
@@ -70,25 +70,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, err
 	}
 
-	schedules, err := s.driver.SelectBackupSchedules(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("BackupSchedules"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "container_id",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.ContainerId),
-					},
-				},
-				queries.QueryFilter{
-					Field: "database",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(request.DatabaseName),
-					},
-				},
-			),
-		),
-	)
+	schedules, err := s.driver.ListSchedules(ctx, dbconnector.ScheduleFilter{ContainerID: request.ContainerId, DatabaseName: request.DatabaseName})
 
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedules", zap.Error(err))
@@ -186,7 +168,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 		return nil, status.Error(codes.FailedPrecondition, err.Error())
 	}
 
-	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackupSchedule(schedule))
+	err = s.driver.Apply(ctx, dbconnector.Changes{CreateSchedules: []types.BackupSchedule{schedule}})
 	if err != nil {
 		xlog.Error(
 			ctx, "can't create backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
@@ -210,27 +192,19 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 
 	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
-	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.GetScheduleQuery),
-			queries.WithParameters(
-				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
-			),
-		),
-	)
+	schedule, err := s.driver.GetScheduleWithBackupInfo(ctx, scheduleID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
-	if len(schedules) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup schedule not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
-	schedule := schedules[0]
 	ctx = schedule.SetLogFields(ctx)
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
@@ -300,7 +274,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		return nil, err
 	}
 
-	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
+	err = s.driver.Apply(ctx, dbconnector.Changes{UpdateSchedules: []types.BackupSchedule{*schedule}})
 	if err != nil {
 		xlog.Error(
 			ctx, "can't update backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
@@ -326,27 +300,19 @@ func (s *BackupScheduleService) GetBackupSchedule(
 
 	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
-	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.GetScheduleQuery),
-			queries.WithParameters(
-				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
-			),
-		),
-	)
+	schedule, err := s.driver.GetScheduleWithBackupInfo(ctx, scheduleID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
-	if len(schedules) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup schedule not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found") // TODO: Permission denied?
 	}
 
-	schedule := schedules[0]
 	ctx = schedule.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
@@ -370,81 +336,35 @@ func (s *BackupScheduleService) ListBackupSchedules(
 	const methodName string = "ListBackupSchedules"
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
 
-	queryFilters := make([]queries.QueryFilter, 0)
+	filter := dbconnector.ScheduleFilter{
+		ContainerID:      request.GetContainerId(),
+		DatabaseNameMask: request.GetDatabaseNameMask(),
+	}
 	checkEveryCID := false
 	subjectLabel := true
-
 	if request.GetContainerId() != "" {
-		ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.GetContainerId()))
-		var err error
-		audit.SetAuditFieldsForRequest(
-			ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"},
-		)
-
+		ctx = xlog.With(ctx, zap.String(log_keys.ContainerID, request.ContainerId))
+		audit.SetAuditFieldsForRequest(ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: "{none}"})
 		subject, err := auth.CheckAuth(ctx, s.auth, auth.PermissionBackupList, request.ContainerId, "")
 		if err != nil {
 			s.IncApiCallsCounter(methodName, status.Code(err))
 			return nil, err
 		}
 		ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
-
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "container_id",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.ContainerId),
-				},
-			},
-		)
 	} else {
 		checkEveryCID = true
 		subjectLabel = false
 	}
-
-	if request.GetDatabaseNameMask() != "" {
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "database",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.DatabaseNameMask),
-				},
-				IsLike: true,
-			},
-		)
+	for _, value := range request.GetDisplayStatus() {
+		filter.Statuses = append(filter.Statuses, value.String())
 	}
-	if len(request.GetDisplayStatus()) > 0 {
-		var statusValues []table_types.Value
-		for _, statusValue := range request.GetDisplayStatus() {
-			statusValues = append(statusValues, table_types.StringValueFromString(statusValue.String()))
-		}
-
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field:  "status",
-				Values: statusValues,
-			},
-		)
-	}
-
-	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	pageSpec, err := listoptions.Page(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-
-	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.ListSchedulesQuery),
-			queries.WithQueryFilters(queryFilters...),
-			queries.WithOrderBy(
-				queries.OrderSpec{
-					Field: "created_at",
-					Desc:  true,
-				},
-			),
-			queries.WithPageSpec(*pageSpec),
-		),
-	)
+	filter.Page = pageSpec
+	schedules, err := s.driver.ListSchedulesWithBackupInfo(ctx, filter)
 	if err != nil {
 		xlog.Error(ctx, "error getting backup schedules", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -484,27 +404,19 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 
 	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
-	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.GetScheduleQuery),
-			queries.WithParameters(
-				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
-			),
-		),
-	)
+	schedule, err := s.driver.GetScheduleWithBackupInfo(ctx, scheduleID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
-	if len(schedules) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup schedule not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
-	schedule := schedules[0]
 	ctx = schedule.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: schedule.ContainerID, Database: schedule.DatabaseName},
@@ -545,7 +457,7 @@ func (s *BackupScheduleService) ToggleBackupSchedule(
 		}
 	}
 
-	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
+	err = s.driver.Apply(ctx, dbconnector.Changes{UpdateSchedules: []types.BackupSchedule{*schedule}})
 	if err != nil {
 		xlog.Error(
 			ctx, "can't update backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
@@ -574,27 +486,19 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 
 	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.Request, request))
 
-	schedules, err := s.driver.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.GetScheduleQuery),
-			queries.WithParameters(
-				table.ValueParam("$schedule_id", table_types.StringValueFromString(scheduleID)),
-			),
-		),
-	)
+	schedule, err := s.driver.GetScheduleWithBackupInfo(ctx, scheduleID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "error getting backup schedule", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting backup schedule")
 	}
-	if len(schedules) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup schedule not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup schedule not found")
 	}
 
-	schedule := schedules[0]
 	ctx = schedule.SetLogFields(ctx)
 	// TODO: Need to check access to backup schedule not by container id?
 	audit.SetAuditFieldsForRequest(
@@ -614,7 +518,7 @@ func (s *BackupScheduleService) DeleteBackupSchedule(
 	}
 
 	schedule.Status = types.BackupScheduleStateDeleted
-	err = s.driver.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateBackupSchedule(*schedule))
+	err = s.driver.Apply(ctx, dbconnector.Changes{UpdateSchedules: []types.BackupSchedule{*schedule}})
 	if err != nil {
 		xlog.Error(
 			ctx, "can't delete backup schedule", zap.String(log_keys.BackupSchedule, schedule.Proto(s.clock).String()),
@@ -636,7 +540,7 @@ func (s *BackupScheduleService) Register(server server.Server) {
 }
 
 func NewBackupScheduleService(
-	driver db.DBConnector,
+	driver dbconnector.DBConnector,
 	clientConn client.ClientConnector,
 	auth ap.AuthProvider,
 	config config.Config,

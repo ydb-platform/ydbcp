@@ -2,40 +2,41 @@ package backup
 
 import (
 	"context"
+	"errors"
 	"path"
 	"strconv"
 	"time"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/audit"
 	"ydbcp/internal/auth"
 	"ydbcp/internal/backup_operations"
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	s3connector "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/server"
+	"ydbcp/internal/server/services/listoptions"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/helpers"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
 	kp "ydbcp/pkg/plugins/kms"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
-	"google.golang.org/protobuf/proto"
-
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 type BackupService struct {
 	pb.UnimplementedBackupServiceServer
-	driver                 db.DBConnector
+	driver                 dbconnector.DBConnector
 	clientConn             client.ClientConnector
 	s3Connector            s3connector.S3Connector
 	s3                     config.S3Config
@@ -62,28 +63,18 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
-	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
-				},
-			),
-		),
-	)
-	if err != nil {
+	backup, err := s.driver.GetBackup(ctx, backupID)
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
-	backup := backups[0]
+
 	ctx = backup.SetLogFields(ctx)
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
@@ -98,7 +89,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Backup, backup.String()))
 	s.IncApiCallsCounter(methodName, codes.OK)
-	return backups[0].Proto(), nil
+	return backup.Proto(), nil
 }
 
 func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (
@@ -178,8 +169,8 @@ func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupReques
 		return nil, grpcError
 	}
 
-	err = s.driver.ExecuteUpsert(
-		ctx, queries.NewWriteTableQuery().WithCreateOperation(tbwr),
+	err = s.driver.Apply(
+		ctx, dbconnector.Changes{CreateOperations: []types.Operation{tbwr}},
 	)
 	if err != nil {
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -205,31 +196,20 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 
-	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
-				},
-			),
-		),
-	)
+	backup, err := s.driver.GetBackup(ctx, backupID)
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
 
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission Denied?
 	}
 
-	backup := backups[0]
 	ctx = backup.SetLogFields(ctx)
 
 	audit.SetAuditFieldsForRequest(
@@ -270,8 +250,8 @@ func (s *BackupService) DeleteBackup(ctx context.Context, req *pb.DeleteBackupRe
 	ctx = op.SetLogFields(ctx)
 
 	backup.Status = types.BackupStateDeleting
-	err = s.driver.ExecuteUpsert(
-		ctx, queries.NewWriteTableQuery().WithCreateOperation(op).WithUpdateBackup(*backup),
+	err = s.driver.Apply(
+		ctx, dbconnector.Changes{CreateOperations: []types.Operation{op}, UpdateBackups: []types.Backup{*backup}},
 	)
 	if err != nil {
 		xlog.Error(ctx, "can't create operation", zap.Error(err))
@@ -299,28 +279,18 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 
-	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
-				},
-			),
-		),
-	)
-	if err != nil {
+	backup, err := s.driver.GetBackup(ctx, backupID)
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
-	backup := backups[0]
+
 	ctx = backup.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
@@ -495,87 +465,29 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	queryFilters := make([]queries.QueryFilter, 0)
-	//TODO: forbid empty containerId
+	filter := dbconnector.BackupFilter{
+		ContainerID:      request.GetContainerId(),
+		DatabaseNameMask: request.GetDatabaseNameMask(),
+		CreatedAt:        listoptions.DateRange(request.GetCreatedAt()),
+	}
 	if request.GetContainerId() != "" {
-		audit.SetAuditFieldsForRequest(
-			ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"},
-		)
-
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "container_id",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.ContainerId),
-				},
-			},
-		)
+		audit.SetAuditFieldsForRequest(ctx, &audit.AuditFields{ContainerID: request.GetContainerId(), Database: "{none}"})
 	}
-	if request.GetDatabaseNameMask() != "" {
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "database",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.DatabaseNameMask),
-				},
-				IsLike: true,
-			},
-		)
+	for _, value := range request.GetDisplayStatus() {
+		filter.Statuses = append(filter.Statuses, value.String())
 	}
-	if len(request.DisplayStatus) > 0 {
-		var displayStatuses []table_types.Value
-		for _, backupStatus := range request.DisplayStatus {
-			displayStatuses = append(
-				displayStatuses,
-				table_types.StringValueFromString(backupStatus.String()),
-			)
-		}
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field:  "status",
-				Values: displayStatuses,
-			},
-		)
-	}
-	if request.GetCreatedAt() != nil {
-		if request.GetCreatedAt().GetFrom() != nil {
-			queryFilters = append(queryFilters, queries.QueryFilter{
-				Field:    "created_at",
-				Operator: ">=",
-				Values: []table_types.Value{
-					table_types.TimestampValueFromTime(request.GetCreatedAt().GetFrom().AsTime()),
-				},
-			})
-		}
-		if request.GetCreatedAt().GetTo() != nil {
-			queryFilters = append(queryFilters, queries.QueryFilter{
-				Field:    "created_at",
-				Operator: "<=",
-				Values: []table_types.Value{
-					table_types.TimestampValueFromTime(request.GetCreatedAt().GetTo().AsTime()),
-				},
-			})
-		}
-	}
-	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	pageSpec, err := listoptions.Page(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-	orderSpec, err := queries.NewOrderSpec(request.GetOrder())
+	order, err := listoptions.BackupOrder(request.GetOrder())
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-
-	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(queryFilters...),
-			queries.WithOrderBy(*orderSpec),
-			queries.WithPageSpec(*pageSpec),
-		),
-	)
+	filter.Page, filter.Order = pageSpec, order
+	backups, err := s.driver.ListBackups(ctx, filter)
 	if err != nil {
 		xlog.Error(ctx, "error getting backups", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -608,28 +520,18 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 		return nil, status.Error(codes.InvalidArgument, "failed to parse BackupID")
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
-	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(backupID)},
-				},
-			),
-		),
-	)
-	if err != nil {
+	backup, err := s.driver.GetBackup(ctx, backupID)
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "can't select backups", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select backups")
 	}
-	if len(backups) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "backup not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
-	backup := backups[0]
+
 	ctx = backup.SetLogFields(ctx)
 	// TODO: Need to check access to backup resource by backupID
 	audit.SetAuditFieldsForRequest(
@@ -655,8 +557,8 @@ func (s *BackupService) UpdateBackupTtl(ctx context.Context, request *pb.UpdateB
 	}
 
 	backup.ExpireAt = expireAt
-	err = s.driver.ExecuteUpsert(
-		ctx, queries.NewWriteTableQuery().WithUpdateBackup(*backup),
+	err = s.driver.Apply(
+		ctx, dbconnector.Changes{UpdateBackups: []types.Backup{*backup}},
 	)
 
 	if err != nil {
@@ -674,7 +576,7 @@ func (s *BackupService) Register(server server.Server) {
 }
 
 func NewBackupService(
-	driver db.DBConnector,
+	driver dbconnector.DBConnector,
 	clientConn client.ClientConnector,
 	s3Connector s3connector.S3Connector,
 	auth ap.AuthProvider,

@@ -4,20 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/ydb-platform/ydb-go-sdk/v3/table"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
 	"log"
 	"strings"
+
+	"github.com/ydb-platform/ydb-go-sdk/v3/table"
+	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+	"go.uber.org/zap"
+
+	"ydbcp/internal/connectors/db/internal/codec"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 )
 
 type WriteTableQuery interface {
 	FormatQuery(ctx context.Context) (*FormatQueryResult, error)
-	GetOperations() []types.Operation
 	WithCreateBackup(backup types.Backup) WriteTableQuery
 	WithCreateOperation(operation types.Operation) WriteTableQuery
 	WithCreateBackupSchedule(schedule types.BackupSchedule) WriteTableQuery
@@ -28,7 +30,6 @@ type WriteTableQuery interface {
 
 type WriteTableQueryImpl struct {
 	tableQueries []WriteSingleTableQueryImpl
-	operations   []types.Operation
 }
 
 type WriteSingleTableQueryImpl struct {
@@ -38,9 +39,6 @@ type WriteSingleTableQueryImpl struct {
 	tableQueryParams []table.ParameterOption
 	updateParam      *table.ParameterOption
 }
-
-type WriteTableQueryImplOption func(*WriteTableQueryImpl)
-type WriteQueryBuilderFactory func() WriteTableQuery
 
 func (d *WriteSingleTableQueryImpl) AddValueParam(name string, value table_types.Value) {
 	d.upsertFields = append(d.upsertFields, name[1:])
@@ -122,12 +120,12 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			d.AddValueParam("$root_path", table_types.StringValueFromString(tb.RootPath))
 		}
 		if len(tb.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tb.SourcePaths)))
+			d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(tb.SourcePaths)))
 		}
 		if len(tb.SourcePathsToExclude) > 0 {
 			d.AddValueParam(
 				"$paths_to_exclude",
-				table_types.StringValueFromString(types.SerializeSourcePaths(tb.SourcePathsToExclude)),
+				table_types.StringValueFromString(codec.SerializeSourcePaths(tb.SourcePathsToExclude)),
 			)
 		}
 		if tb.ParentOperationID != nil {
@@ -164,12 +162,12 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 			d.AddValueParam("$root_path", table_types.StringValueFromString(tbwr.RootPath))
 		}
 		if len(tbwr.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(tbwr.SourcePaths)))
+			d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(tbwr.SourcePaths)))
 		}
 		if len(tbwr.SourcePathsToExclude) > 0 {
 			d.AddValueParam(
 				"$paths_to_exclude",
-				table_types.StringValueFromString(types.SerializeSourcePaths(tbwr.SourcePathsToExclude)),
+				table_types.StringValueFromString(codec.SerializeSourcePaths(tbwr.SourcePathsToExclude)),
 			)
 		}
 		d.AddValueParam("$retries", table_types.Uint32Value(uint32(tbwr.Retries)))
@@ -232,7 +230,7 @@ func BuildCreateOperationQuery(operation types.Operation, index int) WriteSingle
 		)
 
 		if len(rb.SourcePaths) > 0 {
-			d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(rb.SourcePaths)))
+			d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(rb.SourcePaths)))
 		}
 	} else if operation.GetType() == types.OperationTypeDB {
 		db, ok := operation.(*types.DeleteBackupOperation)
@@ -339,7 +337,7 @@ func BuildCreateBackupQuery(b types.Backup, index int) WriteSingleTableQueryImpl
 	d.AddValueParam("$message", table_types.StringValueFromString(b.Message))
 	d.AddValueParam("$size", table_types.Int64Value(b.Size))
 	if len(b.SourcePaths) > 0 {
-		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(b.SourcePaths)))
+		d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(b.SourcePaths)))
 	}
 	if b.ScheduleID != nil {
 		d.AddValueParam("$schedule_id", table_types.StringValueFromString(*b.ScheduleID))
@@ -399,12 +397,12 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		d.AddValueParam("$root_path", table_types.StringValueFromString(schedule.RootPath))
 	}
 	if len(schedule.SourcePaths) > 0 {
-		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths)))
+		d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(schedule.SourcePaths)))
 	}
 	if len(schedule.SourcePathsToExclude) > 0 {
 		d.AddValueParam(
 			"$paths_to_exclude",
-			table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePathsToExclude)),
+			table_types.StringValueFromString(codec.SerializeSourcePaths(schedule.SourcePathsToExclude)),
 		)
 	}
 	if schedule.Audit != nil {
@@ -449,14 +447,14 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 
 	if len(schedule.SourcePaths) > 0 {
-		d.AddValueParam("$paths", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths)))
+		d.AddValueParam("$paths", table_types.StringValueFromString(codec.SerializeSourcePaths(schedule.SourcePaths)))
 	} else {
 		d.AddValueParam("$paths", table_types.NullableStringValueFromString(nil))
 	}
 	if len(schedule.SourcePathsToExclude) > 0 {
 		d.AddValueParam(
 			"$paths_to_exclude",
-			table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePathsToExclude)),
+			table_types.StringValueFromString(codec.SerializeSourcePaths(schedule.SourcePathsToExclude)),
 		)
 	} else {
 		d.AddValueParam("$paths_to_exclude", table_types.NullableStringValueFromString(nil))
@@ -485,10 +483,6 @@ func NewWriteTableQuery() WriteTableQuery {
 	return &WriteTableQueryImpl{}
 }
 
-func (d *WriteTableQueryImpl) GetOperations() []types.Operation {
-	return d.operations
-}
-
 func (d *WriteTableQueryImpl) WithCreateBackup(backup types.Backup) WriteTableQuery {
 	index := len(d.tableQueries)
 	d.tableQueries = append(d.tableQueries, BuildCreateBackupQuery(backup, index))
@@ -510,7 +504,6 @@ func (d *WriteTableQueryImpl) WithUpdateOperation(operation types.Operation) Wri
 func (d *WriteTableQueryImpl) WithCreateOperation(operation types.Operation) WriteTableQuery {
 	index := len(d.tableQueries)
 	d.tableQueries = append(d.tableQueries, BuildCreateOperationQuery(operation, index))
-	d.operations = append(d.operations, operation)
 	return d
 }
 

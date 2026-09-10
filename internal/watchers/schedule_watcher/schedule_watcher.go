@@ -2,10 +2,11 @@ package schedule_watcher
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
@@ -14,7 +15,6 @@ import (
 	"ydbcp/internal/watchers"
 
 	"github.com/jonboulle/clockwork"
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
 	"go.uber.org/zap"
 )
 
@@ -22,7 +22,7 @@ func NewScheduleWatcher(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	cycleSeconds int64,
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
 	clock clockwork.Clock,
 	options ...watchers.Option,
@@ -43,7 +43,7 @@ func NewScheduleWatcher(
 func ScheduleWatcherAction(
 	baseCtx context.Context,
 	period time.Duration,
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	handler handlers.BackupScheduleHandlerType,
 	clock clockwork.Clock,
 	seen map[string]*types.BackupSchedule,
@@ -51,19 +51,7 @@ func ScheduleWatcherAction(
 	ctx, cancel := context.WithTimeout(baseCtx, period)
 	defer cancel()
 
-	schedules, err := db.SelectBackupSchedulesWithRPOInfo(
-		ctx, queries.NewReadTableQuery(
-			queries.WithRawQuery(queries.ListSchedulesQuery),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field: "status",
-					Values: []table_types.Value{
-						table_types.StringValueFromString(types.BackupScheduleStateActive),
-					},
-				},
-			),
-		),
-	)
+	schedules, err := db.ListSchedulesWithBackupInfo(ctx, dbconnector.ScheduleFilter{Statuses: []string{types.BackupScheduleStateActive}})
 
 	if err != nil {
 		xlog.Error(ctx, "can't select backup schedules", zap.Error(err))
@@ -109,26 +97,15 @@ func dropStaleScheduleMetrics(
 	}
 }
 
-func reportScheduleBackupMetrics(ctx context.Context, db db.DBConnector, schedule *types.BackupSchedule) {
+func reportScheduleBackupMetrics(ctx context.Context, db dbconnector.DBConnector, schedule *types.BackupSchedule) {
 	lastBackupEncrypted := false
 	if schedule.LastSuccessfulBackupID != nil {
-		backups, err := db.SelectBackups(
-			ctx, queries.NewReadTableQuery(
-				queries.WithTableName("Backups"),
-				queries.WithQueryFilters(
-					queries.QueryFilter{
-						Field:  "id",
-						Values: []table_types.Value{table_types.StringValueFromString(*schedule.LastSuccessfulBackupID)},
-					},
-				),
-			),
-		)
-		if err != nil {
+		backup, err := db.GetBackup(ctx, *schedule.LastSuccessfulBackupID)
+		if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 			xlog.Error(ctx, "can't select last successful backup to report size", zap.Error(err))
-			metrics.GlobalMetricsRegistry.IncYdbErrorsCounter()
 			return
 		}
-		if len(backups) == 0 {
+		if errors.Is(err, dbconnector.ErrNotFound) {
 			xlog.Warn(
 				ctx,
 				"last successful backup from schedule was not found",
@@ -137,12 +114,12 @@ func reportScheduleBackupMetrics(ctx context.Context, db db.DBConnector, schedul
 			return
 		}
 
-		lastBackupEncrypted = backups[0].EncryptionSettings != nil
+		lastBackupEncrypted = backup.EncryptionSettings != nil
 		metrics.GlobalMetricsRegistry.ReportLastBackupSize(
 			schedule.ContainerID,
 			schedule.DatabaseName,
 			&schedule.ID,
-			backups[0].Size,
+			backup.Size,
 		)
 	}
 

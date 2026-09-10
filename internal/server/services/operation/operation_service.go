@@ -2,29 +2,30 @@ package operation
 
 import (
 	"context"
+	"errors"
 	"strconv"
+
 	"ydbcp/internal/audit"
 	"ydbcp/internal/metrics"
+	"ydbcp/internal/server/services/listoptions"
 	"ydbcp/internal/util/log_keys"
 
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+
 	"ydbcp/internal/auth"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/server"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/xlog"
 	ap "ydbcp/pkg/plugins/auth"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
-
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
-	"go.uber.org/zap"
-	"google.golang.org/grpc/codes"
-	"google.golang.org/grpc/status"
 )
 
 type OperationService struct {
 	pb.UnimplementedOperationServiceServer
-	driver db.DBConnector
+	driver dbconnector.DBConnector
 	auth   ap.AuthProvider
 }
 
@@ -49,81 +50,21 @@ func (s *OperationService) ListOperations(
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	queryFilters := make([]queries.QueryFilter, 0)
-	//TODO: forbid empty containerId
-	if request.ContainerId != "" {
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "container_id",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.ContainerId),
-				},
-			},
-		)
+	filter := dbconnector.OperationFilter{
+		ContainerID:      request.GetContainerId(),
+		DatabaseNameMask: request.GetDatabaseNameMask(),
+		CreatedAt:        listoptions.DateRange(request.GetCreatedAt()),
 	}
-	if request.GetDatabaseNameMask() != "" {
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field: "database",
-				Values: []table_types.Value{
-					table_types.StringValueFromString(request.DatabaseNameMask),
-				},
-				IsLike: true,
-			},
-		)
+	for _, value := range request.GetOperationTypes() {
+		filter.Types = append(filter.Types, types.OperationType(value))
 	}
-	if len(request.OperationTypes) > 0 {
-		typeValues := make([]table_types.Value, len(request.OperationTypes))
-		for i, opType := range request.OperationTypes {
-			typeValues[i] = table_types.StringValueFromString(opType)
-		}
-		queryFilters = append(
-			queryFilters, queries.QueryFilter{
-				Field:  "type",
-				Values: typeValues,
-			},
-		)
-	}
-	if request.GetCreatedAt() != nil {
-		if request.GetCreatedAt().GetFrom() != nil {
-			queryFilters = append(queryFilters, queries.QueryFilter{
-				Field:    "created_at",
-				Operator: ">=",
-				Values: []table_types.Value{
-					table_types.TimestampValueFromTime(request.GetCreatedAt().GetFrom().AsTime()),
-				},
-			})
-		}
-		if request.GetCreatedAt().GetTo() != nil {
-			queryFilters = append(queryFilters, queries.QueryFilter{
-				Field:    "created_at",
-				Operator: "<=",
-				Values: []table_types.Value{
-					table_types.TimestampValueFromTime(request.GetCreatedAt().GetTo().AsTime()),
-				},
-			})
-		}
-	}
-
-	pageSpec, err := queries.NewPageSpec(request.GetPageSize(), request.GetPageToken())
+	pageSpec, err := listoptions.Page(request.GetPageSize(), request.GetPageToken())
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
 	}
-
-	operations, err := s.driver.SelectOperations(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Operations"),
-			queries.WithQueryFilters(queryFilters...),
-			queries.WithOrderBy(
-				queries.OrderSpec{
-					Field: "created_at",
-					Desc:  true,
-				},
-			),
-			queries.WithPageSpec(*pageSpec),
-		),
-	)
+	filter.Page = pageSpec
+	operations, err := s.driver.ListOperations(ctx, filter)
 	if err != nil {
 		xlog.Error(ctx, "error getting operations", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
@@ -150,31 +91,20 @@ func (s *OperationService) CancelOperation(
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Request, request.String()))
 	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, request.OperationId))
 
-	operations, err := s.driver.SelectOperations(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Operations"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(request.GetOperationId())},
-				},
-			),
-		),
-	)
+	operation, err := s.driver.GetOperation(ctx, request.GetOperationId())
 
-	if err != nil {
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "error getting operation", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "error getting operation")
 	}
 
-	if len(operations) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "operation not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "operation not found")
 	}
 
-	operation := operations[0]
 	var permission string
 
 	ctx = operation.SetLogFields(ctx)
@@ -245,29 +175,19 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operationID))
 
-	operations, err := s.driver.SelectOperations(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Operations"),
-			queries.WithQueryFilters(
-				queries.QueryFilter{
-					Field:  "id",
-					Values: []table_types.Value{table_types.StringValueFromString(operationID)},
-				},
-			),
-		),
-	)
-	if err != nil {
+	operation, err := s.driver.GetOperation(ctx, operationID)
+	if err != nil && !errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "can't select operations", zap.Error(err))
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't select operations")
 	}
 
-	if len(operations) == 0 {
+	if errors.Is(err, dbconnector.ErrNotFound) {
 		xlog.Error(ctx, "operation not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "operation not found") // TODO: permission denied?
 	}
-	operation := operations[0]
+
 	ctx = operation.SetLogFields(ctx)
 	// TODO: Need to check access to operation resource by operationID
 	audit.SetAuditFieldsForRequest(
@@ -281,9 +201,9 @@ func (s *OperationService) GetOperation(ctx context.Context, request *pb.GetOper
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
-	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(operations[0])))
+	xlog.Debug(ctx, methodName, zap.String(log_keys.Operation, types.OperationToString(operation)))
 	s.IncApiCallsCounter(methodName, codes.OK)
-	return operations[0].Proto(), nil
+	return operation.Proto(), nil
 }
 
 func (s *OperationService) Register(server server.Server) {
@@ -291,7 +211,7 @@ func (s *OperationService) Register(server server.Server) {
 }
 
 func NewOperationService(
-	driver db.DBConnector,
+	driver dbconnector.DBConnector,
 	auth ap.AuthProvider,
 ) *OperationService {
 	return &OperationService{

@@ -13,7 +13,7 @@ import (
 	"ydbcp/internal/metrics"
 )
 
-func YdbOptionsFromConfig(cfg config.YDBConnectionConfig, enableSDKMetrics bool) ([]ydb.Option, error) {
+func ydbOptionsFromConfig(cfg config.YDBConnectionConfig, enableSDKMetrics bool) ([]ydb.Option, error) {
 	dialTimeout := time.Second * time.Duration(cfg.DialTimeoutSeconds)
 	opts := []ydb.Option{
 		ydb.WithDialTimeout(dialTimeout),

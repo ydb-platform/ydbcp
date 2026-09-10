@@ -5,18 +5,17 @@ import (
 	"log"
 	"reflect"
 	"time"
-	"ydbcp/cmd/integration/common"
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
-	"ydbcp/internal/types"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
-	table_types "github.com/ydb-platform/ydb-go-sdk/v3/table/types"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"ydbcp/cmd/integration/common"
+	"ydbcp/internal/config"
+	dbconnector "ydbcp/internal/connectors/db"
+	"ydbcp/internal/metrics"
+	"ydbcp/internal/types"
 )
 
 const (
@@ -88,25 +87,16 @@ func OperationsToInsert() []types.TakeBackupWithRetryOperation {
 	}
 }
 
-func ReadTBWROperation(ctx context.Context, ydbConn *db.YdbConnector, id string) *types.TakeBackupWithRetryOperation {
-	operations, err := ydbConn.SelectOperations(ctx, queries.NewReadTableQuery(
-		queries.WithTableName("Operations"),
-		queries.WithQueryFilters(queries.QueryFilter{
-			Field:  "id",
-			Values: []table_types.Value{table_types.StringValueFromString(id)},
-		}),
-	))
+func ReadTBWROperation(ctx context.Context, ydbConn *dbconnector.YdbConnector, id string) *types.TakeBackupWithRetryOperation {
+	operation, err := ydbConn.GetOperation(ctx, id)
 	if err != nil {
 		log.Panicf("failed to select operations: %v", err)
 	}
-	if len(operations) != 1 {
-		log.Panicf("expected 1 operation, got %d", len(operations))
-	}
-	return operations[0].(*types.TakeBackupWithRetryOperation)
+	return operation.(*types.TakeBackupWithRetryOperation)
 }
 
-func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operation types.TakeBackupWithRetryOperation) {
-	err := ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateOperation(&operation))
+func TestTBWROperationORM(ctx context.Context, ydbConn *dbconnector.YdbConnector, operation types.TakeBackupWithRetryOperation) {
+	err := ydbConn.Apply(ctx, dbconnector.Changes{CreateOperations: []types.Operation{&operation}})
 	if err != nil {
 		log.Panicf("failed to insert operation: %v", err)
 	}
@@ -115,7 +105,7 @@ func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operati
 		log.Panicf("operation %v corrupted after read and write\ngot %v", operation, *tbwr)
 	}
 
-	err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(&operation))
+	err = ydbConn.Apply(ctx, dbconnector.Changes{UpdateOperations: []types.Operation{&operation}})
 	if err != nil {
 		log.Panicf("failed to insert operation: %v", err)
 	}
@@ -125,7 +115,7 @@ func TestTBWROperationORM(ctx context.Context, ydbConn *db.YdbConnector, operati
 	}
 	operation.Message = "xxx"
 	operation.IncRetries()
-	err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithUpdateOperation(&operation))
+	err = ydbConn.Apply(ctx, dbconnector.Changes{UpdateOperations: []types.Operation{&operation}})
 	if err != nil {
 		log.Panicf("failed to insert operation: %v", err)
 	}
@@ -148,7 +138,7 @@ func main() {
 			log.Panicln("failed to close connection")
 		}
 	}(conn)
-	ydbConn, err := db.NewYdbConnector(
+	ydbConn, err := dbconnector.NewYdbConnector(
 		ctx,
 		config.YDBConnectionConfig{
 			ConnectionString:   connectionString,

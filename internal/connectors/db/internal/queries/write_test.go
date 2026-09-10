@@ -5,8 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"ydbcp/internal/types"
+	"ydbcp/internal/connectors/db/internal/codec"
+
 	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"ydbcp/internal/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-sdk/v3/table"
@@ -115,7 +118,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			table.ValueParam("$status_0", table_types.StringValueFromString(types.BackupStateAvailable)),
 			table.ValueParam("$message_0", table_types.StringValueFromString("msg backup")),
 			table.ValueParam("$size_0", table_types.Int64Value(0)),
-			table.ValueParam("$paths_0", table_types.StringValueFromString(types.SerializeSourcePaths([]string{"path"}))),
+			table.ValueParam("$paths_0", table_types.StringValueFromString(codec.SerializeSourcePaths([]string{"path"}))),
 			table.ValueParam("$initiated_0", table_types.StringValueFromString("author")),
 			table.ValueParam(
 				"$created_at_0",
@@ -246,11 +249,11 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 			),
 			table.ValueParam(
 				"$paths_1",
-				table_types.StringValueFromString(types.SerializeSourcePaths(tbOp.SourcePaths)),
+				table_types.StringValueFromString(codec.SerializeSourcePaths(tbOp.SourcePaths)),
 			),
 			table.ValueParam(
 				"$paths_to_exclude_1",
-				table_types.StringValueFromString(types.SerializeSourcePaths(tbOp.SourcePathsToExclude)),
+				table_types.StringValueFromString(codec.SerializeSourcePaths(tbOp.SourcePathsToExclude)),
 			),
 		)
 	)
@@ -307,7 +310,7 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 			table.ValueParam(
 				"$ttl_0", table_types.IntervalValueFromDuration(schedule.ScheduleSettings.Ttl.AsDuration()),
 			),
-			table.ValueParam("$paths_0", table_types.StringValueFromString(types.SerializeSourcePaths(schedule.SourcePaths))),
+			table.ValueParam("$paths_0", table_types.StringValueFromString(codec.SerializeSourcePaths(schedule.SourcePaths))),
 			table.ValueParam("$initiated_0", table_types.StringValueFromString(schedule.Audit.Creator)),
 			table.ValueParam("$created_at_0", table_types.TimestampValueFromTime(schedule.Audit.CreatedAt.AsTime())),
 			table.ValueParam(

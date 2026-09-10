@@ -5,15 +5,16 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/handlers"
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -58,16 +59,16 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	backupMap := make(map[string]types.Backup)
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[schedule.ID] = schedule
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -103,19 +104,19 @@ func TestScheduleWatcherSimple(t *testing.T) {
 	wg.Wait()
 
 	// check operation status (should be pending)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(context.Background(), dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
 	assert.Equal(t, types.OperationStateRunning, ops[0].GetState())
 
 	// check backup status (should be empty)
-	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})
+	backups, err := dbConnector.ListBackups(context.Background(), dbconnector.BackupFilter{})
 	assert.Empty(t, err)
 	assert.Empty(t, backups)
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(context.Background(), dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
@@ -172,15 +173,15 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[s1.ID] = s1
 	scheduleMap[s2.ID] = s2
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -216,7 +217,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	wg.Wait()
 
 	// check operation status (should be pending)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(context.Background(), dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
@@ -225,7 +226,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	assert.Equal(t, s1.ID, *ops[0].(*types.TakeBackupWithRetryOperation).ScheduleID)
 
 	// check backup status (should be empty)
-	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})
+	backups, err := dbConnector.ListBackups(context.Background(), dbconnector.BackupFilter{})
 	assert.Empty(t, err)
 	assert.Empty(t, backups)
 
@@ -235,7 +236,7 @@ func TestScheduleWatcherTwoSchedulesOneBackup(t *testing.T) {
 	}
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(context.Background(), dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 2)
@@ -292,16 +293,16 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[s1.ID] = s1
 	scheduleMap[s2.ID] = s2
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -342,7 +343,7 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	}
 
 	// check operation status (should be pending)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(context.Background(), dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 2)
@@ -354,12 +355,12 @@ func TestScheduleWatcherTwoBackups(t *testing.T) {
 	}
 
 	// check backup status (should be none)
-	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})
+	backups, err := dbConnector.ListBackups(context.Background(), dbconnector.BackupFilter{})
 	assert.Empty(t, err)
 	assert.Empty(t, backups)
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(context.Background(), dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 2)
@@ -400,29 +401,27 @@ func TestAllScheduleMetrics(t *testing.T) {
 			SchedulePattern:        &pb.BackupSchedulePattern{Crontab: "* * * * *"}, //every minute
 			RecoveryPointObjective: durationpb.New(time.Hour),
 		},
-		RecoveryPoint:          &rp,
-		LastSuccessfulBackupID: &backupID,
-		NextLaunch:             &nl,
+		NextLaunch: &nl,
 	}
 
 	opMap := make(map[string]types.Operation)
 	backupMap := make(map[string]types.Backup)
 	backupMap[backupID] = types.Backup{
-		ID:   backupID,
-		Size: 512,
+		ID: backupID, Size: 512, ScheduleID: &s1.ID, Status: types.BackupStateAvailable,
+		AuditInfo: &pb.AuditInfo{CreatedAt: timestamppb.New(rp), CompletedAt: timestamppb.New(rp.Add(time.Minute))},
 	}
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[s1.ID] = s1
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -462,7 +461,7 @@ func TestAllScheduleMetrics(t *testing.T) {
 	}
 
 	// check operation status (should be pending)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(context.Background(), dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
@@ -474,14 +473,14 @@ func TestAllScheduleMetrics(t *testing.T) {
 	}
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(context.Background(), dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
 	assert.Equal(t, m[schedules[0].ID], *schedules[0].NextLaunch)
 	assert.Equal(t, float64(1), metrics.GetMetrics()["schedules_succeeded_count"])
 	assert.Equal(t, float64(1), metrics.GetMetrics()["operations_started_count"])
-	assert.Equal(t, float64(schedules[0].RecoveryPoint.Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
+	assert.Equal(t, float64(rp.Unix()), metrics.GetMetrics()["schedules_last_backup_timestamp"])
 	assert.Equal(t, 0.5166666666666667, metrics.GetMetrics()["schedules_rpo_margin_ratio"])
 	assert.Equal(t, float64(512), metrics.GetMetrics()["backups_last_size_bytes"])
 }
@@ -525,16 +524,16 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	backupMap := make(map[string]types.Backup)
 	scheduleMap := make(map[string]types.BackupSchedule)
 	scheduleMap[s1.ID] = s1
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
 	handler := handlers.NewBackupScheduleHandler(
-		queries.NewWriteTableQueryMock, clock, config.FeatureFlagsConfig{},
+		clock, config.FeatureFlagsConfig{},
 	)
 
 	scheduleWatcherActionCompleted := make(chan struct{})
@@ -574,7 +573,7 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	}
 
 	// check operation status (should be pending)
-	ops, err := dbConnector.SelectOperations(ctx, &queries.ReadTableQueryImpl{})
+	ops, err := dbConnector.ListOperations(context.Background(), dbconnector.OperationFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, ops)
 	assert.Equal(t, len(ops), 1)
@@ -586,7 +585,7 @@ func TestAllScheduleMetricsBeforeFirstBackup(t *testing.T) {
 	}
 
 	// check schedule next launch
-	schedules, err := dbConnector.SelectBackupSchedules(ctx, &queries.ReadTableQueryImpl{})
+	schedules, err := dbConnector.ListSchedules(context.Background(), dbconnector.ScheduleFilter{})
 	assert.Empty(t, err)
 	assert.NotEmpty(t, schedules)
 	assert.Equal(t, len(schedules), 1)
@@ -613,8 +612,8 @@ func TestReportLastBackupSize(t *testing.T) {
 		LastSuccessfulBackupID: &backupID,
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(map[string]types.Backup{
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(map[string]types.Backup{
 			backupID: {
 				ID:   backupID,
 				Size: size,
@@ -634,21 +633,21 @@ func TestScheduleWatcherReportsBackupsStatus(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(fourPM)
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
-	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+	noopHandler := func(context.Context, dbconnector.DBConnector, *types.BackupSchedule) error { return nil }
 
-	failedStatus := types.BackupStateError
 	schedule := types.BackupSchedule{
 		ID:               "schedule-1",
 		ContainerID:      "container-1",
 		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
-		ScheduleSettings: &pb.BackupScheduleSettings{},
-		LastBackupStatus: &failedStatus,
+		ScheduleSettings: &pb.BackupScheduleSettings{SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"}},
 	}
 	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(map[string]types.Backup{}),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(map[string]types.Backup{
+			"failed": {ID: "failed", ScheduleID: &schedule.ID, Status: types.BackupStateError, AuditInfo: &pb.AuditInfo{CreatedAt: timestamppb.New(fourPM), CompletedAt: timestamppb.New(fourPM)}},
+		}),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 	seen := make(map[string]*types.BackupSchedule)
 
@@ -660,19 +659,17 @@ func TestScheduleWatcherReportsBackupsStatus(t *testing.T) {
 
 	// last backup succeeded and was encrypted
 	backupID := "backup-1"
-	availableStatus := types.BackupStateAvailable
-	schedule.LastBackupStatus = &availableStatus
-	schedule.LastSuccessfulBackupID = &backupID
 	scheduleMap[schedule.ID] = schedule
-	dbConnector = db.NewMockDBConnector(
-		db.WithBackups(map[string]types.Backup{
+	dbConnector = dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(map[string]types.Backup{
 			backupID: {
-				ID:                 backupID,
+				ID: backupID, ScheduleID: &schedule.ID, Status: types.BackupStateAvailable,
+				AuditInfo:          &pb.AuditInfo{CreatedAt: timestamppb.New(fourPM), CompletedAt: timestamppb.New(fourPM)},
 				Size:               2048,
 				EncryptionSettings: &pb.EncryptionSettings{},
 			},
 		}),
-		db.WithBackupSchedules(scheduleMap),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 
 	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
@@ -688,21 +685,21 @@ func TestScheduleWatcherDropsStaleScheduleMetrics(t *testing.T) {
 	clock := clockwork.NewFakeClockAt(fourPM)
 	metrics.InitializeMockMetricsRegistry(metrics.WithClock(clock))
 
-	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+	noopHandler := func(context.Context, dbconnector.DBConnector, *types.BackupSchedule) error { return nil }
 
-	failedStatus := types.BackupStateError
 	schedule := types.BackupSchedule{
 		ID:               "schedule-1",
 		ContainerID:      "container-1",
 		Status:           types.BackupScheduleStateActive,
 		DatabaseName:     "mydb",
-		ScheduleSettings: &pb.BackupScheduleSettings{},
-		LastBackupStatus: &failedStatus,
+		ScheduleSettings: &pb.BackupScheduleSettings{SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * *"}},
 	}
 	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(map[string]types.Backup{}),
-		db.WithBackupSchedules(scheduleMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(map[string]types.Backup{
+			"failed": {ID: "failed", ScheduleID: &schedule.ID, Status: types.BackupStateError, AuditInfo: &pb.AuditInfo{CreatedAt: timestamppb.New(fourPM), CompletedAt: timestamppb.New(fourPM)}},
+		}),
+		dbconnector.WithBackupSchedules(scheduleMap),
 	)
 	seen := make(map[string]*types.BackupSchedule)
 
@@ -710,7 +707,8 @@ func TestScheduleWatcherDropsStaleScheduleMetrics(t *testing.T) {
 	assert.Equal(t, float64(1), metrics.GetMetrics()["backups_failed_count"])
 
 	// schedule is deleted between the cycles; its series must be dropped
-	delete(scheduleMap, schedule.ID)
+	schedule.Status = types.BackupScheduleStateDeleted
+	assert.NoError(t, dbConnector.Apply(ctx, dbconnector.Changes{UpdateSchedules: []types.BackupSchedule{schedule}}))
 	ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
 
 	_, ok := metrics.GetMetrics()["backups_failed_count"]

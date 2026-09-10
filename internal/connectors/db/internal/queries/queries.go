@@ -2,6 +2,7 @@ package queries
 
 import (
 	"fmt"
+
 	"ydbcp/internal/types"
 )
 
@@ -34,7 +35,7 @@ SELECT s.*, $last_backup.id AS last_backup_id, $last_backup.status AS last_backu
 `, types.BackupStateAvailable,
 	)
 	GetBackupsToDeleteQuery = fmt.Sprintf(
-		`SELECT * FROM Backups VIEW idx_expire_at WHERE status != '%s' and status != '%s' AND expire_at < CurrentUtcTimestamp() LIMIT 100`,
+		`SELECT * FROM Backups VIEW idx_expire_at WHERE status != '%s' and status != '%s' AND expire_at < CurrentUtcTimestamp()`,
 		types.BackupStateDeleted,
 		types.BackupStateDeleting,
 	)

@@ -2,16 +2,12 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"log"
 	"os"
 
-	"github.com/pressly/goose/v3"
-	"github.com/ydb-platform/ydb-go-sdk/v3"
-
 	"ydbcp/internal/config"
-	"ydbcp/internal/migrations"
+	"ydbcp/internal/connectors/db"
 )
 
 const (
@@ -23,20 +19,19 @@ type testEnv struct {
 	ctx           context.Context
 	cfg           config.YDBConnectionConfig
 	migrationsDir string
-	driver        *ydb.Driver
-	sqlDB         *sql.DB
+	conn          *db.MigrationConnection
 }
 
 func main() {
 	ctx := context.Background()
 	cfg := dbConfig()
 
-	driver, sqlDB, cleanup, err := migrations.OpenDB(ctx, cfg)
+	conn, err := db.OpenMigrationConnection(ctx, cfg)
 	if err != nil {
 		log.Fatalf("open database: %v", err)
 	}
 	defer func() {
-		if err := cleanup(ctx); err != nil {
+		if err := conn.Close(ctx); err != nil {
 			log.Fatalf("close database: %v", err)
 		}
 	}()
@@ -45,8 +40,7 @@ func main() {
 		ctx:           ctx,
 		cfg:           cfg,
 		migrationsDir: migrationsDir(),
-		driver:        driver,
-		sqlDB:         sqlDB,
+		conn:          conn,
 	}
 
 	if err := runOnDBWithoutGooseTracking(env); err != nil {
@@ -66,10 +60,10 @@ func main() {
 func runOnMigratedDB(env testEnv) error {
 	log.Println("case: run migrations on migrated db")
 
-	if err := checkRequiredTables(env.ctx, env.driver); err != nil {
+	if err := checkRequiredTables(env.ctx, env.conn); err != nil {
 		return fmt.Errorf("precondition: %w", err)
 	}
-	if err := migrations.Run(env.ctx, env.cfg, env.migrationsDir); err != nil {
+	if err := db.RunMigrations(env.ctx, env.cfg, env.migrationsDir); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
 	return nil
@@ -79,19 +73,19 @@ func runOnMigratedDB(env testEnv) error {
 func runOnEmptyDB(env testEnv) error {
 	log.Println("case: run migrations on empty db")
 
-	if err := dropAllTables(env.ctx, env.driver, env.sqlDB); err != nil {
+	if err := dropAllTables(env.ctx, env.conn); err != nil {
 		return fmt.Errorf("prepare empty db: %w", err)
 	}
-	if err := checkNoRequiredTables(env.ctx, env.driver); err != nil {
+	if err := checkNoRequiredTables(env.ctx, env.conn); err != nil {
 		return fmt.Errorf("precondition: %w", err)
 	}
 	if err := checkShouldSkipThenRun(env.ctx, env.cfg, env.migrationsDir /* should skip */, false); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
-	if err := checkRequiredTables(env.ctx, env.driver); err != nil {
+	if err := checkRequiredTables(env.ctx, env.conn); err != nil {
 		return fmt.Errorf("postcondition: %w", err)
 	}
-	if err := checkGooseTable(env.ctx, env.driver, true); err != nil {
+	if err := checkGooseTable(env.ctx, env.conn, true); err != nil {
 		return fmt.Errorf("postcondition: %w", err)
 	}
 	return nil
@@ -101,16 +95,16 @@ func runOnEmptyDB(env testEnv) error {
 func runOnDBWithoutGooseTracking(env testEnv) error {
 	log.Println("case: run migrations on db without goose tracking")
 
-	if err := dropTable(env.ctx, env.driver, env.sqlDB, goose.DefaultTablename); err != nil {
+	if err := dropTable(env.ctx, env.conn, db.MigrationHistoryTableName()); err != nil {
 		return fmt.Errorf("prepare db without goose tracking: %w", err)
 	}
-	if err := checkRequiredTables(env.ctx, env.driver); err != nil {
+	if err := checkRequiredTables(env.ctx, env.conn); err != nil {
 		return fmt.Errorf("precondition: %w", err)
 	}
 	if err := checkShouldSkipThenRun(env.ctx, env.cfg, env.migrationsDir /* should skip */, true); err != nil {
 		return fmt.Errorf("run migrations: %w", err)
 	}
-	if err := checkGooseTable(env.ctx, env.driver, false); err != nil {
+	if err := checkGooseTable(env.ctx, env.conn, false); err != nil {
 		return fmt.Errorf("postcondition: %w", err)
 	}
 	return nil
@@ -135,8 +129,8 @@ func migrationsDir() string {
 	return defaultMigrationsDir
 }
 
-func checkRequiredTables(ctx context.Context, driver *ydb.Driver) error {
-	hasRequired, err := migrations.HasRequiredTables(ctx, driver)
+func checkRequiredTables(ctx context.Context, conn *db.MigrationConnection) error {
+	hasRequired, err := conn.HasRequiredTables(ctx)
 	if err != nil {
 		return err
 	}
@@ -146,8 +140,8 @@ func checkRequiredTables(ctx context.Context, driver *ydb.Driver) error {
 	return nil
 }
 
-func checkNoRequiredTables(ctx context.Context, driver *ydb.Driver) error {
-	hasRequired, err := migrations.HasRequiredTables(ctx, driver)
+func checkNoRequiredTables(ctx context.Context, conn *db.MigrationConnection) error {
+	hasRequired, err := conn.HasRequiredTables(ctx)
 	if err != nil {
 		return err
 	}
@@ -157,8 +151,8 @@ func checkNoRequiredTables(ctx context.Context, driver *ydb.Driver) error {
 	return nil
 }
 
-func checkGooseTable(ctx context.Context, driver *ydb.Driver, want bool) error {
-	hasGooseTable, err := migrations.TableExists(ctx, driver, goose.DefaultTablename)
+func checkGooseTable(ctx context.Context, conn *db.MigrationConnection, want bool) error {
+	hasGooseTable, err := conn.TableExists(ctx, db.MigrationHistoryTableName())
 	if err != nil {
 		return err
 	}
@@ -172,15 +166,15 @@ func checkGooseTable(ctx context.Context, driver *ydb.Driver, want bool) error {
 }
 
 func checkShouldSkipThenRun(ctx context.Context, cfg config.YDBConnectionConfig, migrationsDir string, wantSkip bool) error {
-	driver, _, cleanup, err := migrations.OpenDB(ctx, cfg)
+	conn, err := db.OpenMigrationConnection(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		_ = cleanup(ctx)
+		_ = conn.Close(ctx)
 	}()
 
-	skip, err := migrations.ShouldSkipMigrations(ctx, driver)
+	skip, err := conn.ShouldSkipMigrations(ctx)
 	if err != nil {
 		return err
 	}
@@ -191,30 +185,30 @@ func checkShouldSkipThenRun(ctx context.Context, cfg config.YDBConnectionConfig,
 		return fmt.Errorf("expected migrations to run")
 	}
 
-	if err := migrations.Run(ctx, cfg, migrationsDir); err != nil {
+	if err := db.RunMigrations(ctx, cfg, migrationsDir); err != nil {
 		return err
 	}
 	return nil
 }
 
-func dropAllTables(ctx context.Context, driver *ydb.Driver, sqlDB *sql.DB) error {
-	for table := range migrations.RequiredTables {
-		if err := dropTable(ctx, driver, sqlDB, table); err != nil {
+func dropAllTables(ctx context.Context, conn *db.MigrationConnection) error {
+	for _, table := range db.MetadataTableNames() {
+		if err := dropTable(ctx, conn, table); err != nil {
 			return err
 		}
 	}
-	return dropTable(ctx, driver, sqlDB, goose.DefaultTablename)
+	return dropTable(ctx, conn, db.MigrationHistoryTableName())
 }
 
-func dropTable(ctx context.Context, driver *ydb.Driver, sqlDB *sql.DB, table string) error {
-	exists, err := migrations.TableExists(ctx, driver, table)
+func dropTable(ctx context.Context, conn *db.MigrationConnection, table string) error {
+	exists, err := conn.TableExists(ctx, table)
 	if err != nil {
 		return err
 	}
 	if !exists {
 		return nil
 	}
-	if _, err := sqlDB.ExecContext(ctx, "DROP TABLE "+table); err != nil {
+	if err := conn.DropTable(ctx, table); err != nil {
 		return fmt.Errorf("drop table %s: %w", table, err)
 	}
 	return nil

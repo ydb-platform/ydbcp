@@ -4,17 +4,18 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
 	"ydbcp/internal/metrics"
+
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"ydbcp/internal/config"
 	"ydbcp/internal/connectors/client"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	s3Client "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/ydb-platform/ydb-go-genproto/protos/Ydb"
@@ -49,9 +50,9 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector()
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
@@ -61,7 +62,6 @@ func TestTBOperationHandlerInvalidOperationResponse(t *testing.T) {
 		clientConnector,
 		s3Connector,
 		config.Config{},
-		queries.NewWriteTableQueryMock,
 	)
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -107,9 +107,9 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -120,8 +120,7 @@ func TestTBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 0
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -179,9 +178,9 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -192,8 +191,7 @@ func TestTBOperationHandlerRunningOperationInProgress(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -259,9 +257,9 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 		"pathPrefix/data_2.csv": make([]byte, 150),
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -272,8 +270,7 @@ func TestTBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -336,9 +333,9 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -349,8 +346,7 @@ func TestTBOperationHandlerRunningOperationCancelled(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -412,9 +408,9 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -425,8 +421,7 @@ func TestTBOperationHandlerDeadlineExceededForCancellingOperation(t *testing.T) 
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 0
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -490,9 +485,9 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -503,8 +498,7 @@ func TestTBOperationHandlerCancellingOperationInProgress(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -569,9 +563,9 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 		"pathPrefix/data_2.csv": make([]byte, 150),
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -582,8 +576,7 @@ func TestTBOperationHandlerCancellingOperationCompletedSuccessfully(t *testing.T
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -646,9 +639,9 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -659,8 +652,7 @@ func TestTBOperationHandlerCancellingOperationCancelled(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -729,9 +721,9 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 		"pathPrefix/data_2.csv": make([]byte, 150),
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -742,8 +734,7 @@ func TestTBOperationHandlerCancellingOperationCancelledWithRemovingDataFromS3(t 
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -810,9 +801,9 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	backupMap[backupID] = backup
 	opMap[opId] = &tbOp
 	ydbOpMap["1"] = ydbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -823,8 +814,7 @@ func TestTBOperationHandlerRetriableErrorForRunningOperation(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 10000
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
@@ -898,9 +888,9 @@ func TestTBOperationHandlerReportsLastBackupSize(t *testing.T) {
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -910,8 +900,7 @@ func TestTBOperationHandlerReportsLastBackupSize(t *testing.T) {
 	metrics.InitializeMockMetricsRegistry()
 
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, config.Config{}, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, config.Config{})
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)
 
@@ -976,9 +965,9 @@ func TestTBOperationHandlerLogsFinishedOperationStatus(t *testing.T) {
 		"pathPrefix/data_2.csv": make([]byte, 150),
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 	clientConnector := client.NewMockClientConnector(
 		client.WithOperations(ydbOpMap),
@@ -989,8 +978,7 @@ func TestTBOperationHandlerLogsFinishedOperationStatus(t *testing.T) {
 	cfg.OperationProcessor.OperationTtlSeconds = 10000
 
 	handler := NewTBOperationHandler(
-		dbConnector, clientConnector, s3Connector, cfg, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, clientConnector, s3Connector, cfg)
 
 	err := handler(ctx, &tbOp)
 	assert.Empty(t, err)

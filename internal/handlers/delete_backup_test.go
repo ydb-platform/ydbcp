@@ -4,14 +4,15 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
 	"ydbcp/internal/metrics"
 
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
 	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
+	dbconnector "ydbcp/internal/connectors/db"
 	s3Client "ydbcp/internal/connectors/s3"
 	"ydbcp/internal/types"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -42,9 +43,9 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	s3ObjectsMap := make(map[string]s3Client.Bucket)
 	backupMap[backupID] = backup
 	opMap[opId] = &dbOp
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
@@ -52,8 +53,7 @@ func TestDBOperationHandlerDeadlineExceededForRunningOperation(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 0
 	handler := NewDBOperationHandler(
-		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, s3Connector, config)
 
 	err := handler(ctx, &dbOp)
 	assert.Empty(t, err)
@@ -104,9 +104,9 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
@@ -115,8 +115,7 @@ func TestDBOperationHandlerPendingOperationCompletedSuccessfully(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
-		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, s3Connector, config)
 
 	err := handler(ctx, &dbOp)
 	assert.Empty(t, err)
@@ -175,9 +174,9 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
@@ -186,8 +185,7 @@ func TestDBOperationHandlerRunningOperationCompletedSuccessfully(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
-		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, s3Connector, config)
 
 	err := handler(ctx, &dbOp)
 	assert.Empty(t, err)
@@ -245,17 +243,16 @@ func TestDBOperationHandlerUnexpectedBackupStatus(t *testing.T) {
 		"pathPrefix/data_3.csv": make([]byte, 200),
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
-		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, s3Connector, config)
 
 	err := handler(ctx, &dbOp)
 	assert.Empty(t, err)
@@ -309,9 +306,9 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 		bucket[fmt.Sprintf("pathPrefix/data_%d.csv", i)] = make([]byte, 10)
 	}
 
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackups(backupMap),
-		db.WithOperations(opMap),
+	dbConnector := dbconnector.NewMockDBConnector(
+		dbconnector.WithBackups(backupMap),
+		dbconnector.WithOperations(opMap),
 	)
 
 	s3Connector := s3Client.NewMockS3Connector(s3ObjectsMap)
@@ -320,8 +317,7 @@ func TestDBOperationHandlerDeleteMoreThanAllowedLimit(t *testing.T) {
 	config := config.Config{}
 	config.OperationProcessor.OperationTtlSeconds = 1000
 	handler := NewDBOperationHandler(
-		dbConnector, s3Connector, config, queries.NewWriteTableQueryMock,
-	)
+		dbConnector, s3Connector, config)
 
 	err := handler(ctx, &dbOp)
 	assert.Empty(t, err)

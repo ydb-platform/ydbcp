@@ -1,4 +1,4 @@
-package migrations
+package db
 
 import (
 	"context"
@@ -13,22 +13,21 @@ import (
 	"go.uber.org/zap"
 
 	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
 	"ydbcp/internal/util/log_keys"
 	"ydbcp/internal/util/xlog"
 )
 
-// RequiredTables lists YDB tables that must exist in a provisioned ydbcp database.
-var RequiredTables = map[string]struct{}{
+// requiredTables lists YDB tables that must exist in a provisioned ydbcp database.
+var requiredTables = map[string]struct{}{
 	"Backups":         {},
 	"Operations":      {},
 	"OperationTypes":  {},
 	"BackupSchedules": {},
 }
 
-func HasRequiredTables(ctx context.Context, driver *ydb.Driver) (bool, error) {
-	for table := range RequiredTables {
-		exists, err := TableExists(ctx, driver, table)
+func hasRequiredTables(ctx context.Context, driver *ydb.Driver) (bool, error) {
+	for table := range requiredTables {
+		exists, err := tableExists(ctx, driver, table)
 		if err != nil {
 			return false, err
 		}
@@ -39,13 +38,13 @@ func HasRequiredTables(ctx context.Context, driver *ydb.Driver) (bool, error) {
 	return true, nil
 }
 
-func TableExists(ctx context.Context, driver *ydb.Driver, table string) (bool, error) {
+func tableExists(ctx context.Context, driver *ydb.Driver, table string) (bool, error) {
 	tablePath := path.Join(driver.Scheme().Database(), table)
 	return sugar.IsTableExists(ctx, driver.Scheme(), tablePath)
 }
 
-func OpenDB(ctx context.Context, cfg config.YDBConnectionConfig) (*ydb.Driver, *sql.DB, func(context.Context) error, error) {
-	opts, err := db.YdbOptionsFromConfig(cfg, false)
+func openMigrationDB(ctx context.Context, cfg config.YDBConnectionConfig) (*ydb.Driver, *sql.DB, func(context.Context) error, error) {
+	opts, err := ydbOptionsFromConfig(cfg, false)
 	if err != nil {
 		return nil, nil, nil, err
 	}
@@ -80,8 +79,8 @@ func OpenDB(ctx context.Context, cfg config.YDBConnectionConfig) (*ydb.Driver, *
 	return driver, sqlDB, cleanup, nil
 }
 
-func ShouldSkipMigrations(ctx context.Context, driver *ydb.Driver) (bool, error) {
-	hasGooseTable, err := TableExists(ctx, driver, goose.DefaultTablename)
+func shouldSkipMigrations(ctx context.Context, driver *ydb.Driver) (bool, error) {
+	hasGooseTable, err := tableExists(ctx, driver, goose.DefaultTablename)
 	if err != nil {
 		return false, err
 	}
@@ -89,14 +88,14 @@ func ShouldSkipMigrations(ctx context.Context, driver *ydb.Driver) (bool, error)
 		return false, nil
 	}
 
-	hasRequiredTables, err := HasRequiredTables(ctx, driver)
+	hasRequiredTables, err := hasRequiredTables(ctx, driver)
 	if err != nil {
 		return false, err
 	}
 	return hasRequiredTables, nil
 }
 
-func Run(ctx context.Context, dbConfig config.YDBConnectionConfig, migrationsDir string) error {
+func RunMigrations(ctx context.Context, dbConfig config.YDBConnectionConfig, migrationsDir string) error {
 	if migrationsDir == "" {
 		return fmt.Errorf("migrations directory is required")
 	}
@@ -104,7 +103,7 @@ func Run(ctx context.Context, dbConfig config.YDBConnectionConfig, migrationsDir
 		return fmt.Errorf("migrations directory %q: %w", migrationsDir, err)
 	}
 
-	driver, sqlDB, cleanup, err := OpenDB(ctx, dbConfig)
+	driver, sqlDB, cleanup, err := openMigrationDB(ctx, dbConfig)
 	if err != nil {
 		return err
 	}
@@ -114,7 +113,7 @@ func Run(ctx context.Context, dbConfig config.YDBConnectionConfig, migrationsDir
 		}
 	}()
 
-	skip, err := ShouldSkipMigrations(ctx, driver)
+	skip, err := shouldSkipMigrations(ctx, driver)
 	if err != nil {
 		return fmt.Errorf("migration pre-checks failed: %w", err)
 	}
@@ -144,4 +143,52 @@ func Run(ctx context.Context, dbConfig config.YDBConnectionConfig, migrationsDir
 		xlog.Info(ctx, "database is up to date")
 	}
 	return nil
+}
+
+// MigrationConnection owns the database-specific schema operations used by
+// migration tooling. Neither the SDK driver nor the SQL connection is exposed.
+type MigrationConnection struct {
+	driver  *ydb.Driver
+	sqlDB   *sql.DB
+	cleanup func(context.Context) error
+}
+
+func OpenMigrationConnection(ctx context.Context, cfg config.YDBConnectionConfig) (*MigrationConnection, error) {
+	driver, sqlDB, cleanup, err := openMigrationDB(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return &MigrationConnection{driver: driver, sqlDB: sqlDB, cleanup: cleanup}, nil
+}
+func (c *MigrationConnection) Close(ctx context.Context) error { return c.cleanup(ctx) }
+func (c *MigrationConnection) HasRequiredTables(ctx context.Context) (bool, error) {
+	return hasRequiredTables(ctx, c.driver)
+}
+func (c *MigrationConnection) TableExists(ctx context.Context, name string) (bool, error) {
+	return tableExists(ctx, c.driver, name)
+}
+func (c *MigrationConnection) ShouldSkipMigrations(ctx context.Context) (bool, error) {
+	return shouldSkipMigrations(ctx, c.driver)
+}
+
+// MetadataTableNames returns a copy for schema inspection tools.
+func MetadataTableNames() []string {
+	return []string{"Backups", "Operations", "OperationTypes", "BackupSchedules"}
+}
+
+// MigrationHistoryTableName hides the migration library's tracking table name.
+func MigrationHistoryTableName() string { return goose.DefaultTablename }
+
+// DropTable is intended for explicit schema maintenance and integration setup.
+// Only tables owned by this connector can be dropped.
+func (c *MigrationConnection) DropTable(ctx context.Context, name string) error {
+	if _, ok := requiredTables[name]; !ok && name != goose.DefaultTablename {
+		return fmt.Errorf("unknown metadata table %q", name)
+	}
+	exists, err := c.TableExists(ctx, name)
+	if err != nil || !exists {
+		return err
+	}
+	_, err = c.sqlDB.ExecContext(ctx, "DROP TABLE "+name)
+	return err
 }

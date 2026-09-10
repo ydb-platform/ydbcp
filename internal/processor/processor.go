@@ -4,10 +4,11 @@ import (
 	"context"
 	"sync"
 	"time"
+
 	"ydbcp/internal/metrics"
 	"ydbcp/internal/util/log_keys"
 
-	"ydbcp/internal/connectors/db"
+	dbconnector "ydbcp/internal/connectors/db"
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/util/xlog"
@@ -28,7 +29,7 @@ type OperationProcessorImpl struct {
 
 	tickerProvider ticker.TickerProvider
 	handlers       OperationHandlerRegistry
-	db             db.DBConnector
+	db             dbconnector.DBConnector
 
 	runningOperations map[string]bool
 	results           chan string
@@ -56,7 +57,7 @@ func NewOperationProcessor(
 	ctx context.Context,
 	wg *sync.WaitGroup,
 	interval int64,
-	db db.DBConnector,
+	db dbconnector.DBConnector,
 	handlers OperationHandlerRegistry,
 	options ...Option,
 ) *OperationProcessorImpl {

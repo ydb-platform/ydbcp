@@ -3,27 +3,26 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
 	"sync"
 	"time"
-	"ydbcp/cmd/integration/common"
-	"ydbcp/internal/config"
-	"ydbcp/internal/connectors/db"
-	"ydbcp/internal/connectors/db/yql/queries"
-	"ydbcp/internal/metrics"
 
 	"github.com/jonboulle/clockwork"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"ydbcp/cmd/integration/common"
+	"ydbcp/internal/config"
+	dbconnector "ydbcp/internal/connectors/db"
+	"ydbcp/internal/metrics"
 	"ydbcp/internal/types"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
-
-	"google.golang.org/grpc"
 )
 
 const (
@@ -280,7 +279,7 @@ func main() {
 			log.Panicln("failed to close connection")
 		}
 	}(conn)
-	ydbConn, err := db.NewYdbConnector(
+	ydbConn, err := dbconnector.NewYdbConnector(
 		ctx,
 		config.YDBConnectionConfig{
 			ConnectionString:   connectionString,
@@ -296,9 +295,15 @@ func main() {
 
 	//test errors metric
 	NewMetricsServer()
-	err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQueryMock())
-	if err == nil {
-		log.Panicf("error should be present")
+	err = ydbConn.Apply(ctx, dbconnector.Changes{})
+	if err != nil {
+		log.Panicf("empty changes must be a no-op: %v", err)
+	}
+	cancelledCtx, cancel := context.WithCancel(ctx)
+	cancel()
+	_, err = ydbConn.ListBackups(cancelledCtx, dbconnector.BackupFilter{})
+	if !errors.Is(err, context.Canceled) {
+		log.Panicf("expected cancelled query error, got: %v", err)
 	}
 	ParseMetric()
 
@@ -307,7 +312,7 @@ func main() {
 		log.Panicf("failed to create backups to insert: %v", err)
 	}
 	for _, b := range backups {
-		err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackup(b))
+		err = ydbConn.Apply(ctx, dbconnector.Changes{CreateBackups: []types.Backup{b}})
 		if err != nil {
 			log.Panicf("failed to insert backup: %v", err)
 		}
@@ -315,7 +320,7 @@ func main() {
 
 	schedulesToInsert := SchedulesToInsert()
 	for _, s := range schedulesToInsert {
-		err = ydbConn.ExecuteUpsert(ctx, queries.NewWriteTableQuery().WithCreateBackupSchedule(s))
+		err = ydbConn.Apply(ctx, dbconnector.Changes{CreateSchedules: []types.BackupSchedule{s}})
 		if err != nil {
 			log.Panicf("failed to insert schedule: %v", err)
 		}

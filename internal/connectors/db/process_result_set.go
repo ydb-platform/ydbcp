@@ -4,17 +4,16 @@ import (
 	"fmt"
 	"time"
 
-	"ydbcp/internal/types"
+	"ydbcp/internal/connectors/db/internal/codec"
+
 	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
+
+	"ydbcp/internal/types"
 
 	"github.com/ydb-platform/ydb-go-sdk/v3/query"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
-
-type StructFromResultSet[T any] func(result query.Row) (*T, error)
-
-type InterfaceFromResultSet[T any] func(result query.Row) (T, error)
 
 func StringOrDefault(str *string, def string) string {
 	if str == nil {
@@ -58,7 +57,7 @@ func auditFromDb(initiated *string, createdAt *time.Time, completedAt *time.Time
 
 //TODO: unit test this
 
-func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
+func readBackupFromResultSet(res query.Row) (*types.Backup, error) {
 	var (
 		backupId         string
 		containerId      string
@@ -111,7 +110,7 @@ func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 	sourcePathsSlice := make([]string, 0)
 
 	if sourcePaths != nil {
-		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		sourcePathsSlice, err = codec.ParseSourcePaths(*sourcePaths)
 		if err != nil {
 			return nil, err
 		}
@@ -153,7 +152,7 @@ func ReadBackupFromResultSet(res query.Row) (*types.Backup, error) {
 	}, nil
 }
 
-func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
+func readOperationFromResultSet(res query.Row) (types.Operation, error) {
 	var (
 		operationId      string
 		containerId      string
@@ -221,14 +220,14 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 	sourcePathsSlice := make([]string, 0)
 	sourcePathsToExcludeSlice := make([]string, 0)
 	if sourcePaths != nil {
-		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		sourcePathsSlice, err = codec.ParseSourcePaths(*sourcePaths)
 		if err != nil {
 			return nil, err
 		}
 
 	}
 	if sourcePathsToExclude != nil {
-		sourcePathsToExcludeSlice, err = types.ParseSourcePaths(*sourcePathsToExclude)
+		sourcePathsToExcludeSlice, err = codec.ParseSourcePaths(*sourcePathsToExclude)
 		if err != nil {
 			return nil, err
 		}
@@ -365,7 +364,7 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 	return &types.GenericOperation{ID: operationId}, nil
 }
 
-func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.BackupSchedule, error) {
+func readBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.BackupSchedule, error) {
 	var (
 		ID               string
 		containerID      string
@@ -429,13 +428,13 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 	var sourcePathsSlice []string
 	var sourcePathsToExcludeSlice []string
 	if sourcePaths != nil {
-		sourcePathsSlice, err = types.ParseSourcePaths(*sourcePaths)
+		sourcePathsSlice, err = codec.ParseSourcePaths(*sourcePaths)
 		if err != nil {
 			return nil, err
 		}
 	}
 	if sourcePathsToExclude != nil {
-		sourcePathsToExcludeSlice, err = types.ParseSourcePaths(*sourcePathsToExclude)
+		sourcePathsToExcludeSlice, err = codec.ParseSourcePaths(*sourcePathsToExclude)
 		if err != nil {
 			return nil, err
 		}
