@@ -254,13 +254,13 @@ func main() {
 			name:                "full backup",
 			request:             newMakeBackupRequest("", nil, nil),
 			expectedRootPath:    "",
-			expectedSourcePaths: []string{"BackupSchedules", "Backups", "OperationTypes", "Operations", "goose_db_version", "kv_test", "stocks/orderLines", "stocks/orders", "stocks/stock"},
+			expectedSourcePaths: []string{"BackupSchedules", "Backups", "OperationTypes", "Operations", "goose_db_version", "kv_test", "replicated_backups", "stocks/orderLines", "stocks/orders", "stocks/stock"},
 		},
 		{
 			name:                 "full backup with exclude filter",
 			request:              newMakeBackupRequest("", nil, []string{".*Backup.*", ".*Operation.*"}),
 			expectedRootPath:     "",
-			expectedSourcePaths:  []string{"goose_db_version", "kv_test", "stocks/orderLines", "stocks/orders", "stocks/stock"},
+			expectedSourcePaths:  []string{"goose_db_version", "kv_test", "replicated_backups", "stocks/orderLines", "stocks/orders", "stocks/stock"},
 			sourcePathsToExclude: []string{".*Backup.*", ".*Operation.*"},
 		},
 		{

@@ -21,6 +21,7 @@ RUN mkdir -p bin && \
 # Build integration test app
 RUN go build -o ./make_backup ./cmd/integration/make_backup/main.go
 RUN go build -o ./list_entities ./cmd/integration/list_entities/main.go
+RUN go build -o ./replicated_backups ./cmd/integration/replicated_backups/main.go
 RUN go build -o ./orm ./cmd/integration/orm/main.go
 RUN go build -o ./test_new_paths_format ./cmd/integration/new_paths_format/main.go
 RUN go build -o ./make_encrypted_backup ./cmd/integration/make_encrypted_backup/main.go
