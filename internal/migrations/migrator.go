@@ -20,10 +20,11 @@ import (
 
 // RequiredTables lists YDB tables that must exist in a provisioned ydbcp database.
 var RequiredTables = map[string]struct{}{
-	"Backups":         {},
-	"Operations":      {},
-	"OperationTypes":  {},
-	"BackupSchedules": {},
+	"Backups":            {},
+	"Operations":         {},
+	"OperationTypes":     {},
+	"BackupSchedules":    {},
+	"replicated_backups": {},
 }
 
 func HasRequiredTables(ctx context.Context, driver *ydb.Driver) (bool, error) {
