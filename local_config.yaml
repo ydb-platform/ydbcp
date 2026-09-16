@@ -42,3 +42,4 @@ feature_flags:
   enable_new_paths_format: ${ENABLE_NEW_PATHS_FORMAT}
   enable_backups_encryption: ${ENABLE_BACKUPS_ENCRYPTION}
   enable_backups_compression: ${ENABLE_BACKUPS_COMPRESSION}
+  enable_cross_region_backup_restore: ${ENABLE_CROSS_REGION_BACKUP_RESTORE}

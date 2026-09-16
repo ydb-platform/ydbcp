@@ -47,6 +47,14 @@ type BackupService struct {
 	featureFlags           config.FeatureFlagsConfig
 }
 
+func (s *BackupService) backupCatalogQuery(options ...queries.ReadTableQueryOption) queries.ReadTableQuery {
+	source := queries.WithTableName("Backups")
+	if s.featureFlags.EnableCrossRegionRestore {
+		source = queries.WithRawQuery(queries.BackupCatalogQuery)
+	}
+	return queries.NewReadTableQuery(append([]queries.ReadTableQueryOption{source}, options...)...)
+}
+
 func (s *BackupService) IncApiCallsCounter(methodName string, code codes.Code) {
 	metrics.GlobalMetricsRegistry.IncApiCallsCounter("BackupService", methodName, code.String())
 }
@@ -63,8 +71,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
+		ctx, s.backupCatalogQuery(
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -83,6 +90,11 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
 	}
+	if len(backups) > 1 {
+		xlog.Error(ctx, "backup catalog integrity error")
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "backup catalog integrity error")
+	}
 	backup := backups[0]
 	ctx = backup.SetLogFields(ctx)
 	// TODO: Need to check access to backup resource by backupID
@@ -98,7 +110,7 @@ func (s *BackupService) GetBackup(ctx context.Context, request *pb.GetBackupRequ
 
 	xlog.Debug(ctx, methodName, zap.String(log_keys.Backup, backup.String()))
 	s.IncApiCallsCounter(methodName, codes.OK)
-	return backups[0].Proto(), nil
+	return backup.Proto(), nil
 }
 
 func (s *BackupService) MakeBackup(ctx context.Context, req *pb.MakeBackupRequest) (
@@ -300,8 +312,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	ctx = xlog.With(ctx, zap.String(log_keys.BackupID, backupID))
 
 	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
+		ctx, s.backupCatalogQuery(
 			queries.WithQueryFilters(
 				queries.QueryFilter{
 					Field:  "id",
@@ -319,6 +330,11 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		xlog.Error(ctx, "backup not found")
 		s.IncApiCallsCounter(methodName, codes.NotFound)
 		return nil, status.Error(codes.NotFound, "backup not found") // TODO: Permission denied?
+	}
+	if len(backups) > 1 {
+		xlog.Error(ctx, "backup catalog integrity error")
+		s.IncApiCallsCounter(methodName, codes.Internal)
+		return nil, status.Error(codes.Internal, "backup catalog integrity error")
 	}
 	backup := backups[0]
 	ctx = backup.SetLogFields(ctx)
@@ -376,6 +392,15 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 		}
 	}()
 
+	s3Endpoint := s.s3.Endpoint
+	s3Region := s.s3.Region
+	s3Bucket := s.s3.Bucket
+	if s.featureFlags.EnableCrossRegionRestore {
+		s3Endpoint = backup.S3Endpoint
+		s3Region = backup.S3Region
+		s3Bucket = backup.S3Bucket
+	}
+
 	accessKey, err := s.s3.AccessKey()
 	if err != nil {
 		xlog.Error(ctx, "can't get S3AccessKey", zap.Error(err))
@@ -401,9 +426,9 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	}
 
 	s3Settings := types.ImportSettings{
-		Endpoint:         s.s3.Endpoint,
-		Region:           s.s3.Region,
-		Bucket:           s.s3.Bucket,
+		Endpoint:         s3Endpoint,
+		Region:           s3Region,
+		Bucket:           s3Bucket,
 		AccessKey:        accessKey,
 		SecretKey:        secretKey,
 		Description:      "ydbcp restore", // TODO: write description
@@ -569,8 +594,7 @@ func (s *BackupService) ListBackups(ctx context.Context, request *pb.ListBackups
 	}
 
 	backups, err := s.driver.SelectBackups(
-		ctx, queries.NewReadTableQuery(
-			queries.WithTableName("Backups"),
+		ctx, s.backupCatalogQuery(
 			queries.WithQueryFilters(queryFilters...),
 			queries.WithOrderBy(*orderSpec),
 			queries.WithPageSpec(*pageSpec),

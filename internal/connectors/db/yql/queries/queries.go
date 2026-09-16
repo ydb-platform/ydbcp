@@ -5,6 +5,12 @@ import (
 	"ydbcp/internal/types"
 )
 
+const BackupCatalogQuery = `SELECT * FROM (
+SELECT * FROM Backups
+UNION ALL
+SELECT * WITHOUT schedule_id FROM replicated_backups
+)`
+
 var (
 	ListSchedulesQuery = fmt.Sprintf(
 		`$last_successful_backup_id = SELECT schedule_id, MAX_BY(b.created_at, b.completed_at) AS recovery_point, 

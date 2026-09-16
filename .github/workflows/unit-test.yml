@@ -57,13 +57,20 @@ jobs:
         include:
           - enable_new_paths_format: false
             enable_backups_encryption: false
+            enable_cross_region_backup_restore: false
           - enable_new_paths_format: true
             enable_backups_encryption: false
+            enable_cross_region_backup_restore: false
           - enable_new_paths_format: true
             enable_backups_encryption: true
+            enable_cross_region_backup_restore: false
+          - enable_new_paths_format: true
+            enable_backups_encryption: true
+            enable_cross_region_backup_restore: true
     env:
       ENABLE_NEW_PATHS_FORMAT: ${{ matrix.enable_new_paths_format }}
       ENABLE_BACKUPS_ENCRYPTION: ${{ matrix.enable_backups_encryption }}
+      ENABLE_CROSS_REGION_BACKUP_RESTORE: ${{ matrix.enable_cross_region_backup_restore }}
     steps:
       - uses: actions/checkout@v4
       - name: supply with s3 access keys
@@ -97,6 +104,8 @@ jobs:
           docker compose up -d
       - name: run orm test
         run: docker exec local-ydbcp sh -c './orm'
+      - name: run replicated_backups test
+        run: docker exec local-ydbcp sh -c './replicated_backups'
       - name: docker compose down
         run: |
           docker compose down

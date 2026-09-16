@@ -128,6 +128,7 @@ type FeatureFlagsConfig struct {
 	EnableNewPathsFormat     bool `yaml:"enable_new_paths_format" default:"false"`
 	EnableBackupsEncryption  bool `yaml:"enable_backups_encryption" default:"false"`
 	EnableBackupsCompression bool `yaml:"enable_backups_compression" default:"false"`
+	EnableCrossRegionRestore bool `yaml:"enable_cross_region_backup_restore" default:"false"`
 	BackupsCompresionLevel   int  `yaml:"backups_compression_level" default:"1"`
 }
 
