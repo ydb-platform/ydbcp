@@ -69,7 +69,7 @@ func BackupScheduleHandler(
 		tbwr := &types.TakeBackupWithRetryOperation{
 			TakeBackupOperation: types.TakeBackupOperation{
 				ID:          types.GenerateObjectID(),
-				ContainerID: schedule.ContainerID,
+				ContainerID: schedule.BackupContainerID,
 				State:       types.OperationStateRunning,
 				YdbConnectionParams: types.YdbConnectionParams{
 					Endpoint:     schedule.DatabaseEndpoint,
