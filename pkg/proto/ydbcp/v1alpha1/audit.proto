@@ -1,0 +1,17 @@
+syntax = "proto3";
+
+package ydbcp.v1alpha1;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
+
+import "google/protobuf/timestamp.proto";
+
+message AuditInfo {
+  // Creator of the entity, YDBCP receives this info from the IAM.
+  string creator = 1;
+  // Timestamp when an entity was created.
+  google.protobuf.Timestamp created_at = 2;
+  // Timestamp when an entity was modified.
+  google.protobuf.Timestamp updated_at = 3;
+  // Timestamp when a corresponding operation was completed.
+  google.protobuf.Timestamp completed_at = 4;
+}
