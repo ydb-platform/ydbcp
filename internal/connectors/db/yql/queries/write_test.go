@@ -265,7 +265,7 @@ UPSERT INTO Operations (id, type, status, message, initiated, created_at, contai
 
 func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 	const (
-		queryString = `UPSERT INTO BackupSchedules (id, container_id, database, endpoint, status, crontab, name, ttl, paths, initiated, created_at, recovery_point_objective, next_launch) VALUES ($id_0, $container_id_0, $database_0, $endpoint_0, $status_0, $crontab_0, $name_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $next_launch_0)`
+		queryString = `UPSERT INTO BackupSchedules (id, container_id, backup_container_id, database, endpoint, status, crontab, name, ttl, paths, initiated, created_at, recovery_point_objective, next_launch) VALUES ($id_0, $container_id_0, $backup_container_id_0, $database_0, $endpoint_0, $status_0, $crontab_0, $name_0, $ttl_0, $paths_0, $initiated_0, $created_at_0, $recovery_point_objective_0, $next_launch_0)`
 	)
 	scID := types.GenerateObjectID()
 	bID := types.GenerateObjectID()
@@ -275,6 +275,7 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 	schedule := types.BackupSchedule{
 		ID:                   scID,
 		ContainerID:          "abcde",
+		BackupContainerID:    "backup-container",
 		DatabaseName:         "dbname",
 		DatabaseEndpoint:     "grpcs://domain.zone.net:2135/my/db",
 		SourcePaths:          paths,
@@ -297,6 +298,7 @@ func TestQueryBuilder_CreateBackupSchedule(t *testing.T) {
 		queryParams = table.NewQueryParameters(
 			table.ValueParam("$id_0", table_types.StringValueFromString(scID)),
 			table.ValueParam("$container_id_0", table_types.StringValueFromString(schedule.ContainerID)),
+			table.ValueParam("$backup_container_id_0", table_types.StringValueFromString(schedule.BackupContainerID)),
 			table.ValueParam("$database_0", table_types.StringValueFromString(schedule.DatabaseName)),
 			table.ValueParam("$endpoint_0", table_types.StringValueFromString(schedule.DatabaseEndpoint)),
 			table.ValueParam("$status_0", table_types.StringValueFromString(schedule.Status)),

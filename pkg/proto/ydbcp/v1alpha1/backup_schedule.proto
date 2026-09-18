@@ -75,4 +75,6 @@ message BackupSchedule {
     // Root path for all objects included in the backup,
     // it must be relative to the db root.
     string root_path = 13;
+    // Container where backups created by this schedule are stored.
+    string backup_container_id = 14;
 }

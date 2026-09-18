@@ -28,6 +28,7 @@ var (
 type BackupSchedule struct {
 	ID                     string
 	ContainerID            string
+	BackupContainerID      string
 	DatabaseName           string
 	DatabaseEndpoint       string
 	RootPath               string
@@ -103,6 +104,7 @@ func (b *BackupSchedule) Proto(clock clockwork.Clock) *pb.BackupSchedule {
 	schedule := &pb.BackupSchedule{
 		Id:                       b.ID,
 		ContainerId:              b.ContainerID,
+		BackupContainerId:        b.BackupContainerID,
 		DatabaseName:             b.DatabaseName,
 		RootPath:                 b.RootPath,
 		Endpoint:                 b.DatabaseEndpoint,

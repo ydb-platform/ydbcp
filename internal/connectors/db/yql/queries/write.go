@@ -378,6 +378,7 @@ func BuildCreateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 	}
 	d.AddValueParam("$id", table_types.StringValueFromString(schedule.ID))
 	d.AddValueParam("$container_id", table_types.StringValueFromString(schedule.ContainerID))
+	d.AddValueParam("$backup_container_id", table_types.StringValueFromString(schedule.BackupContainerID))
 	d.AddValueParam(
 		"$database",
 		table_types.StringValueFromString(schedule.DatabaseName),
@@ -445,6 +446,7 @@ func BuildUpdateBackupScheduleQuery(schedule types.BackupSchedule, index int) Wr
 		tableName: "BackupSchedules",
 	}
 	d.AddUpdateId(table_types.StringValueFromString(schedule.ID))
+	d.AddValueParam("$backup_container_id", table_types.StringValueFromString(schedule.BackupContainerID))
 	d.AddValueParam("$status", table_types.StringValueFromString(schedule.Status))
 	d.AddValueParam("$crontab", table_types.StringValueFromString(schedule.ScheduleSettings.SchedulePattern.Crontab))
 

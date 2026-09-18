@@ -54,10 +54,20 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	audit.SetAuditFieldsForRequest(
 		ctx, &audit.AuditFields{ContainerID: request.ContainerId, Database: request.DatabaseName},
 	)
+	backupContainerID := request.GetBackupContainerId()
+	if backupContainerID == "" {
+		backupContainerID = request.ContainerId
+	}
 	subject, err := auth.CheckCreateScheduleAuth(ctx, s.auth, request.ContainerId, "")
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
+	}
+	if backupContainerID != request.ContainerId {
+		if _, err = auth.CheckCreateScheduleAuth(ctx, s.auth, backupContainerID, ""); err != nil {
+			s.IncApiCallsCounter(methodName, status.Code(err))
+			return nil, err
+		}
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	if err = helpers.CheckClientDbAccess(
@@ -151,6 +161,7 @@ func (s *BackupScheduleService) CreateBackupSchedule(
 	schedule := types.BackupSchedule{
 		ID:                   types.GenerateObjectID(),
 		ContainerID:          request.ContainerId,
+		BackupContainerID:    backupContainerID,
 		DatabaseName:         request.DatabaseName,
 		DatabaseEndpoint:     request.Endpoint,
 		RootPath:             request.RootPath,
@@ -240,6 +251,16 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
+	}
+	backupContainerID := request.GetBackupContainerId()
+	if backupContainerID != "" {
+		schedule.BackupContainerID = backupContainerID
+	}
+	if schedule.BackupContainerID != schedule.ContainerID {
+		if _, err = auth.CheckAuth(ctx, s.auth, auth.PermissionBackupCreate, schedule.BackupContainerID, ""); err != nil {
+			s.IncApiCallsCounter(methodName, status.Code(err))
+			return nil, err
+		}
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 	if err = helpers.CheckClientDbAccess(

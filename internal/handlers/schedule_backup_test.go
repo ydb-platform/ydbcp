@@ -26,12 +26,13 @@ func TestBackupScheduleHandler(t *testing.T) {
 	now := clock.Now()
 	clock.Advance(time.Second)
 	schedule := types.BackupSchedule{
-		ID:               "12345",
-		ContainerID:      "abcde",
-		Status:           types.BackupScheduleStateActive,
-		DatabaseName:     "mydb",
-		DatabaseEndpoint: "mydb.valid.com",
-		SourcePaths:      []string{"/path/to/table"},
+		ID:                "12345",
+		ContainerID:       "schedule-container",
+		BackupContainerID: "backup-container",
+		Status:            types.BackupScheduleStateActive,
+		DatabaseName:      "mydb",
+		DatabaseEndpoint:  "mydb.valid.com",
+		SourcePaths:       []string{"/path/to/table"},
 		ScheduleSettings: &pb.BackupScheduleSettings{
 			SchedulePattern: &pb.BackupSchedulePattern{Crontab: "* * * * * *"},
 		},
@@ -65,6 +66,7 @@ func TestBackupScheduleHandler(t *testing.T) {
 	assert.Equal(t, len(ops), 1)
 	assert.Equal(t, types.OperationTypeTBWR, ops[0].GetType())
 	assert.Equal(t, types.OperationStateRunning, ops[0].GetState())
+	assert.Equal(t, schedule.BackupContainerID, ops[0].GetContainerID())
 
 	// check backup status (should be empty)
 	backups, err := dbConnector.SelectBackups(ctx, &queries.ReadTableQueryImpl{})

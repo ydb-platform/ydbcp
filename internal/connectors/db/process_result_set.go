@@ -367,10 +367,11 @@ func ReadOperationFromResultSet(res query.Row) (types.Operation, error) {
 
 func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.BackupSchedule, error) {
 	var (
-		ID               string
-		containerID      string
-		databaseName     string
-		databaseEndpoint string
+		ID                string
+		containerID       string
+		backupContainerID *string
+		databaseName      string
+		databaseEndpoint  string
 
 		crontab string
 
@@ -396,6 +397,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 	namedValues := []query.NamedDestination{
 		query.Named("id", &ID),
 		query.Named("container_id", &containerID),
+		query.Named("backup_container_id", &backupContainerID),
 		query.Named("database", &databaseName),
 		query.Named("endpoint", &databaseEndpoint),
 		query.Named("crontab", &crontab),
@@ -472,6 +474,7 @@ func ReadBackupScheduleFromResultSet(res query.Row, withRPOInfo bool) (*types.Ba
 	return &types.BackupSchedule{
 		ID:                   ID,
 		ContainerID:          containerID,
+		BackupContainerID:    StringOrDefault(backupContainerID, containerID),
 		DatabaseName:         databaseName,
 		DatabaseEndpoint:     databaseEndpoint,
 		RootPath:             StringOrEmpty(rootPath),
