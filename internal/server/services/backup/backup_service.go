@@ -339,14 +339,23 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 	backup := backups[0]
 	ctx = backup.SetLogFields(ctx)
 	audit.SetAuditFieldsForRequest(
-		ctx, &audit.AuditFields{ContainerID: backup.ContainerID, Database: backup.DatabaseName},
+		ctx, &audit.AuditFields{ContainerID: req.ContainerId, Database: req.DatabaseName},
 	)
 	subject, err := auth.CheckAuth(
-		ctx, s.auth, auth.PermissionBackupRestore, backup.ContainerID, "",
-	) // TODO: check access to backup as resource
+		ctx, s.auth, auth.PermissionBackupRestore, req.ContainerId, "",
+	)
 	if err != nil {
 		s.IncApiCallsCounter(methodName, status.Code(err))
 		return nil, err
+	}
+	if backup.ContainerID != req.ContainerId {
+		_, err = auth.CheckAuth(
+			ctx, s.auth, auth.PermissionBackupGet, backup.ContainerID, "",
+		) // TODO: check access to backup as resource
+		if err != nil {
+			s.IncApiCallsCounter(methodName, status.Code(err))
+			return nil, err
+		}
 	}
 	ctx = xlog.With(ctx, zap.String(log_keys.Subject, subject))
 
@@ -476,7 +485,7 @@ func (s *BackupService) MakeRestore(ctx context.Context, req *pb.MakeRestoreRequ
 
 	now := timestamppb.Now()
 	op := &types.RestoreBackupOperation{
-		ContainerID: backup.ContainerID,
+		ContainerID: req.ContainerId,
 		BackupId:    backupID,
 		State:       types.OperationStateRunning,
 		YdbConnectionParams: types.YdbConnectionParams{
