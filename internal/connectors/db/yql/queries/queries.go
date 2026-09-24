@@ -9,6 +9,7 @@ const BackupCatalogQuery = `SELECT * FROM (
 SELECT * FROM Backups
 UNION ALL
 SELECT * WITHOUT schedule_id FROM replicated_backups
+WHERE container_id IS NOT NULL AND database IS NOT NULL AND endpoint IS NOT NULL
 )`
 
 var (
