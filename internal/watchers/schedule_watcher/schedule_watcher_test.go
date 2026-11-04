@@ -717,3 +717,65 @@ func TestScheduleWatcherDropsStaleScheduleMetrics(t *testing.T) {
 	assert.False(t, ok)
 	assert.Empty(t, seen)
 }
+
+func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer wg.Wait()
+	defer cancel()
+
+	clock := clockwork.NewFakeClockAt(fourPM)
+	cfg := &config.MetricsServerConfig{BindAddress: "127.0.0.1", BindPort: 0}
+	metrics.InitializeMetricsRegistry(ctx, &wg, cfg, clock)
+
+	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+
+	backupID := "backup-1"
+	availableStatus := types.BackupStateAvailable
+	recoveryPoint := fourPM.Add(-time.Minute)
+	schedule := types.BackupSchedule{
+		ID:                     "schedule-1",
+		ContainerID:            "container-1",
+		Status:                 types.BackupScheduleStateActive,
+		DatabaseName:           "mydb",
+		LastSuccessfulBackupID: &backupID,
+		LastBackupStatus:       &availableStatus,
+		RecoveryPoint:          &recoveryPoint,
+		ScheduleSettings: &pb.BackupScheduleSettings{
+			RecoveryPointObjective: durationpb.New(2 * time.Hour),
+		},
+	}
+	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
+	dbConnector := db.NewMockDBConnector(
+		db.WithBackupSchedules(scheduleMap),
+		db.WithBackups(map[string]types.Backup{
+			backupID: {ID: backupID, Size: 2048},
+		}),
+	)
+	seen := make(map[string]*types.BackupSchedule)
+
+	for _, name := range []string{"system_schedule", "kms_managed_schedule"} {
+		schedule.Name = &name
+		scheduleMap[schedule.ID] = schedule
+		ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+
+		metricFamilies, err := metrics.GlobalMetricsRegistry.GetReg().Gather()
+		assert.NoError(t, err)
+		values := make(map[string]float64)
+		for _, family := range metricFamilies {
+			for _, metric := range family.Metric {
+				for _, label := range metric.Label {
+					if label.GetName() == "schedule_name" {
+						assert.Equal(t, name, label.GetValue(), family.GetName())
+					}
+				}
+				values[family.GetName()] += metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
+			}
+		}
+
+		assert.Equal(t, float64(recoveryPoint.Unix()), values["schedules_last_backup_timestamp"])
+		assert.Equal(t, float64(1), values["schedules_succeeded_count"])
+		assert.Equal(t, float64(1), values["backups_succeeded_count"])
+		assert.Equal(t, float64(2048), values["backups_size_bytes"])
+	}
+}
