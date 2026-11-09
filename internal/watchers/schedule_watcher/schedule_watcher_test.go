@@ -754,7 +754,7 @@ func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
 	)
 	seen := make(map[string]*types.BackupSchedule)
 
-	for _, name := range []string{"system_schedule", "kms_managed_schedule"} {
+	for _, name := range []string{"old_schedule", "new_schedule"} {
 		schedule.Name = &name
 		scheduleMap[schedule.ID] = schedule
 		ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
