@@ -54,8 +54,8 @@ type MetricsRegistry interface {
 	ReportScheduleBackupsStatus(schedule *types.BackupSchedule, lastBackupEncrypted bool)
 	ReportLastBackupSize(containerId string, database string, scheduleId *string, sizeBytes int64)
 	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
-	ResetScheduleCounters(schedule *types.BackupSchedule)
-	ResetScheduleNameMetrics(schedule *types.BackupSchedule)
+	ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool)
+	ResetRenamedScheduleCounters(schedule *types.BackupSchedule)
 }
 
 type MetricsRegistryImpl struct {
@@ -398,7 +398,11 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(
 	}
 }
 
-func (s *MetricsRegistryImpl) ResetScheduleNameMetrics(schedule *types.BackupSchedule) {
+func (s *MetricsRegistryImpl) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
+	s.ResetScheduleCounters(schedule, true)
+}
+
+func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
 	var scheduleNameLabel string
 	if schedule.Name != nil {
 		scheduleNameLabel = *schedule.Name
@@ -454,10 +458,10 @@ func (s *MetricsRegistryImpl) ResetScheduleNameMetrics(schedule *types.BackupSch
 		schedule.ID,
 		scheduleNameLabel,
 	)
-}
 
-func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule) {
-	s.ResetScheduleNameMetrics(schedule)
+	if len(renamedOnly) > 0 && renamedOnly[0] {
+		return
+	}
 
 	s.backupsFailedCount.DeleteLabelValues(
 		schedule.ContainerID,

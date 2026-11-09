@@ -185,19 +185,22 @@ func (s *MockMetricsRegistry) IncScheduleCounters(
 	}
 }
 
-func (s *MockMetricsRegistry) ResetScheduleNameMetrics(schedule *types.BackupSchedule) {
+func (s *MockMetricsRegistry) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
+	s.ResetScheduleCounters(schedule, true)
+}
+
+func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	delete(s.metrics, "schedules_last_backup_timestamp")
 	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup")
 	delete(s.metrics, "schedules_rpo_margin_ratio")
 	delete(s.metrics, "schedules_rpo_duration_seconds")
-}
 
-func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule) {
-	s.ResetScheduleNameMetrics(schedule)
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
+	if len(renamedOnly) > 0 && renamedOnly[0] {
+		return
+	}
+
 	delete(s.metrics, "backups_failed_count")
 	delete(s.metrics, "backups_succeeded_count_encrypted")
 	delete(s.metrics, "backups_succeeded_count_unencrypted")
