@@ -70,8 +70,6 @@ func ScheduleWatcherAction(
 		return
 	}
 
-	dropStaleScheduleMetrics(ctx, schedules, seen)
-
 	for _, schedule := range schedules {
 		handlerCtx := schedule.SetLogFields(ctx)
 		err = handler(handlerCtx, db, schedule)
@@ -81,6 +79,8 @@ func ScheduleWatcherAction(
 			xlog.Error(handlerCtx, "error handling backup schedule", zap.Error(err))
 		}
 	}
+
+	dropStaleScheduleMetrics(ctx, schedules, seen)
 }
 
 // dropStaleScheduleMetrics removes metric series of schedules that were active
