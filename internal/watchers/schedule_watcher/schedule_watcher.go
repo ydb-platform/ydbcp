@@ -95,12 +95,18 @@ func dropStaleScheduleMetrics(
 		current[schedule.ID] = schedule
 	}
 	for id, schedule := range seen {
-		if updated, ok := current[id]; !ok || scheduleNameLabel(updated) != scheduleNameLabel(schedule) {
+		if updated, ok := current[id]; !ok {
 			xlog.Info(
-				ctx, "dropping metrics of an inactive or renamed backup schedule",
+				ctx, "dropping metrics of an inactive backup schedule",
 				zap.String(log_keys.ScheduleID, id),
 			)
 			metrics.GlobalMetricsRegistry.ResetScheduleCounters(schedule)
+		} else if scheduleNameLabel(updated) != scheduleNameLabel(schedule) {
+			xlog.Info(
+				ctx, "dropping metrics with the old backup schedule name",
+				zap.String(log_keys.ScheduleID, id),
+			)
+			metrics.GlobalMetricsRegistry.ResetScheduleNameMetrics(schedule)
 		}
 	}
 	clear(seen)

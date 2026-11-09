@@ -2,6 +2,7 @@ package schedule_watcher
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -13,10 +14,10 @@ import (
 	"ydbcp/internal/types"
 	"ydbcp/internal/util/ticker"
 	"ydbcp/internal/watchers"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
+	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
@@ -746,16 +747,26 @@ func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
 		},
 	}
 	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
-	dbConnector := db.NewMockDBConnector(
-		db.WithBackupSchedules(scheduleMap),
-		db.WithBackups(map[string]types.Backup{
-			backupID: {ID: backupID, Size: 2048},
-		}),
-	)
+	dbConnector := &scheduleMetricsDB{
+		DBConnector: db.NewMockDBConnector(
+			db.WithBackupSchedules(scheduleMap),
+			db.WithBackups(map[string]types.Backup{
+				backupID: {ID: backupID, Size: 2048},
+			}),
+		),
+	}
 	seen := make(map[string]*types.BackupSchedule)
 
-	for _, name := range []string{"old_schedule", "new_schedule"} {
-		schedule.Name = &name
+	for _, step := range []struct {
+		name      string
+		backupErr error
+	}{
+		{name: "old_schedule"},
+		{name: "new_schedule"},
+		{name: "renamed_schedule", backupErr: errors.New("backup lookup failed")},
+	} {
+		dbConnector.backupErr = step.backupErr
+		schedule.Name = &step.name
 		scheduleMap[schedule.ID] = schedule
 		ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
 
@@ -766,7 +777,7 @@ func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
 			for _, metric := range family.Metric {
 				for _, label := range metric.Label {
 					if label.GetName() == "schedule_name" {
-						assert.Equal(t, name, label.GetValue(), family.GetName())
+						assert.Equal(t, step.name, label.GetValue(), family.GetName())
 					}
 				}
 				values[family.GetName()] += metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
@@ -775,7 +786,21 @@ func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
 
 		assert.Equal(t, float64(recoveryPoint.Unix()), values["schedules_last_backup_timestamp"])
 		assert.Equal(t, float64(1), values["schedules_succeeded_count"])
+		assert.Contains(t, values, "backups_failed_count")
+		assert.Equal(t, float64(0), values["backups_failed_count"])
 		assert.Equal(t, float64(1), values["backups_succeeded_count"])
 		assert.Equal(t, float64(2048), values["backups_size_bytes"])
 	}
+}
+
+type scheduleMetricsDB struct {
+	db.DBConnector
+	backupErr error
+}
+
+func (d *scheduleMetricsDB) SelectBackups(ctx context.Context, query queries.ReadTableQuery) ([]*types.Backup, error) {
+	if d.backupErr != nil {
+		return nil, d.backupErr
+	}
+	return d.DBConnector.SelectBackups(ctx, query)
 }
