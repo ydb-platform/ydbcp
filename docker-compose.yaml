@@ -81,12 +81,9 @@ services:
       - ydbcp-net
 
   s3:
-    # Previously image: quay.io/minio/minio; the upstream image was removed (pull returns 401).
-    # https://www.ibm.com/support/pages/minio-image-removal-quay-registry
     image: cgr.dev/chainguard/minio@sha256:bd014394a80898e68c149f2311fdf8d5a2c2f3bb2c33b9327ae6d02b4b065ae1
     hostname: ${S3_NAME}
     container_name: ${S3_NAME}
-    # Avoid pre-created /data/.minio.sys metadata and cross-device rename errors.
     command: server /data/e2e --console-address ":9001"
     environment:
       MINIO_ROOT_USER: ${S3_ACCESS_KEY}
