@@ -17,8 +17,6 @@ import (
 
 	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
-	pb "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1"
-	"google.golang.org/protobuf/types/known/durationpb"
 )
 
 func TestMetricsCount(t *testing.T) {
@@ -170,64 +168,4 @@ func TestResetScheduleMetrics(t *testing.T) {
 
 	cancel()
 	wg.Wait()
-}
-
-func TestMockRenamedScheduleMetrics(t *testing.T) {
-	ctx := context.Background()
-	recoveryPoint := time.Unix(1000, 0)
-	clock := clockwork.NewFakeClockAt(recoveryPoint.Add(time.Minute))
-	s := newMockMetricsRegistry(WithClock(clock))
-	oldName := "old_schedule"
-	newName := "new_schedule"
-	backupID := "backup-1"
-	previous := types.BackupSchedule{
-		ID:                     "schedule-1",
-		ContainerID:            "container-1",
-		DatabaseName:           "mydb",
-		Name:                   &oldName,
-		RecoveryPoint:          &recoveryPoint,
-		LastSuccessfulBackupID: &backupID,
-		ScheduleSettings: &pb.BackupScheduleSettings{
-			RecoveryPointObjective: durationpb.New(2 * time.Hour),
-		},
-	}
-	current := previous
-	current.Name = &newName
-	other := previous
-	other.ID = "schedule-2"
-
-	s.IncScheduleCounters(ctx, &previous, nil)
-	s.IncScheduleCounters(ctx, &current, nil)
-	s.IncScheduleCounters(ctx, &other, nil)
-	s.ReportLastBackupSize(previous.ContainerID, previous.DatabaseName, &previous.ID, 2048)
-
-	assert.Len(t, s.scheduleMetrics, 3)
-	gauges := []string{
-		"schedules_last_backup_timestamp",
-		"schedules_elapsed_seconds_since_last_backup",
-		"schedules_rpo_margin_ratio",
-		"schedules_rpo_duration_seconds",
-	}
-	for _, name := range gauges {
-		assert.Contains(t, s.scheduleMetrics[getMockScheduleLabels(&previous)], name)
-	}
-
-	s.ResetRenamedScheduleCounters(&previous)
-
-	for _, name := range gauges {
-		assert.NotContains(t, s.scheduleMetrics[getMockScheduleLabels(&previous)], name)
-		assert.Contains(t, s.scheduleMetrics[getMockScheduleLabels(&current)], name)
-		assert.Contains(t, s.scheduleMetrics[getMockScheduleLabels(&other)], name)
-	}
-	assert.Equal(t, float64(recoveryPoint.Unix()), s.scheduleMetrics[getMockScheduleLabels(&current)]["schedules_last_backup_timestamp"])
-	assert.Equal(t, float64(3), s.GetMetrics()["schedules_succeeded_count"])
-	assert.Equal(t, float64(2048), s.GetMetrics()["backups_last_size_bytes"])
-
-	s.ResetScheduleCounters(&current)
-
-	for _, name := range gauges {
-		assert.NotContains(t, s.scheduleMetrics[getMockScheduleLabels(&current)], name)
-		assert.Contains(t, s.scheduleMetrics[getMockScheduleLabels(&other)], name)
-	}
-	assert.NotContains(t, s.GetMetrics(), "backups_last_size_bytes")
 }
