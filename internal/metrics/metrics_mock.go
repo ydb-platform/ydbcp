@@ -2,8 +2,6 @@ package metrics
 
 import (
 	"context"
-	"fmt"
-	"strings"
 	"sync"
 	"ydbcp/internal/types"
 
@@ -16,14 +14,6 @@ type MockMetricsRegistry struct {
 	mutex   sync.Mutex
 	metrics map[string]float64
 	clock   clockwork.Clock
-}
-
-func mockScheduleMetricSuffix(schedule *types.BackupSchedule) string {
-	name := ""
-	if schedule.Name != nil {
-		name = *schedule.Name
-	}
-	return fmt.Sprintf("{%q,%q,%q,%q}", schedule.ContainerID, schedule.DatabaseName, schedule.ID, name)
 }
 
 func (s *MockMetricsRegistry) GetReg() *prometheus.Registry {
@@ -96,14 +86,7 @@ func (s *MockMetricsRegistry) ReportLastBackupSize(
 }
 
 func (s *MockMetricsRegistry) GetMetrics() map[string]float64 {
-	s.mutex.Lock()
-	defer s.mutex.Unlock()
-	values := make(map[string]float64)
-	for key, value := range s.metrics {
-		name, _, _ := strings.Cut(key, "{")
-		values[name] += value
-	}
-	return values
+	return s.metrics
 }
 
 func (s *MockMetricsRegistry) IncApiCallsCounter(serviceName string, methodName string, status string) {
@@ -177,44 +160,41 @@ func (s *MockMetricsRegistry) IncScheduleCounters(
 ) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	suffix := mockScheduleMetricSuffix(schedule)
 	if err != nil {
-		s.metrics["schedules_failed_count"+suffix]++
+		s.metrics["schedules_failed_count"]++
 	} else {
-		s.metrics["schedules_succeeded_count"+suffix]++
+		s.metrics["schedules_succeeded_count"]++
 	}
 	if schedule.RecoveryPoint != nil {
-		s.metrics["schedules_last_backup_timestamp"+suffix] = float64(schedule.RecoveryPoint.Unix())
-		s.metrics["schedules_elapsed_seconds_since_last_backup"+suffix] = s.clock.Since(*schedule.RecoveryPoint).Seconds()
+		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.RecoveryPoint.Unix())
+		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(*schedule.RecoveryPoint).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			info := schedule.GetBackupInfo(s.clock)
-			s.metrics["schedules_rpo_margin_ratio"+suffix] = info.LastBackupRpoMarginRatio
-			s.metrics["schedules_rpo_duration_seconds"+suffix] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+			s.metrics["schedules_rpo_margin_ratio"] = info.LastBackupRpoMarginRatio
+			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
-		s.metrics["schedules_last_backup_timestamp"+suffix] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
-		s.metrics["schedules_elapsed_seconds_since_last_backup"+suffix] = s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds()
+		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
+		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
 			fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
-			s.metrics["schedules_rpo_margin_ratio"+suffix] = fakeLastBackupRpoMarginRatio
-			s.metrics["schedules_rpo_duration_seconds"+suffix] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+			s.metrics["schedules_rpo_margin_ratio"] = fakeLastBackupRpoMarginRatio
+			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	}
 }
 
 func (s *MockMetricsRegistry) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
-	s.ResetScheduleCounters(schedule, true)
 }
 
 func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	suffix := mockScheduleMetricSuffix(schedule)
-	delete(s.metrics, "schedules_last_backup_timestamp"+suffix)
-	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup"+suffix)
-	delete(s.metrics, "schedules_rpo_margin_ratio"+suffix)
-	delete(s.metrics, "schedules_rpo_duration_seconds"+suffix)
+	delete(s.metrics, "schedules_last_backup_timestamp")
+	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup")
+	delete(s.metrics, "schedules_rpo_margin_ratio")
+	delete(s.metrics, "schedules_rpo_duration_seconds")
 
 	if len(renamedOnly) > 0 && renamedOnly[0] {
 		return
