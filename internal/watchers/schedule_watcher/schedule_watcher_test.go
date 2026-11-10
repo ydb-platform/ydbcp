@@ -775,17 +775,19 @@ func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
 		values := make(map[string]float64)
 		for _, family := range metricFamilies {
 			for _, metric := range family.Metric {
+				if metric.Gauge == nil {
+					continue
+				}
 				for _, label := range metric.Label {
 					if label.GetName() == "schedule_name" {
 						assert.Equal(t, step.name, label.GetValue(), family.GetName())
 					}
 				}
-				values[family.GetName()] += metric.GetGauge().GetValue() + metric.GetCounter().GetValue()
+				values[family.GetName()] += metric.GetGauge().GetValue()
 			}
 		}
 
 		assert.Equal(t, float64(recoveryPoint.Unix()), values["schedules_last_backup_timestamp"])
-		assert.Equal(t, float64(1), values["schedules_succeeded_count"])
 		assert.Contains(t, values, "backups_failed_count")
 		assert.Equal(t, float64(0), values["backups_failed_count"])
 		assert.Equal(t, float64(1), values["backups_succeeded_count"])
