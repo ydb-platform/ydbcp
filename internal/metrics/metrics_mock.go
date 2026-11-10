@@ -11,9 +11,29 @@ import (
 )
 
 type MockMetricsRegistry struct {
-	mutex   sync.Mutex
-	metrics map[string]float64
-	clock   clockwork.Clock
+	mutex           sync.Mutex
+	metrics         map[string]float64
+	scheduleMetrics map[mockScheduleLabels]map[string]float64
+	clock           clockwork.Clock
+}
+
+type mockScheduleLabels struct {
+	containerID  string
+	database     string
+	scheduleID   string
+	scheduleName string
+}
+
+func getMockScheduleLabels(schedule *types.BackupSchedule) mockScheduleLabels {
+	labels := mockScheduleLabels{
+		containerID: schedule.ContainerID,
+		database:    schedule.DatabaseName,
+		scheduleID:  schedule.ID,
+	}
+	if schedule.Name != nil {
+		labels.scheduleName = *schedule.Name
+	}
+	return labels
 }
 
 func (s *MockMetricsRegistry) GetReg() *prometheus.Registry {
@@ -86,7 +106,18 @@ func (s *MockMetricsRegistry) ReportLastBackupSize(
 }
 
 func (s *MockMetricsRegistry) GetMetrics() map[string]float64 {
-	return s.metrics
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	values := make(map[string]float64)
+	for name, value := range s.metrics {
+		values[name] = value
+	}
+	for _, scheduleMetrics := range s.scheduleMetrics {
+		for name, value := range scheduleMetrics {
+			values[name] += value
+		}
+	}
+	return values
 }
 
 func (s *MockMetricsRegistry) IncApiCallsCounter(serviceName string, methodName string, status string) {
@@ -160,41 +191,49 @@ func (s *MockMetricsRegistry) IncScheduleCounters(
 ) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
+	labels := getMockScheduleLabels(schedule)
+	values, ok := s.scheduleMetrics[labels]
+	if !ok {
+		values = make(map[string]float64)
+		s.scheduleMetrics[labels] = values
+	}
 	if err != nil {
-		s.metrics["schedules_failed_count"]++
+		values["schedules_failed_count"]++
 	} else {
-		s.metrics["schedules_succeeded_count"]++
+		values["schedules_succeeded_count"]++
 	}
 	if schedule.RecoveryPoint != nil {
-		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.RecoveryPoint.Unix())
-		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(*schedule.RecoveryPoint).Seconds()
+		values["schedules_last_backup_timestamp"] = float64(schedule.RecoveryPoint.Unix())
+		values["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(*schedule.RecoveryPoint).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			info := schedule.GetBackupInfo(s.clock)
-			s.metrics["schedules_rpo_margin_ratio"] = info.LastBackupRpoMarginRatio
-			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+			values["schedules_rpo_margin_ratio"] = info.LastBackupRpoMarginRatio
+			values["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	} else if schedule.Audit != nil && schedule.Audit.CreatedAt != nil {
-		s.metrics["schedules_last_backup_timestamp"] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
-		s.metrics["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds()
+		values["schedules_last_backup_timestamp"] = float64(schedule.Audit.CreatedAt.AsTime().Unix())
+		values["schedules_elapsed_seconds_since_last_backup"] = s.clock.Since(schedule.Audit.CreatedAt.AsTime()).Seconds()
 		if schedule.ScheduleSettings.RecoveryPointObjective != nil {
 			fakeRpoMargin := s.clock.Since(schedule.Audit.CreatedAt.AsTime())
 			fakeLastBackupRpoMarginRatio := fakeRpoMargin.Seconds() / float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
-			s.metrics["schedules_rpo_margin_ratio"] = fakeLastBackupRpoMarginRatio
-			s.metrics["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
+			values["schedules_rpo_margin_ratio"] = fakeLastBackupRpoMarginRatio
+			values["schedules_rpo_duration_seconds"] = float64(schedule.ScheduleSettings.RecoveryPointObjective.Seconds)
 		}
 	}
 }
 
 func (s *MockMetricsRegistry) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
+	s.ResetScheduleCounters(schedule, true)
 }
 
 func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	delete(s.metrics, "schedules_last_backup_timestamp")
-	delete(s.metrics, "schedules_elapsed_seconds_since_last_backup")
-	delete(s.metrics, "schedules_rpo_margin_ratio")
-	delete(s.metrics, "schedules_rpo_duration_seconds")
+	values := s.scheduleMetrics[getMockScheduleLabels(schedule)]
+	delete(values, "schedules_last_backup_timestamp")
+	delete(values, "schedules_elapsed_seconds_since_last_backup")
+	delete(values, "schedules_rpo_margin_ratio")
+	delete(values, "schedules_rpo_duration_seconds")
 
 	if len(renamedOnly) > 0 && renamedOnly[0] {
 		return
@@ -224,8 +263,9 @@ func GetMetrics() map[string]float64 {
 
 func newMockMetricsRegistry(options ...Option) *MockMetricsRegistry {
 	mock := &MockMetricsRegistry{
-		metrics: make(map[string]float64),
-		clock:   clockwork.NewFakeClock(),
+		metrics:         make(map[string]float64),
+		scheduleMetrics: make(map[mockScheduleLabels]map[string]float64),
+		clock:           clockwork.NewFakeClock(),
 	}
 
 	for _, option := range options {
