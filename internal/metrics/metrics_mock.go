@@ -186,7 +186,6 @@ func (s *MockMetricsRegistry) IncScheduleCounters(
 }
 
 func (s *MockMetricsRegistry) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
-	s.ResetScheduleCounters(schedule, true)
 }
 
 func (s *MockMetricsRegistry) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
