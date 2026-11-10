@@ -407,6 +407,20 @@ func (s *MetricsRegistryImpl) ResetRenamedScheduleCounters(schedule *types.Backu
 func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
 	scheduleNameLabel := ScheduleNameLabel(schedule)
 
+	s.scheduleActionFailedCount.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
+	s.scheduleActionSucceededCount.DeleteLabelValues(
+		schedule.ContainerID,
+		schedule.DatabaseName,
+		schedule.ID,
+		scheduleNameLabel,
+	)
+
 	s.scheduleLastBackupTimestamp.DeleteLabelValues(
 		schedule.ContainerID,
 		schedule.DatabaseName,

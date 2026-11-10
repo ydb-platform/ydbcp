@@ -102,6 +102,9 @@ func TestResetScheduleMetrics(t *testing.T) {
 		scheduleName,
 	).Set(float64(time.Now().Unix()))
 
+	s.scheduleActionFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID, scheduleName).Inc()
+	s.scheduleActionSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID, scheduleName).Inc()
+
 	s.backupsSucceededCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID, UNENCRYPTED_LABEL).Set(1)
 	s.backupsFailedCount.WithLabelValues(schedule.ContainerID, schedule.DatabaseName, schedule.ID).Set(0)
 
@@ -145,6 +148,18 @@ func TestResetScheduleMetrics(t *testing.T) {
 		assert.Equal(t, 0, int(val))
 	}
 
+	{ // check schedules_failed_count (should be 1)
+		val, found := getMetricValue(metricFamilies, "schedules_failed_count")
+		assert.Equal(t, true, found)
+		assert.Equal(t, 1, int(val))
+	}
+
+	{ // check schedules_succeeded_count (should be 1)
+		val, found := getMetricValue(metricFamilies, "schedules_succeeded_count")
+		assert.Equal(t, true, found)
+		assert.Equal(t, 1, int(val))
+	}
+
 	GlobalMetricsRegistry.ResetScheduleCounters(&schedule)
 
 	// check metrics after ResetScheduleCounters
@@ -163,6 +178,16 @@ func TestResetScheduleMetrics(t *testing.T) {
 
 	{ // check backups_succeeded_count (should be deleted)
 		_, found := getMetricValue(metricFamilies, "backups_failed_count")
+		assert.Equal(t, false, found)
+	}
+
+	{ // check schedules_failed_count (should be deleted)
+		_, found := getMetricValue(metricFamilies, "schedules_failed_count")
+		assert.Equal(t, false, found)
+	}
+
+	{ // check schedules_succeeded_count (should be deleted)
+		_, found := getMetricValue(metricFamilies, "schedules_succeeded_count")
 		assert.Equal(t, false, found)
 	}
 
