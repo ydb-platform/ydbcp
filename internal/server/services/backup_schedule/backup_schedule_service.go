@@ -282,6 +282,7 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 	schedule.SourcePaths = request.SourcePaths
 	schedule.SourcePathsToExclude = request.SourcePathsToExclude
 
+	prevSchedule := *schedule
 	if len(request.ScheduleName) > 0 {
 		schedule.Name = &request.ScheduleName
 	}
@@ -329,6 +330,10 @@ func (s *BackupScheduleService) UpdateBackupSchedule(
 		)
 		s.IncApiCallsCounter(methodName, codes.Internal)
 		return nil, status.Error(codes.Internal, "can't update backup schedule")
+	}
+
+	if metrics.ScheduleNameLabel(&prevSchedule) != metrics.ScheduleNameLabel(schedule) {
+		metrics.GlobalMetricsRegistry.ResetRenamedScheduleCounters(&prevSchedule)
 	}
 
 	xlog.Debug(ctx, methodName, zap.Stringer(log_keys.BackupSchedule, schedule))
