@@ -286,17 +286,19 @@ func (s *MetricsRegistryImpl) ReportLastBackupSize(
 	s.lastBackupSizeBytes.WithLabelValues(containerId, database, scheduleIdLabel).Set(float64(sizeBytes))
 }
 
+func ScheduleNameLabel(schedule *types.BackupSchedule) string {
+	if schedule.Name == nil {
+		return ""
+	}
+	return *schedule.Name
+}
+
 func (s *MetricsRegistryImpl) IncScheduleCounters(
 	ctx context.Context,
 	schedule *types.BackupSchedule,
 	err error,
 ) {
-	var scheduleNameLabel string
-	if schedule.Name != nil {
-		scheduleNameLabel = *schedule.Name
-	} else {
-		scheduleNameLabel = ""
-	}
+	scheduleNameLabel := ScheduleNameLabel(schedule)
 
 	if err != nil {
 		s.scheduleActionFailedCount.WithLabelValues(
@@ -403,12 +405,7 @@ func (s *MetricsRegistryImpl) ResetRenamedScheduleCounters(schedule *types.Backu
 }
 
 func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
-	var scheduleNameLabel string
-	if schedule.Name != nil {
-		scheduleNameLabel = *schedule.Name
-	} else {
-		scheduleNameLabel = ""
-	}
+	scheduleNameLabel := ScheduleNameLabel(schedule)
 
 	s.scheduleLastBackupTimestamp.DeleteLabelValues(
 		schedule.ContainerID,
