@@ -148,13 +148,13 @@ func TestResetScheduleMetrics(t *testing.T) {
 		assert.Equal(t, 0, int(val))
 	}
 
-	{ // check schedules_failed_count (should be 1)
+	{
 		val, found := getMetricValue(metricFamilies, "schedules_failed_count")
 		assert.Equal(t, true, found)
 		assert.Equal(t, 1, int(val))
 	}
 
-	{ // check schedules_succeeded_count (should be 1)
+	{
 		val, found := getMetricValue(metricFamilies, "schedules_succeeded_count")
 		assert.Equal(t, true, found)
 		assert.Equal(t, 1, int(val))
@@ -181,12 +181,12 @@ func TestResetScheduleMetrics(t *testing.T) {
 		assert.Equal(t, false, found)
 	}
 
-	{ // check schedules_failed_count (should be deleted)
+	{
 		_, found := getMetricValue(metricFamilies, "schedules_failed_count")
 		assert.Equal(t, false, found)
 	}
 
-	{ // check schedules_succeeded_count (should be deleted)
+	{
 		_, found := getMetricValue(metricFamilies, "schedules_succeeded_count")
 		assert.Equal(t, false, found)
 	}
