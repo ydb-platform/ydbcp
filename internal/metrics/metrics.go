@@ -54,7 +54,8 @@ type MetricsRegistry interface {
 	ReportScheduleBackupsStatus(schedule *types.BackupSchedule, lastBackupEncrypted bool)
 	ReportLastBackupSize(containerId string, database string, scheduleId *string, sizeBytes int64)
 	IncScheduleCounters(ctx context.Context, schedule *types.BackupSchedule, err error)
-	ResetScheduleCounters(schedule *types.BackupSchedule)
+	ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool)
+	ResetRenamedScheduleCounters(schedule *types.BackupSchedule)
 }
 
 type MetricsRegistryImpl struct {
@@ -285,17 +286,19 @@ func (s *MetricsRegistryImpl) ReportLastBackupSize(
 	s.lastBackupSizeBytes.WithLabelValues(containerId, database, scheduleIdLabel).Set(float64(sizeBytes))
 }
 
+func ScheduleNameLabel(schedule *types.BackupSchedule) string {
+	if schedule.Name == nil {
+		return ""
+	}
+	return *schedule.Name
+}
+
 func (s *MetricsRegistryImpl) IncScheduleCounters(
 	ctx context.Context,
 	schedule *types.BackupSchedule,
 	err error,
 ) {
-	var scheduleNameLabel string
-	if schedule.Name != nil {
-		scheduleNameLabel = *schedule.Name
-	} else {
-		scheduleNameLabel = ""
-	}
+	scheduleNameLabel := ScheduleNameLabel(schedule)
 
 	if err != nil {
 		s.scheduleActionFailedCount.WithLabelValues(
@@ -397,13 +400,12 @@ func (s *MetricsRegistryImpl) IncScheduleCounters(
 	}
 }
 
-func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule) {
-	var scheduleNameLabel string
-	if schedule.Name != nil {
-		scheduleNameLabel = *schedule.Name
-	} else {
-		scheduleNameLabel = ""
-	}
+func (s *MetricsRegistryImpl) ResetRenamedScheduleCounters(schedule *types.BackupSchedule) {
+	s.ResetScheduleCounters(schedule, true)
+}
+
+func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedule, renamedOnly ...bool) {
+	scheduleNameLabel := ScheduleNameLabel(schedule)
 
 	s.scheduleLastBackupTimestamp.DeleteLabelValues(
 		schedule.ContainerID,
@@ -439,6 +441,10 @@ func (s *MetricsRegistryImpl) ResetScheduleCounters(schedule *types.BackupSchedu
 		schedule.ID,
 		scheduleNameLabel,
 	)
+
+	if len(renamedOnly) > 0 && renamedOnly[0] {
+		return
+	}
 
 	s.backupsFailedCount.DeleteLabelValues(
 		schedule.ContainerID,

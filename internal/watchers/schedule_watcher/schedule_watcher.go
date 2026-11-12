@@ -74,6 +74,13 @@ func ScheduleWatcherAction(
 		handlerCtx := schedule.SetLogFields(ctx)
 		err = handler(handlerCtx, db, schedule)
 		metrics.GlobalMetricsRegistry.IncScheduleCounters(handlerCtx, schedule, err)
+		if prevSchedule, ok := seen[schedule.ID]; ok && metrics.ScheduleNameLabel(prevSchedule) != metrics.ScheduleNameLabel(schedule) {
+			xlog.Info(
+				handlerCtx, "dropping metrics with the old backup schedule name",
+				zap.String(log_keys.ScheduleID, schedule.ID),
+			)
+			metrics.GlobalMetricsRegistry.ResetRenamedScheduleCounters(prevSchedule)
+		}
 		reportScheduleBackupMetrics(handlerCtx, db, schedule)
 		if err != nil {
 			xlog.Error(handlerCtx, "error handling backup schedule", zap.Error(err))

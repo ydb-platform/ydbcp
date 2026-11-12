@@ -2,6 +2,7 @@ package schedule_watcher
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -716,4 +717,92 @@ func TestScheduleWatcherDropsStaleScheduleMetrics(t *testing.T) {
 	_, ok := metrics.GetMetrics()["backups_failed_count"]
 	assert.False(t, ok)
 	assert.Empty(t, seen)
+}
+
+func TestScheduleWatcherRenamedScheduleMetrics(t *testing.T) {
+	var wg sync.WaitGroup
+	ctx, cancel := context.WithCancel(context.Background())
+	defer wg.Wait()
+	defer cancel()
+
+	clock := clockwork.NewFakeClockAt(fourPM)
+	cfg := &config.MetricsServerConfig{BindAddress: "127.0.0.1", BindPort: 0}
+	metrics.InitializeMetricsRegistry(ctx, &wg, cfg, clock)
+
+	noopHandler := func(context.Context, db.DBConnector, *types.BackupSchedule) error { return nil }
+
+	backupID := "backup-1"
+	availableStatus := types.BackupStateAvailable
+	recoveryPoint := fourPM.Add(-time.Minute)
+	schedule := types.BackupSchedule{
+		ID:                     "schedule-1",
+		ContainerID:            "container-1",
+		Status:                 types.BackupScheduleStateActive,
+		DatabaseName:           "mydb",
+		LastSuccessfulBackupID: &backupID,
+		LastBackupStatus:       &availableStatus,
+		RecoveryPoint:          &recoveryPoint,
+		ScheduleSettings: &pb.BackupScheduleSettings{
+			RecoveryPointObjective: durationpb.New(2 * time.Hour),
+		},
+	}
+	scheduleMap := map[string]types.BackupSchedule{schedule.ID: schedule}
+	dbConnector := &scheduleMetricsDB{
+		DBConnector: db.NewMockDBConnector(
+			db.WithBackupSchedules(scheduleMap),
+			db.WithBackups(map[string]types.Backup{
+				backupID: {ID: backupID, Size: 2048},
+			}),
+		),
+	}
+	seen := make(map[string]*types.BackupSchedule)
+
+	for _, step := range []struct {
+		name      string
+		backupErr error
+	}{
+		{name: "old_schedule"},
+		{name: "new_schedule"},
+		{name: "renamed_schedule", backupErr: errors.New("backup lookup failed")},
+	} {
+		dbConnector.backupErr = step.backupErr
+		schedule.Name = &step.name
+		scheduleMap[schedule.ID] = schedule
+		ScheduleWatcherAction(ctx, time.Minute, dbConnector, noopHandler, clock, seen)
+
+		metricFamilies, err := metrics.GlobalMetricsRegistry.GetReg().Gather()
+		assert.NoError(t, err)
+		values := make(map[string]float64)
+		for _, family := range metricFamilies {
+			for _, metric := range family.Metric {
+				if metric.Gauge == nil {
+					continue
+				}
+				for _, label := range metric.Label {
+					if label.GetName() == "schedule_name" {
+						assert.Equal(t, step.name, label.GetValue(), family.GetName())
+					}
+				}
+				values[family.GetName()] += metric.GetGauge().GetValue()
+			}
+		}
+
+		assert.Equal(t, float64(recoveryPoint.Unix()), values["schedules_last_backup_timestamp"])
+		assert.Contains(t, values, "backups_failed_count")
+		assert.Equal(t, float64(0), values["backups_failed_count"])
+		assert.Equal(t, float64(1), values["backups_succeeded_count"])
+		assert.Equal(t, float64(2048), values["backups_size_bytes"])
+	}
+}
+
+type scheduleMetricsDB struct {
+	db.DBConnector
+	backupErr error
+}
+
+func (d *scheduleMetricsDB) SelectBackups(ctx context.Context, query queries.ReadTableQuery) ([]*types.Backup, error) {
+	if d.backupErr != nil {
+		return nil, d.backupErr
+	}
+	return d.DBConnector.SelectBackups(ctx, query)
 }
