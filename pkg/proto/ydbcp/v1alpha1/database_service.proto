@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package ydbcp.v1alpha1;
+option go_package = "github.com/ydb-platform/ydbcp/pkg/proto/ydbcp/v1alpha1;ydbcp";
+
+import "ydbcp/v1alpha1/database.proto";
+import "ydbcp/v1alpha1/operation.proto";
+import "google/protobuf/duration.proto";
+
+service DatabaseService {
+  rpc ListDatabases(ListDatabasesRequest) returns (ListDatabasesResponse);
+
+  rpc GetDatabase(GetDatabaseRequest) returns (Database);
+
+  //rpc CreateDatabase(CreateDatabaseRequest) returns (Operation);
+
+  //should it accept CreateDatabaseRequest, or maybe Database?
+  rpc ImportDatabase(ImportDatabaseRequest) returns (Database);
+}
+
+message ListDatabasesRequest {
+  string container_id = 1;
+  string database_name_mask = 2;
+  uint32 page_size = 1000;
+  string page_token = 1001;
+}
+
+message ListDatabasesResponse {
+  repeated Database databases = 1;
+  string next_page_token = 2;
+}
+
+message GetDatabaseRequest {
+  string id = 1;
+}
+
+message CreateDatabaseRequest {
+  string iam_region_id = 1;
+  string iam_container_id = 2;
+  string iam_folder_id = 3;
+  string database_name = 4;
+  string database_endpoint = 5;
+  DatabaseKind kind = 6;
+  ComputeResources compute_resources = 7;
+  DatabaseConfig database_config = 8; //should it be here?
+}
+
+message ImportDatabaseRequest {
+  string iam_region_id = 1;
+  string iam_container_id = 2;
+  string iam_folder_id = 3;
+  string database_name = 4;
+  string database_endpoint = 5;
+  DatabaseKind kind = 6;
+  ComputeResources compute_resources = 7;
+  DatabaseConfig database_config = 8; //should it be here?
+}
