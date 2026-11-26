@@ -206,6 +206,27 @@ func TestRetryWithOpsLogic(t *testing.T) {
 	}
 }
 
+func TestRetryUsesBackoffWithoutBackupOperation(t *testing.T) {
+	ctx := context.Background()
+	tbwr := &types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{Audit: &pb.AuditInfo{CreatedAt: t1}},
+		Retries:             1,
+		RetryConfig: &pb.RetryConfig{
+			Retries: &pb.RetryConfig_MaxBackoff{MaxBackoff: durationpb.New(time.Hour)},
+		},
+	}
+	clock := clockwork.NewFakeClockAt(t1.AsTime().Add(MIN_BACKOFF))
+	decision, err := MakeRetryDecision(ctx, tbwr, nil, clock)
+	require.NoError(t, err)
+	require.Equal(t, RunNewTb, decision)
+
+	// The export fails to start, so only the attempt count changes.
+	tbwr.IncRetries()
+	decision, err = MakeRetryDecision(ctx, tbwr, nil, clock)
+	require.NoError(t, err)
+	require.Equal(t, Skip, decision)
+}
+
 func TestRetryLogic(t *testing.T) {
 	for _, tt := range []struct {
 		config     *pb.RetryConfig

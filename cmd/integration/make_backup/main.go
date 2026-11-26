@@ -76,7 +76,7 @@ func TestInvalidDatabaseBackup(client pb.BackupServiceClient, opClient pb.Operat
 UPSERT INTO Operations 
 (id, type, container_id, database, endpoint, created_at, status, retries, retries_count)
 VALUES 
-("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp(), "RUNNING", 0, 3)
+("%s", "TBWR", "%s", "%s", "%s", CurrentUTCTimestamp() - Interval("PT3M"), "RUNNING", 0, 3)
 `, opID, containerID, databaseName, invalidDatabaseEndpoint,
 	)
 	ctx := context.Background()

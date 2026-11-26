@@ -149,6 +149,8 @@ func MakeRetryDecision(
 	if tbOp != nil {
 		lastState = tbOp.State
 		lastTime = tbOp.Audit.CompletedAt.AsTime()
+	} else if tbwr.Retries > 0 {
+		lastTime = tbwr.Audit.GetCreatedAt().AsTime()
 	}
 	switch lastState {
 	case types.OperationStateDone:
