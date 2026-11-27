@@ -39,6 +39,7 @@ func NewTBWROperationHandler(
 	return func(ctx context.Context, op types.Operation) error {
 		err := TBWROperationHandler(
 			ctx, op, db, client, s3Connector, config.S3, config.ClientConnection, queryBuilderFactory, clock, config.FeatureFlags, kmsProvider,
+			time.Duration(config.OperationProcessor.MinRetryBackoffSeconds)*time.Second,
 		)
 		if err == nil {
 			metrics.GlobalMetricsRegistry.ReportOperationMetrics(op)
@@ -49,7 +50,6 @@ func NewTBWROperationHandler(
 
 const (
 	INTERNAL_MAX_RETRIES = 20
-	MIN_BACKOFF          = time.Minute
 	BACKOFF_EXP          = 1.5
 )
 
@@ -82,7 +82,7 @@ func exp(p int) time.Duration {
 }
 
 func shouldRetry(
-	config *pb.RetryConfig, count int, firstStart time.Time, lastEnd *time.Time, clock clockwork.Clock,
+	config *pb.RetryConfig, count int, firstStart time.Time, lastEnd *time.Time, clock clockwork.Clock, minBackoff time.Duration,
 ) *time.Time {
 	if config == nil {
 		if count == 0 {
@@ -114,8 +114,7 @@ func shouldRetry(
 
 	var t time.Time
 	if lastEnd != nil {
-		t = *lastEnd
-		t = t.Add(exp(count) * MIN_BACKOFF)
+		t = lastEnd.Add(exp(count) * minBackoff)
 	} else {
 		t = clock.Now()
 	}
@@ -135,7 +134,7 @@ func withBackupStateAudit(
 
 func MakeRetryDecision(
 	ctx context.Context, tbwr *types.TakeBackupWithRetryOperation, tbOp *types.TakeBackupOperation,
-	clock clockwork.Clock,
+	clock clockwork.Clock, minBackoff time.Duration,
 ) (RetryDecision, error) {
 	//retrieve last tbOp run time
 	//if there is a tbOp, check its status
@@ -149,6 +148,8 @@ func MakeRetryDecision(
 	if tbOp != nil {
 		lastState = tbOp.State
 		lastTime = tbOp.Audit.CompletedAt.AsTime()
+	} else if tbwr.Retries > 0 {
+		lastTime = tbwr.Audit.GetCreatedAt().AsTime()
 	}
 	switch lastState {
 	case types.OperationStateDone:
@@ -159,7 +160,7 @@ func MakeRetryDecision(
 				xlog.Error(ctx, "no audit for tbwr operation, unable to calculate retry need")
 				return Skip, fmt.Errorf("no audit for OperationID: %s", tbwr.ID)
 			}
-			t := shouldRetry(tbwr.RetryConfig, tbwr.Retries, tbwr.Audit.CreatedAt.AsTime(), &lastTime, clock)
+			t := shouldRetry(tbwr.RetryConfig, tbwr.Retries, tbwr.Audit.CreatedAt.AsTime(), &lastTime, clock, minBackoff)
 			if t != nil {
 				if clock.Now().Compare(*t) >= 0 {
 					return RunNewTb, nil
@@ -259,6 +260,7 @@ func TBWROperationHandler(
 	clock clockwork.Clock,
 	featureFlags config.FeatureFlagsConfig,
 	kmsProvider kp.KmsProvider,
+	minBackoff time.Duration,
 ) error {
 	ctx = xlog.With(ctx, zap.String(log_keys.OperationID, operation.GetID()))
 
@@ -300,7 +302,7 @@ func TBWROperationHandler(
 	switch tbwr.State {
 	case types.OperationStateRunning:
 		{
-			do, err := MakeRetryDecision(ctx, tbwr, lastTbOp, clock)
+			do, err := MakeRetryDecision(ctx, tbwr, lastTbOp, clock, minBackoff)
 			if err != nil {
 				xlog.Error(ctx, "RetryDecision failed", zap.Error(err))
 				tbwr.State = types.OperationStateError

@@ -182,7 +182,7 @@ func TestRetryWithOpsLogic(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			decision, err := MakeRetryDecision(context.TODO(), tt.tbwr, tt.tb, clockwork.NewFakeClockAt(tt.clockTime))
+			decision, err := MakeRetryDecision(context.TODO(), tt.tbwr, tt.tb, clockwork.NewFakeClockAt(tt.clockTime), time.Minute)
 			if err != nil {
 				require.Nil(t, tt.tbwr.Audit)
 			} else {
@@ -195,6 +195,7 @@ func TestRetryWithOpsLogic(t *testing.T) {
 						tt.tbwr.Audit.CreatedAt.AsTime(),
 						&cat,
 						clockwork.NewFakeClockAt(tt.clockTime),
+						time.Minute,
 					)
 					require.Equal(t, r, tt.res)
 				} else {
@@ -204,6 +205,27 @@ func TestRetryWithOpsLogic(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestRetryUsesBackoffWithoutBackupOperation(t *testing.T) {
+	ctx := context.Background()
+	tbwr := &types.TakeBackupWithRetryOperation{
+		TakeBackupOperation: types.TakeBackupOperation{Audit: &pb.AuditInfo{CreatedAt: t1}},
+		Retries:             1,
+		RetryConfig: &pb.RetryConfig{
+			Retries: &pb.RetryConfig_MaxBackoff{MaxBackoff: durationpb.New(time.Hour)},
+		},
+	}
+	clock := clockwork.NewFakeClockAt(t1.AsTime().Add(time.Second))
+	decision, err := MakeRetryDecision(ctx, tbwr, nil, clock, time.Second)
+	require.NoError(t, err)
+	require.Equal(t, RunNewTb, decision)
+
+	// The export fails to start, so only the attempt count changes.
+	tbwr.IncRetries()
+	decision, err = MakeRetryDecision(ctx, tbwr, nil, clock, time.Second)
+	require.NoError(t, err)
+	require.Equal(t, Skip, decision)
 }
 
 func TestRetryLogic(t *testing.T) {
@@ -298,7 +320,7 @@ func TestRetryLogic(t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			require.Equal(t, tt.res, shouldRetry(tt.config, tt.retries, tt.firstStart, tt.lastEnd, clockwork.NewFakeClockAt(tt.clockTime)))
+			require.Equal(t, tt.res, shouldRetry(tt.config, tt.retries, tt.firstStart, tt.lastEnd, clockwork.NewFakeClockAt(tt.clockTime), time.Minute))
 		})
 	}
 }

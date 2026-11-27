@@ -148,6 +148,7 @@ type LogConfig struct {
 type OperationProcessorConfig struct {
 	OperationTtlSeconds      int64 `yaml:"operation_ttl_seconds" default:"86400"`
 	ProcessorIntervalSeconds int64 `yaml:"processor_interval_seconds" default:"10"`
+	MinRetryBackoffSeconds   int64 `yaml:"min_retry_backoff_seconds" default:"60"`
 }
 
 type AuditConfig struct {

@@ -30,6 +30,7 @@ metrics_server:
 operation_processor:
   operation_ttl_seconds: 86400 # 24 hours
   processor_interval_seconds: 2
+  min_retry_backoff_seconds: 1
 
 quota:
   schedules_per_db: 1

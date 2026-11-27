@@ -18,4 +18,5 @@ func TestConfigDefaults(t *testing.T) {
 	cfg, err := InitConfig[Config](ctx, fileName)
 	assert.Empty(t, err)
 	assert.Equal(t, uint16(8080), cfg.MetricsServer.BindPort)
+	assert.Equal(t, int64(60), cfg.OperationProcessor.MinRetryBackoffSeconds)
 }
